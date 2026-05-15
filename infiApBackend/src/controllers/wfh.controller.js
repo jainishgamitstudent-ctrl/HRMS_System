@@ -4,6 +4,7 @@ const User = require("../models/user.model");
 const Team = require("../models/team.model");
 const Department = require("../models/department.model");
 const moment = require("moment");
+const { notifyUser, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
 
 /**
  * Check if a user has WFH permission.
@@ -75,6 +76,22 @@ exports.applyWFH = async (req, res) => {
       reason,
       createdBy: employeeId,
     });
+
+    try {
+      const employee = await User.findById(employeeId).select("name").lean();
+      const employeeName = employee?.name || "An employee";
+      const formattedDate = moment(date).format("MMM DD, YYYY");
+      await notifyRoleUsers({
+        roles: ["hr", "admin", "superadmin"],
+        category: "attendance",
+        headline: `New WFH Request: ${employeeName}`,
+        details: `${employeeName} requested WFH on ${formattedDate}${duration ? ` (${duration})` : ""}.${reason ? ` Reason: ${reason}` : ""}`,
+        sentBy: employeeId,
+        excludeUserId: employeeId,
+      });
+    } catch (notifyErr) {
+      console.warn("[WFH] notifyRoleUsers failed (non-blocking):", notifyErr.message);
+    }
 
     return res.status(200).json({ status: "Success", message: "WFH request submitted", data: { id: wfh._id } });
   } catch (error) {
@@ -312,5 +329,68 @@ exports.getWFHPermissions = async (req, res) => {
     return res.status(200).json({ status: "Success", data });
   } catch (error) {
     return res.status(500).json({ status: "Error", message: "Failed to get WFH permissions", error: error.message });
+  }
+};
+
+/**
+ * Approve or Reject WFH request (HR/Admin only)
+ */
+exports.reviewWFHRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { status, reason } = req.body; // status: "Approved" | "Rejected"
+    const approverId = req.user ? req.user._id : null;
+    const approverName = (req.user && req.user.name) || "Approver";
+    const approverRole = req.user?.role;
+
+    if (!approverId) {
+      return res.status(401).json({ status: "Error", message: "Unauthorized" });
+    }
+    if (!["Approved", "Rejected"].includes(status)) {
+      return res.status(400).json({ status: "Error", message: "Status must be Approved or Rejected" });
+    }
+
+    const wfh = await WFHRequest.findById(requestId);
+    if (!wfh) {
+      return res.status(404).json({ status: "Error", message: "WFH request not found" });
+    }
+
+    const canAct = ["hr", "admin", "superadmin"].includes(approverRole);
+    if (!canAct) {
+      return res.status(403).json({ status: "Error", message: "Only HR/Admin can approve or reject WFH requests" });
+    }
+
+    wfh.status = status;
+    await wfh.save();
+
+    // Notify employee
+    const formattedDate = moment(wfh.date).format("MMM DD, YYYY");
+    await notifyUser({
+      recipient: wfh.employeeId,
+      category: "attendance",
+      headline: status === "Rejected" ? "WFH Request Rejected" : "WFH Request Approved",
+      details: status === "Rejected"
+        ? `Your WFH request for ${formattedDate} was rejected by ${approverName}.${reason ? " Reason: " + reason : ""}`
+        : `Your WFH request for ${formattedDate} has been approved by ${approverName}.`,
+      sentBy: approverId,
+    });
+
+    // Notify the other authority
+    const otherRoles = approverRole === "hr" ? ["admin", "superadmin"] : ["hr", "superadmin"];
+    await notifyRoleUsers({
+      roles: otherRoles,
+      category: "attendance",
+      headline: status === "Rejected" ? "WFH Rejected" : "WFH Approved",
+      details: `${approverName} ${status === "Rejected" ? "rejected" : "approved"} a WFH request for ${formattedDate}.`,
+      sentBy: approverId,
+      excludeUserId: approverId,
+    });
+
+    // Confirmation popup to the approver
+    emitToastToUser(approverId, "success", status === "Rejected" ? "WFH request rejected." : "WFH request approved.");
+
+    return res.status(200).json({ status: "Success", message: `WFH request ${status.toLowerCase()}.`, data: { id: wfh._id, status: wfh.status } });
+  } catch (error) {
+    return res.status(500).json({ status: "Error", message: "Failed to review WFH request", error: error.message });
   }
 };

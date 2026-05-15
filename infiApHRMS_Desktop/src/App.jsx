@@ -127,6 +127,7 @@ const normalizeRole = (role) => {
   if (normalized === 'main admin') return 'Main Admin';
   if (normalized === 'admin') return 'Admin';
   if (normalized === 'hr') return 'HR';
+  if (normalized === 'employee') return 'Employee';
 
   return null;
 };
@@ -137,6 +138,7 @@ const getDashboardPathByRole = (role) => {
   if (normalizedRole === 'Main Admin') return '/main-admin/dashboard';
   if (normalizedRole === 'Admin') return '/admin/dashboard';
   if (normalizedRole === 'HR') return '/dashboard';
+  if (normalizedRole === 'Employee') return '/employee/dashboard';
 
   return '/login';
 };
@@ -300,7 +302,31 @@ function AppContent() {
                 </ProtectedRoute>
               } />
 
-              {/* 3. HR Dashboard Environment (Existing) */}
+              {/* 3. Employee Self-Service Portal */}
+              <Route path="/employee/*" element={
+                <ProtectedRoute allowedRoles={['Employee']}>
+                  <DashboardLayout>
+                    <Routes>
+                      <Route path="/" element={<MyProfile />} />
+                      <Route path="/dashboard" element={<MyProfile />} />
+                      <Route path="/profile" element={<MyProfile />} />
+                      <Route path="/profile/edit" element={<EditProfile />} />
+                      <Route path="/resignation/submit" element={<SubmitResignation />} />
+                      <Route path="/leave" element={<LeaveManagement />} />
+                      <Route path="/leave/requests" element={<LeaveRequests />} />
+                      <Route path="/leave/history" element={<LeaveHistory />} />
+                      <Route path="/attendance" element={<AttendanceDashboard />} />
+                      <Route path="/attendance/records" element={<CheckInRecords />} />
+                      <Route path="/payroll" element={<PayrollManagement />} />
+                      <Route path="/payroll/payslips" element={<PayslipManagement />} />
+                      <Route path="/performance" element={<PerformanceManagement />} />
+                      <Route path="/performance/monthly" element={<MonthlyPerformance />} />
+                    </Routes>
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* 4. HR Dashboard Environment (Existing) */}
               <Route path="/*" element={
                 <ProtectedRoute allowedRoles={['HR']}>
                   <DashboardLayout>
@@ -374,7 +400,7 @@ function AppContent() {
                   </DashboardLayout>
                 </ProtectedRoute>
               } />
-              
+
               {/* 5. Fallback Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>

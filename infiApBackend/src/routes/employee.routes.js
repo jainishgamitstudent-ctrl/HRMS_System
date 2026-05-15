@@ -4,21 +4,20 @@ const employeeController = require("../controllers/employee.controller");
 const { verifyJWT } = require("../middlewares/auth.middleware");
 const { verifyRole } = require("../middlewares/role.middleware");
 
-// Optionally use JWT middleware here to protect these routes
-// const { verifyJWT } = require("../middlewares/auth.middleware");
-// router.use(verifyJWT);
+// All employee routes require authentication
+router.use(verifyJWT);
 
 // Employee Dashboard Home Data
-router.get("/dashboard/home", verifyJWT, employeeController.getDashboardHome);
+router.get("/dashboard/home", employeeController.getDashboardHome);
 
 // Employee Punch (IN / OUT)
-router.post("/emp-punch", verifyJWT, employeeController.empPunch);
+router.post("/emp-punch", employeeController.empPunch);
 
 // Get Attendance History with Check-in/Check-out times
-router.post("/attendance-history", verifyJWT, employeeController.getAttendanceHistory);
+router.post("/attendance-history", employeeController.getAttendanceHistory);
 
 // Get User recent Punch Status
-router.get("/punch-status", verifyJWT, employeeController.getPunchStatus);
+router.get("/punch-status", employeeController.getPunchStatus);
 
 // Get Employee Leave Balance
 router.get("/getemployeeleavebalance", employeeController.getEmployeeLeaveBalance);
@@ -33,7 +32,7 @@ router.get("/early-checkout-count", employeeController.getEarlyCheckoutCount);
 router.get("/Half_Day-count", employeeController.getHalfDayCount);
 
 // Attendance Summary
-router.get("/attendance-summary", verifyJWT, employeeController.getAttendanceSummary);
+router.get("/attendance-summary", employeeController.getAttendanceSummary);
 
 // Missed Punches
 router.get("/missed-punches", employeeController.getMissedPunches);
@@ -45,8 +44,8 @@ router.get("/getemployeeofthemonth", employeeController.getEmployeeOfTheMonth);
 router.get("/getDOB", employeeController.getDOB);
 
 // Leave Applications route
-router.post("/leaveapplications", verifyJWT, employeeController.applyLeave);
-router.get("/leaveapplications", verifyJWT, employeeController.getEmployeeLeaves);
+router.post("/leaveapplications", employeeController.applyLeave);
+router.get("/leaveapplications", employeeController.getEmployeeLeaves);
 
 // Pending approvals route
 router.get("/leaveapprovals", employeeController.getPendingApprovals);
@@ -58,30 +57,30 @@ router.post("/allapprove", employeeController.approveActivity);
 router.get("/directors", employeeController.getDirectors);
 
 // Get Profile Header Info
-router.get("/profile/header", verifyJWT, employeeController.getProfileHeader);
+router.get("/profile/header", employeeController.getProfileHeader);
 
 // Get Personal Information
-router.get("/profile/personal", verifyJWT, employeeController.getPersonalInformation);
+router.get("/profile/personal", employeeController.getPersonalInformation);
 
 // Get Professional Information
-router.get("/profile/professional", verifyJWT, employeeController.getProfessionalInformation);
+router.get("/profile/professional", employeeController.getProfessionalInformation);
 
 // Get Account Information
-router.get("/profile/account", verifyJWT, employeeController.getAccountInformation);
+router.get("/profile/account", employeeController.getAccountInformation);
 
 // Get Profile Documents
-router.get("/profile/documents", verifyJWT, employeeController.getProfileDocuments);
+router.get("/profile/documents", employeeController.getProfileDocuments);
 
 // Get Profile Activity Feed
-router.get("/profile/activity", verifyJWT, employeeController.getProfileActivityFeed);
+router.get("/profile/activity", employeeController.getProfileActivityFeed);
 
 // Get Notification Settings
-router.get("/profile/notifications", verifyJWT, employeeController.getNotificationSettings);
+router.get("/profile/notifications", employeeController.getNotificationSettings);
 
 // Edit Personal Profile
 router.post("/profile/edit", employeeController.editProfile);
-router.get("/profile/me", verifyJWT, employeeController.getAuthenticatedProfile);
-router.patch("/profile/me", verifyJWT, employeeController.updateAuthenticatedProfile);
+router.get("/profile/me", employeeController.getAuthenticatedProfile);
+router.patch("/profile/me", employeeController.updateAuthenticatedProfile);
 
 // Attendance Granular APIs (Reusable - POST for GET)
 router.post("/attendance/stats", employeeController.getAttendanceStats);

@@ -145,6 +145,37 @@ exports.markAllRead = async (req, res) => {
   }
 };
 
+exports.getUnreadCount = async (req, res) => {
+  try {
+    const userId = req.user && req.user._id;
+    if (!userId) {
+      return res.status(401).json({ status: "Error", message: "Unauthorized" });
+    }
+    const orFilters = [{ recipient: userId }, ...getAudienceFilters(req.user)];
+
+    const unreadPersonal = await Notification.countDocuments({
+      isActive: true,
+      recipient: userId,
+      readAt: { $exists: false },
+    });
+
+    const broadcastNotifications = await Notification.find({
+      isActive: true,
+      recipient: { $exists: false },
+      $or: orFilters,
+    }).select("readBy").lean();
+
+    const unreadBroadcast = broadcastNotifications.filter((n) => !hasUserReadBroadcast(n, userId)).length;
+
+    return res.status(200).json({
+      status: "Success",
+      data: { unreadCount: unreadPersonal + unreadBroadcast },
+    });
+  } catch (error) {
+    return res.status(500).json({ status: "Error", message: "Failed to get unread count", error: error.message });
+  }
+};
+
 exports.registerPushToken = async (req, res) => {
   try {
     const userId = req.user && req.user._id;

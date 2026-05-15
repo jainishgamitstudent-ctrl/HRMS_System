@@ -10,7 +10,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { notifications, markAsRead, clearNotifications } = useNotifications();
+  const { notifications, unreadCount, markAsRead, clearNotifications, markAllAsRead } = useNotifications();
   const { staffDirectory, departments, jobs } = useAdminDashboard();
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -19,8 +19,6 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
   const notificationDropdownRef = useRef(null);
   const profileDropdownRef = useRef(null);
   const searchRef = useRef(null);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   // Search Logic
   const filteredResults = useMemo(() => {
@@ -156,7 +154,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
                 </div>
                 {unreadCount > 0 && (
                   <button
-                    onClick={() => notifications.forEach(n => !n.read && markAsRead(n.id))}
+                    onClick={markAllAsRead}
                     className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest bg-white px-2 py-1 rounded-md border border-indigo-100 transition-all"
                   >
                     Clear All

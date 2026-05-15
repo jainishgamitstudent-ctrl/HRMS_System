@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '@/context/UserContext';
+import { useAppTheme } from '@/context/ThemeContext';
 import {
   clearPendingTwoFactorChallenge,
   signInUser,
@@ -24,6 +25,7 @@ import {
 
 export default function SignIn() {
   const { syncUserFromApi } = useUser();
+  const { colors } = useAppTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -80,7 +82,12 @@ export default function SignIn() {
       });
 
       syncUserFromApi(response.user);
-      router.replace('/(employee)');
+      const normalizedRole = (response.role || '').toString().trim().toLowerCase();
+      if (normalizedRole === 'admin' || normalizedRole === 'main_admin' || normalizedRole === 'superadmin') {
+        router.replace('/(admin)' as any);
+      } else {
+        router.replace('/(employee)');
+      }
     } catch (error) {
       Alert.alert('Sign In Failed', error instanceof Error ? error.message : 'Unable to sign in right now.');
     } finally {

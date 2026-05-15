@@ -49,4 +49,12 @@ router.get(
   wfhController.getWFHPermissions
 );
 
+// Approve / Reject WFH request
+router.patch(
+  "/requests/:requestId/review",
+  verifyJWT,
+  verifyRole(["admin", "hr", "superadmin"]),
+  wfhController.reviewWFHRequest
+);
+
 module.exports = router;

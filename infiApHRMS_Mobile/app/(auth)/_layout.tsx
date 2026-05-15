@@ -2,8 +2,16 @@ import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { useUser } from '@/context/UserContext';
 
+const getRoleBasedRoute = (role: string) => {
+  const normalized = (role || '').toString().trim().toLowerCase();
+  if (normalized === 'admin' || normalized === 'main_admin' || normalized === 'superadmin') {
+    return '/(admin)';
+  }
+  return '/(employee)';
+};
+
 export default function AuthLayout() {
-  const { isAuthenticated, isHydrating } = useUser();
+  const { isAuthenticated, isHydrating, user } = useUser();
 
   if (isHydrating) {
     return (
@@ -14,7 +22,7 @@ export default function AuthLayout() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href="/(employee)" />;
+    return <Redirect href={getRoleBasedRoute(user.systemRole) as any} />;
   }
 
   return (

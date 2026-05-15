@@ -9,7 +9,9 @@ const {
     verifyLoginOTP,
     refreshAccessToken,
     logout,
-    getMe
+    getMe,
+    getAllUsers,
+    deleteUser
 } = require("../controllers/auth.controller");
 const { verifyJWT } = require("../middlewares/auth.middleware");
 const { authLimiter } = require("../middlewares/security.middleware");
@@ -28,5 +30,7 @@ router.post("/refresh-token", authLimiter, refreshAccessToken);
 // ===== Protected Routes =====
 router.post("/logout", verifyJWT, logout);
 router.get("/me", verifyJWT, getMe);
+router.get("/users", verifyJWT, getAllUsers);
+router.delete("/users/:id", verifyJWT, deleteUser);
 
 module.exports = router;

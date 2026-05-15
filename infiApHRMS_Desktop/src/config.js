@@ -13,7 +13,7 @@ const getApiUrl = () => {
 export const API_CONFIG = {
   baseURL: getApiUrl(),
   uploadsURL: '/uploads',
-  socketURL: '',
+  socketURL: getApiUrl() || window.location.origin,
 };
 
 export default API_CONFIG;

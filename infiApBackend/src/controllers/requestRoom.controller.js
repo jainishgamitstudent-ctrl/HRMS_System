@@ -1,6 +1,6 @@
 const RequestRoom = require("../models/requestRoom.model");
 const User = require("../models/user.model");
-const { notifyUser } = require("../utils/notifier");
+const { notifyUser, notifyUsers, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
 
 exports.createRoom = async (req, res) => {
     try {
@@ -32,6 +32,23 @@ exports.createRoom = async (req, res) => {
             messages: [],
             relatedLeaveId: relatedLeaveId || null,
         });
+
+        // Notify HR/Admin about new request room (help center / general query)
+        try {
+            const creator = await User.findById(userId).select("name").lean();
+            const creatorName = creator?.name || "An employee";
+            await notifyRoleUsers({
+                roles: ["hr", "admin", "superadmin"],
+                category: "alert",
+                headline: `New Query: ${creatorName}`,
+                details: `${creatorName} submitted "${title}".${description ? " " + description : ""}`,
+                sentBy: userId,
+                relatedRoomId: room._id,
+                excludeUserId: userId,
+            });
+        } catch (notifyErr) {
+            console.warn("[RequestRoom] notifyRoleUsers failed (non-blocking):", notifyErr.message);
+        }
 
         return res.status(201).json({ status: "Success", data: room });
     } catch (error) {
@@ -133,6 +150,24 @@ exports.updateRoomStatus = async (req, res) => {
             sentBy: userId,
         });
 
+        // Notify other participants (HR/Admin) about the status update
+        const otherParticipantIds = room.participants
+            .filter((p) => String(p) !== String(room.createdBy) && String(p) !== String(userId))
+            .map((p) => String(p));
+        if (otherParticipantIds.length > 0) {
+            await notifyUsers({
+                recipients: otherParticipantIds,
+                category: "alert",
+                headline: isReject ? "Request Rejected" : "Request Approved",
+                details: `${approverName} ${status} the request "${room.title}".${messageText ? " Message: " + messageText : ""}`,
+                sentBy: userId,
+                relatedRoomId: room._id,
+            });
+        }
+
+        // Confirmation popup to the approver
+        emitToastToUser(userId, "success", isReject ? "Request rejected." : "Request approved.");
+
         return res.status(200).json({ status: "Success", data: room });
     } catch (error) {
         return res.status(500).json({ status: "Error", message: "Failed to update room", error: error.message });
@@ -168,6 +203,23 @@ exports.addMessage = async (req, res) => {
             text: text.trim(),
         });
         await room.save();
+
+        // Notify other participants about new message
+        const otherParticipantIds = room.participants
+            .filter((p) => String(p) !== String(userId))
+            .map((p) => String(p));
+        if (otherParticipantIds.length > 0) {
+            const sender = await User.findById(userId).select("name").lean();
+            const senderName = sender?.name || "Someone";
+            await notifyUsers({
+                recipients: otherParticipantIds,
+                category: "alert",
+                headline: `New message in "${room.title}"`,
+                details: `${senderName}: ${text.trim().slice(0, 120)}`,
+                sentBy: userId,
+                relatedRoomId: room._id,
+            });
+        }
 
         return res.status(200).json({ status: "Success", data: room });
     } catch (error) {

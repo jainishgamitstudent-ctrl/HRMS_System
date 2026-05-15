@@ -8,6 +8,7 @@ const normalizeRole = (role) => {
     if (value === 'main admin') return 'Main Admin';
     if (value === 'admin') return 'Admin';
     if (value === 'hr') return 'HR';
+    if (value === 'employee') return 'Employee';
 
     return role || null;
 };
@@ -32,10 +33,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     }
 
     if (allowedRoles && !allowedRoles.includes(normalizedRole)) {
-        // Role not authorized - redirect to a specific page or dashboard
-        // For now, redirecting to the main dashboard of their respective role
+        // Role not authorized - redirect to their respective dashboard
         if (normalizedRole === 'Main Admin') return <Navigate to="/main-admin" replace />;
         if (normalizedRole === 'Admin') return <Navigate to="/admin" replace />;
+        if (normalizedRole === 'Employee') return <Navigate to="/employee/dashboard" replace />;
         return <Navigate to="/dashboard" replace />;
     }
 

@@ -527,7 +527,7 @@ const UserManagement = () => {
    const [searchParams, setSearchParams] = useSearchParams();
    const viewParam = searchParams.get('view') || 'hub';
 
-   const { fetchAllUsers, deleteUser, register, loading: authLoading } = useAuth();
+   const { fetchAllUsers, deleteUser, createAdmin, createHR, createEmployee, loading: authLoading } = useAuth();
    
    const [view, setViewInternal] = useState(viewParam);
    const [notification, setNotification] = useState(null);
@@ -635,7 +635,7 @@ const UserManagement = () => {
       if (!adminForm.fullName || !adminForm.email) return;
       showNotification('Provisioning Engine: Synergizing administrative credentials...');
       
-      const res = await register({
+      const res = await createAdmin({
          name: adminForm.fullName,
          email: adminForm.email,
          password: 'TemporaryPassword123!', // Admin created users should reset this
@@ -656,7 +656,7 @@ const UserManagement = () => {
       if (!hrForm.fullName || !hrForm.email) return;
       showNotification('Provisioning Engine: Synergizing HR credentials...');
       
-      const res = await register({
+      const res = await createHR({
          name: hrForm.fullName,
          email: hrForm.email,
          password: 'TemporaryPassword123!', // HR created users should reset this

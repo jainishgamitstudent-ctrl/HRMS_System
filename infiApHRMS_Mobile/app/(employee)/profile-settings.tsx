@@ -1,4 +1,4 @@
-import * as React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Switch, Alert, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -6,15 +6,132 @@ import { BottomNav } from '../../components/BottomNav';
 import { useUser } from '../../context/UserContext';
 import Header from '../../components/layout/Header';
 import { resolveImageSource } from '@/utils/image';
-
 import { useAppTheme } from '@/context/ThemeContext';
+
 export default function ProfileSettingsPage() {
-  const { colors } = useAppTheme();
+  const { colors, isDark, toggleTheme } = useAppTheme();
   const { user, updateSettings } = useUser();
+
+  const styles = useMemo(() => StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scrollContent: {
+      paddingBottom: 120,
+    },
+    profileSummaryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+      gap: 16,
+    },
+    miniAvatar: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      borderWidth: 2,
+      borderColor: colors.border,
+    },
+    miniMeta: {
+      flex: 1,
+    },
+    miniName: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    miniRole: {
+      fontSize: 13,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    editBtn: {
+      backgroundColor: colors.primarySoft,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    editBtnText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    section: {
+      paddingHorizontal: 20,
+      paddingTop: 24,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 16,
+    },
+    sectionHeaderText: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.textSecondary,
+    },
+    infoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+    },
+    infoLabelText: {
+      fontSize: 14,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    infoValueText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: '700',
+      flex: 1,
+      textAlign: 'right',
+      marginLeft: 16,
+    },
+    itemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 12,
+    },
+    itemContent: {
+      flex: 1,
+    },
+    itemLabel: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    itemValue: {
+      fontSize: 12,
+      color: colors.success,
+      fontWeight: '600',
+      marginTop: 2,
+    },
+    logoutBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 20,
+      marginTop: 32,
+      marginBottom: 10,
+    },
+    logoutText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.error,
+    },
+  }), [colors]);
 
   const renderSectionHeader = (icon: any, title: string) => (
     <View style={styles.sectionHeader}>
-      <Ionicons name={icon} size={20} color="#007AFF" />
+      <Ionicons name={icon} size={20} color={colors.primary} />
       <Text style={styles.sectionHeaderText}>{title}</Text>
     </View>
   );
@@ -36,8 +153,8 @@ export default function ProfileSettingsPage() {
   };
 
   const renderItem = (label: string, value?: string, hasArrow?: boolean, isSwitch?: boolean, switchValue?: boolean, onSwitchChange?: (v: boolean) => void, icon?: any, onPress?: () => void) => (
-    <TouchableOpacity 
-      style={styles.itemRow} 
+    <TouchableOpacity
+      style={styles.itemRow}
       activeOpacity={0.7}
       disabled={isSwitch}
       onPress={onPress}
@@ -47,10 +164,10 @@ export default function ProfileSettingsPage() {
         {value && <Text style={styles.itemValue}>{value}</Text>}
       </View>
       {isSwitch ? (
-        <Switch 
-          value={switchValue} 
+        <Switch
+          value={switchValue}
           onValueChange={onSwitchChange}
-          trackColor={{ false: '#e2e8f0', true: '#007AFF' }}
+          trackColor={{ false: colors.border, true: colors.primary }}
           thumbColor="#fff"
         />
       ) : hasArrow ? (
@@ -63,11 +180,10 @@ export default function ProfileSettingsPage() {
 
   return (
     <View style={styles.root}>
-      {/* Unified Header */}
-      <Header 
-        title="Settings" 
+      <Header
+        title="Settings"
         subtitle="App & Account Configuration"
-        showBack={true} 
+        showBack={true}
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -78,7 +194,7 @@ export default function ProfileSettingsPage() {
              <Text style={styles.miniName}>{user.name}</Text>
              <Text style={styles.miniRole}>{user.role}</Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.editBtn}
             onPress={() => router.push('/(employee)/edit-profile')}
           >
@@ -110,7 +226,7 @@ export default function ProfileSettingsPage() {
         {/* App Settings */}
         <View style={styles.section}>
           {renderSectionHeader('settings-outline', 'App Settings')}
-          {/* {renderItem('Dark Mode', undefined, false, true, user.settings.darkMode, (v) => updateSettings({ darkMode: v }))} */}
+          {renderItem('Dark Mode', undefined, false, true, isDark, () => toggleTheme())}
           {renderItem('Language', user.settings.language, true)}
         </View>
 
@@ -138,7 +254,7 @@ export default function ProfileSettingsPage() {
 
         {/* Logout */}
         <TouchableOpacity style={styles.logoutBtn} onPress={() => router.replace('/(auth)/sign-in')}>
-          <Ionicons name="log-out-outline" size={24} color="#ef4444" />
+          <Ionicons name="log-out-outline" size={24} color={colors.error} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
 
@@ -148,120 +264,3 @@ export default function ProfileSettingsPage() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  scrollContent: {
-    paddingBottom: 120,
-  },
-  profileSummaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    gap: 16,
-  },
-  miniAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
-  },
-  miniMeta: {
-    flex: 1,
-  },
-  miniName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  miniRole: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '600',
-  },
-  editBtn: {
-    backgroundColor: '#007AFF22',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  editBtnText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  section: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  sectionHeaderText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1e293b',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  infoLabelText: {
-    fontSize: 14,
-    color: '#94a3b8',
-    fontWeight: '600',
-  },
-  infoValueText: {
-    fontSize: 14,
-    color: '#1e293b',
-    fontWeight: '700',
-    flex: 1,
-    textAlign: 'right',
-    marginLeft: 16,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-  },
-  itemContent: {
-    flex: 1,
-  },
-  itemLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  itemValue: {
-    fontSize: 12,
-    color: '#22c55e',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    marginTop: 32,
-    marginBottom: 10,
-  },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ef4444',
-  },
-});

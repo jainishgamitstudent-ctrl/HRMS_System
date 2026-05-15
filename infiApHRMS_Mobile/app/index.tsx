@@ -3,9 +3,18 @@ import { ActivityIndicator, View } from 'react-native';
 import { useUser } from '@/context/UserContext';
 
 import { useAppTheme } from '@/context/ThemeContext';
+
+const getRoleBasedRoute = (role: string) => {
+  const normalized = (role || '').toString().trim().toLowerCase();
+  if (normalized === 'admin' || normalized === 'main_admin' || normalized === 'superadmin') {
+    return '/(admin)';
+  }
+  return '/(employee)';
+};
+
 export default function Index() {
   const { colors } = useAppTheme();
-  const { isHydrating, isAuthenticated } = useUser();
+  const { isHydrating, isAuthenticated, user } = useUser();
 
   if (isHydrating) {
     return (
@@ -15,5 +24,5 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={isAuthenticated ? '/(employee)' : '/(auth)/sign-in'} />;
+  return <Redirect href={isAuthenticated ? (getRoleBasedRoute(user.systemRole) as any) : '/(auth)/sign-in'} />;
 }

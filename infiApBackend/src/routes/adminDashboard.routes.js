@@ -4,12 +4,9 @@ const adminDashboardController = require("../controllers/adminDashboard.controll
 const { verifyJWT } = require("../middlewares/auth.middleware");
 const { verifyRole } = require("../middlewares/role.middleware");
 
-// All admin dashboard routes require authentication (Admin/HR/MainAdmin)
+// All admin dashboard routes require authentication (Admin or SuperAdmin only)
 router.use(verifyJWT);
-// Simplified role check - allow all authenticated users for now
-router.use((req, res, next) => {
-    next();
-});
+router.use(verifyRole(["admin", "superadmin"]));
 
 // --- Summary & Insights ---
 router.get("/summary", adminDashboardController.getSummaryStats);
@@ -77,6 +74,10 @@ router.patch("/settings", adminDashboardController.updateSystemSettings);
 // --- Leave Management ---
 router.get("/leaves/pending", adminDashboardController.getPendingLeaves);
 router.post("/leaves/action", adminDashboardController.handleLeaveAction);
+
+// --- Admin User Creation ---
+router.post("/hr", adminDashboardController.createHR);
+router.post("/employees", adminDashboardController.createEmployee);
 
 // --- HR Management ---
 router.get("/staff-directory", adminDashboardController.getStaffDirectory);

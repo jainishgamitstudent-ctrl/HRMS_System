@@ -207,6 +207,52 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ── Admin User Creation ───────────────────────────────────────────────
+  const createAdmin = async (userData) => {
+    try {
+      setError(null);
+      setLoading(true);
+      const res = await apiClient.post('/main-admin-dashboard/admin', userData);
+      return { success: true, data: res.data?.user || res.data };
+    } catch (err) {
+      const message = err.response?.data?.message || err.response?.data?.error || 'Failed to create admin account';
+      setError(message);
+      return { success: false, error: message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createHR = async (userData) => {
+    try {
+      setError(null);
+      setLoading(true);
+      const res = await apiClient.post('/admin-dashboard/hr', userData);
+      return { success: true, data: res.data?.user || res.data };
+    } catch (err) {
+      const message = err.response?.data?.message || err.response?.data?.error || 'Failed to create HR account';
+      setError(message);
+      return { success: false, error: message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createEmployee = async (userData) => {
+    try {
+      setError(null);
+      setLoading(true);
+      const res = await apiClient.post('/admin-dashboard/employees', userData);
+      return { success: true, data: res.data?.user || res.data };
+    } catch (err) {
+      const message = err.response?.data?.message || err.response?.data?.error || 'Failed to create employee account';
+      setError(message);
+      return { success: false, error: message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ── Logout ──────────────────────────────────────────────────────────────
   const logout = async () => {
     try {
@@ -243,6 +289,9 @@ export const AuthProvider = ({ children }) => {
         fetchProfile,
         fetchAllUsers,
         deleteUser,
+        createAdmin,
+        createHR,
+        createEmployee,
         setError,
       }}
     >

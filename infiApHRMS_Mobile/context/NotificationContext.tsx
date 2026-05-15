@@ -203,6 +203,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           division: 'General',
           isOnline: true,
           route: getNotificationRoute(getNotificationType(data.category as string)),
+          relatedRoomId: data.relatedRoomId ? String(data.relatedRoomId) : null,
         };
         setToast(pushNotification);
         refreshNotifications();

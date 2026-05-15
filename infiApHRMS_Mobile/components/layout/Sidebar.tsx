@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -25,11 +25,10 @@ import { useNotifications } from '../../context/NotificationContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { resolveImageSource } from '@/utils/image';
 import { signOutUser } from '@/services/auth';
-// import { BlurView } from 'expo-blur';
+import { useAppTheme } from '@/context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 const SIDEBAR_WIDTH = Math.min(width * 0.76, 328);
-const OVERLAY_OPACITY = 0.24;
 const OPEN_DURATION = 320;
 const CLOSE_DURATION = 220;
 
@@ -55,6 +54,7 @@ const Sidebar = () => {
   const insets = useSafeAreaInsets();
   const progress = useSharedValue(0);
   const [isMounted, setIsMounted] = useState(isOpen);
+  const { colors } = useAppTheme();
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const menuItems = MENU_CONFIG.employee;
@@ -92,7 +92,7 @@ const Sidebar = () => {
   });
 
   const backdropStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 1], [0, OVERLAY_OPACITY]),
+    opacity: interpolate(progress.value, [0, 1], [0, 0.24]),
   }));
 
   const contentStyle = useAnimatedStyle(() => ({
@@ -114,6 +114,191 @@ const Sidebar = () => {
       router.replace('/(auth)/sign-in');
     }
   };
+
+  const styles = useMemo(() => StyleSheet.create({
+    flex1: {
+      flex: 1,
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: colors.overlay,
+      zIndex: 9998,
+    },
+    sidebar: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      bottom: 0,
+      width: SIDEBAR_WIDTH,
+      backgroundColor: colors.surface,
+      zIndex: 9999,
+      borderTopRightRadius: 34,
+      borderBottomRightRadius: 34,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 12, height: 0 },
+      shadowOpacity: 0.11,
+      shadowRadius: 24,
+      elevation: 20,
+    },
+    content: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      marginBottom: 20,
+    },
+    logoAndName: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      flex: 1,
+    },
+    brandCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    logo: {
+      width: 52,
+      height: 22,
+    },
+    appName: {
+      fontSize: 17,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    appTagline: {
+      marginTop: 2,
+      fontSize: 9,
+      color: colors.textMuted,
+      fontWeight: '600',
+      letterSpacing: 0.2,
+    },
+    closeBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceAlt,
+      marginLeft: 10,
+    },
+    userProfile: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      marginBottom: 22,
+      backgroundColor: colors.primaryBg,
+      marginHorizontal: 20,
+      paddingVertical: 14,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+    },
+    userAvatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      borderWidth: 2,
+      borderColor: colors.surface,
+    },
+    userInfo: {
+      marginLeft: 12,
+      flex: 1,
+    },
+    userName: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    userRole: {
+      marginTop: 2,
+      fontSize: 11,
+      color: colors.textMuted,
+      fontWeight: '600',
+    },
+    menuScroll: {
+      flex: 1,
+    },
+    menuContainer: {
+      paddingHorizontal: 18,
+      paddingTop: 6,
+      paddingBottom: 18,
+    },
+    menuItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      minHeight: 60,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 16,
+      marginBottom: 6,
+    },
+    activeMenuItem: {
+      backgroundColor: colors.surfaceAlt,
+    },
+    iconWrap: {
+      width: 38,
+      height: 38,
+      borderRadius: 14,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 14,
+    },
+    activeIconWrap: {
+      backgroundColor: colors.borderLight,
+    },
+    menuLabel: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textMuted,
+      flex: 1,
+    },
+    activeMenuLabel: {
+      color: colors.textSecondary,
+    },
+    footer: {
+      paddingHorizontal: 22,
+      paddingTop: 14,
+      paddingBottom: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight,
+    },
+    logoutBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      minHeight: 46,
+      marginBottom: 10,
+    },
+    logoutText: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.error,
+    },
+    versionText: {
+      fontSize: 10,
+      color: colors.textMuted,
+      textAlign: 'center',
+      fontWeight: '600',
+    },
+    badge: {
+      backgroundColor: colors.error,
+      borderRadius: 10,
+      minWidth: 20,
+      height: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 5,
+    },
+    badgeText: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '800',
+    },
+  }), [colors]);
 
   if (!isMounted) {
     return null;
@@ -148,7 +333,7 @@ const Sidebar = () => {
               </View>
             </View>
             <TouchableOpacity onPress={closeSidebar} style={styles.closeBtn} activeOpacity={0.75}>
-              <Ionicons name="close" size={24} color="#64748b" />
+              <Ionicons name="close" size={24} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -162,7 +347,7 @@ const Sidebar = () => {
               <Text style={styles.userName} numberOfLines={1}>{user.name}</Text>
               <Text style={styles.userRole} numberOfLines={1}>{user.role}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </TouchableOpacity>
 
           <ScrollView
@@ -184,7 +369,7 @@ const Sidebar = () => {
                     <Ionicons
                       name={item.icon as any}
                       size={24}
-                      color={isActive ? '#334155' : '#64748b'}
+                      color={isActive ? colors.textSecondary : colors.textMuted}
                     />
                   </View>
                   <Text style={[styles.menuLabel, isActive && styles.activeMenuLabel]}>
@@ -202,7 +387,7 @@ const Sidebar = () => {
 
           <View style={styles.footer}>
             <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={handleSignOut}>
-              <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+              <Ionicons name="log-out-outline" size={20} color={colors.error} />
               <Text style={styles.logoutText}>Sign Out</Text>
             </TouchableOpacity>
             <Text style={styles.versionText}>v1.0.0 (Pre-Alpha)</Text>
@@ -212,190 +397,5 @@ const Sidebar = () => {
     </>
   );
 };
-
-const styles = StyleSheet.create({
-  flex1: {
-    flex: 1,
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15, 23, 42, 0.28)',
-    zIndex: 9998,
-  },
-  sidebar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: SIDEBAR_WIDTH,
-    backgroundColor: '#fff',
-    zIndex: 9999,
-    borderTopRightRadius: 34,
-    borderBottomRightRadius: 34,
-    shadowColor: '#000',
-    shadowOffset: { width: 12, height: 0 },
-    shadowOpacity: 0.11,
-    shadowRadius: 24,
-    elevation: 20,
-  },
-  content: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  logoAndName: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  brandCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  logo: {
-    width: 52,
-    height: 22,
-  },
-  appName: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  appTagline: {
-    marginTop: 2,
-    fontSize: 9,
-    color: '#64748b',
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  closeBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8fafc',
-    marginLeft: 10,
-  },
-  userProfile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    marginBottom: 22,
-    backgroundColor: '#f8fbff',
-    marginHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#eef2f7',
-  },
-  userAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  userInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  userName: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  userRole: {
-    marginTop: 2,
-    fontSize: 11,
-    color: '#64748b',
-    fontWeight: '600',
-  },
-  menuScroll: {
-    flex: 1,
-  },
-  menuContainer: {
-    paddingHorizontal: 18,
-    paddingTop: 6,
-    paddingBottom: 18,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 60,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    marginBottom: 6,
-  },
-  activeMenuItem: {
-    backgroundColor: '#f8fafc',
-  },
-  iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  activeIconWrap: {
-    backgroundColor: '#f1f5f9',
-  },
-  menuLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#64748b',
-    flex: 1,
-  },
-  activeMenuLabel: {
-    color: '#475569',
-  },
-  footer: {
-    paddingHorizontal: 22,
-    paddingTop: 14,
-    paddingBottom: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#eef2f7',
-  },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    minHeight: 46,
-    marginBottom: 10,
-  },
-  logoutText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#ef4444',
-  },
-  versionText: {
-    fontSize: 10,
-    color: '#94a3b8',
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  badge: {
-    backgroundColor: '#ef4444',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-});
 
 export default Sidebar;

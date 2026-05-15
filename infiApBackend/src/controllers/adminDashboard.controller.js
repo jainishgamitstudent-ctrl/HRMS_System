@@ -2288,6 +2288,72 @@ exports.handleLeaveAction = async (req, res) => {
     }
 };
 
+// --- 8.5 Admin User Creation (HR & Employee) ---
+exports.createHR = async (req, res) => {
+    try {
+        const { name, email, password, department, designation, phone } = req.body;
+        if (!name || !email || !password) {
+            return res.status(400).json({ success: false, message: "Name, email, and password are required" });
+        }
+        const existing = await User.findOne({ email: String(email).trim().toLowerCase() });
+        if (existing) return res.status(409).json({ success: false, message: "User with this email already exists" });
+
+        const user = await User.create({
+            name: String(name).trim(),
+            email: String(email).trim().toLowerCase(),
+            password,
+            role: "hr",
+            department,
+            designation,
+            phone,
+            isEmailVerified: true,
+            firstLogin2FAVerified: false,
+        });
+        const userObj = user.toObject();
+        delete userObj.password;
+        res.status(201).json({ success: true, message: "HR account created successfully", user: userObj });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.createEmployee = async (req, res) => {
+    try {
+        const { name, email, password, department, designation, phone, employeeId: providedEmployeeId, reportingManager, annualSalary, employmentType } = req.body;
+        if (!name || !email || !password) {
+            return res.status(400).json({ success: false, message: "Name, email, and password are required" });
+        }
+        const existing = await User.findOne({ email: String(email).trim().toLowerCase() });
+        if (existing) return res.status(409).json({ success: false, message: "User with this email already exists" });
+
+        let employeeId = providedEmployeeId;
+        if (!employeeId) {
+            const count = await User.countDocuments({ role: "employee" });
+            employeeId = `EMP-${String(count + 1).padStart(4, '0')}`;
+        }
+
+        const user = await User.create({
+            name: String(name).trim(),
+            email: String(email).trim().toLowerCase(),
+            password,
+            role: "employee",
+            department,
+            designation,
+            phone,
+            employeeId,
+            reportingManager,
+            annualSalary,
+            employmentType,
+            isEmailVerified: true,
+        });
+        const userObj = user.toObject();
+        delete userObj.password;
+        res.status(201).json({ success: true, message: "Employee created successfully", user: userObj });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 // --- 9. Manage HR Department ---
 exports.getStaffDirectory = async (req, res) => {
     try {

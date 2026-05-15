@@ -2,7 +2,7 @@ const LeaveApplication = require("../models/leaveApplication.model");
 const LeaveBalance = require("../models/leaveBalance.model");
 const User = require("../models/user.model");
 const RequestRoom = require("../models/requestRoom.model");
-const { notifyUser } = require("../utils/notifier");
+const { notifyUser, notifyRoleUsers, notifyUsers, emitToastToUser } = require("../utils/notifier");
 
 const normalizeLeaveDate = (value) => {
     if (typeof value === "string") {
@@ -117,7 +117,7 @@ exports.applyLeave = async (req, res) => {
             const dateRange = normalizedStartDate && normalizedEndDate
                 ? ` (${new Date(normalizedStartDate).toDateString()} - ${new Date(normalizedEndDate).toDateString()})`
                 : "";
-            await RequestRoom.create({
+            const room = await RequestRoom.create({
                 title: `Leave Request: ${LeaveType}${dateRange}`,
                 description: Reason,
                 requestType: "leave",
@@ -129,6 +129,19 @@ exports.applyLeave = async (req, res) => {
                 relatedLeaveId: leaveApp._id,
             });
             console.log(`[Leave] RequestRoom created for leave ${leaveApp._id}`);
+
+            // Notify HR/Admin dashboards about new leave request
+            const employee = await User.findById(userId).select("name").lean();
+            const employeeName = employee?.name || "An employee";
+            await notifyRoleUsers({
+                roles: ["hr", "admin", "superadmin"],
+                category: "leave",
+                headline: `New Leave Request: ${employeeName}`,
+                details: `${employeeName} applied for ${LeaveType}${dateRange}. Reason: ${Reason}`,
+                sentBy: userId,
+                relatedRoomId: room._id,
+                excludeUserId: userId,
+            });
         } catch (roomErr) {
             console.warn("[Leave] RequestRoom creation failed (non-blocking):", roomErr.message);
         }
@@ -272,6 +285,22 @@ exports.approveLeave = async (req, res) => {
                 sentBy: approverID,
                 relatedRoomId: room?._id || null,
             });
+
+            // Notify the other authority (if HR acted, notify Admin; if Admin acted, notify HR)
+            const approverRole = req.user?.role;
+            const otherRoles = approverRole === "hr" ? ["admin", "superadmin"] : ["hr", "superadmin"];
+            await notifyRoleUsers({
+                roles: otherRoles,
+                category: "leave",
+                headline: isReject ? "Leave Rejected" : "Leave Approved",
+                details: `${approverName} ${isReject ? "rejected" : "approved"} ${leave.LeaveType} leave for an employee.${dateRange}`,
+                sentBy: approverID,
+                relatedRoomId: room?._id || null,
+                excludeUserId: approverID,
+            });
+
+            // Confirmation popup to the approver
+            emitToastToUser(approverID, "success", isReject ? "Leave rejected successfully." : "Leave approved successfully.");
         }
 
         res.status(200).json({

@@ -136,8 +136,11 @@ exports.registerUser = async (req, res) => {
         const normalizedEmail = String(email).trim().toLowerCase();
         const normalizedRole = normalizeRole(role);
 
-        if (!normalizedRole) {
-            return res.status(400).json({ message: "Invalid role selected" });
+        // Public registration is only allowed for employee role
+        // Admin and HR accounts must be created by an authorized admin
+        const allowedPublicRole = normalizedRole || "employee";
+        if (!["employee"].includes(allowedPublicRole)) {
+            return res.status(403).json({ message: "Public registration is only allowed for employee role. Admin/HR accounts must be created by an authorized administrator." });
         }
 
         const existingUser = await User.findOne({ email: normalizedEmail });
@@ -503,6 +506,112 @@ exports.logout = async (req, res) => {
 };
 
 /**
+ * @desc    Delete a user (admin/superadmin only)
+ * @route   DELETE /api/auth/users/:id
+ * @access  Private (Admin/SuperAdmin only)
+ */
+exports.deleteUser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const requesterRole = String(req.user.role).toLowerCase().trim();
+
+        if (!["admin", "superadmin", "main_admin"].includes(requesterRole)) {
+            return res.status(403).json({ message: "Access Denied: Only admins can delete users" });
+        }
+
+        const userToDelete = await User.findById(id);
+        if (!userToDelete) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Prevent admins from deleting superadmins or other admins
+        const targetRole = String(userToDelete.role).toLowerCase().trim();
+        if (targetRole === "superadmin" || targetRole === "main_admin") {
+            return res.status(403).json({ message: "Cannot delete superadmin accounts" });
+        }
+        if (targetRole === "admin" && requesterRole !== "superadmin" && requesterRole !== "main_admin") {
+            return res.status(403).json({ message: "Only superadmins can delete admin accounts" });
+        }
+
+        await User.findByIdAndDelete(id);
+        return res.status(200).json({ message: "User deleted successfully" });
+    } catch (error) {
+        logger.error("Delete User Error", { error: error.message });
+        return res.status(500).json({ message: "Server error deleting user" });
+    }
+};
+
+/**
+ * @desc    Get all users (role-based filtering)
+ * @route   GET /api/auth/users
+ * @access  Private (Admin/HR only)
+ */
+exports.getAllUsers = async (req, res) => {
+    try {
+        const requestingUser = req.user;
+        const { role, search, page = 1, limit = 50 } = req.query;
+
+        const filter = {};
+        const requesterRole = String(requestingUser.role).toLowerCase().trim();
+
+        // Role-based visibility rules
+        if (requesterRole === "hr") {
+            // HR can only see employees and managers, never admin/superadmin
+            filter.role = { $nin: ["admin", "superadmin", "main_admin"] };
+        } else if (requesterRole === "admin" || requesterRole === "superadmin" || requesterRole === "main_admin") {
+            // Admin/Superadmin can see all roles (including hr and employee)
+            // Optionally filter by requested role
+            if (role) {
+                filter.role = role;
+            }
+        } else if (requesterRole === "employee") {
+            // Employee can only see themselves
+            filter._id = requestingUser._id;
+        }
+
+        if (search) {
+            const searchRegex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+            if (filter.$or) {
+                filter.$or.push(
+                    { name: searchRegex },
+                    { email: searchRegex },
+                    { employeeId: searchRegex }
+                );
+            } else {
+                filter.$or = [
+                    { name: searchRegex },
+                    { email: searchRegex },
+                    { employeeId: searchRegex }
+                ];
+            }
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const users = await User.find(filter)
+            .select("-password -refreshToken -twoFactorOTP -twoFactorOTPExpires -verificationToken -resetPasswordToken -resetPasswordExpires")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const total = await User.countDocuments(filter);
+
+        return res.status(200).json({
+            message: "Users fetched successfully",
+            data: users.map(sanitizeUser),
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / parseInt(limit)),
+            },
+        });
+    } catch (error) {
+        logger.error("Get All Users Error", { error: error.message });
+        return res.status(500).json({ message: "Server error fetching users" });
+    }
+};
+
+/**
  * @desc    Get current logged in user
  * @route   GET /api/auth/me
  * @access  Private (requires auth middleware)
@@ -535,6 +644,8 @@ module.exports = {
     refreshAccessToken: exports.refreshAccessToken,
     logout: exports.logout,
     getMe: exports.getMe,
+    getAllUsers: exports.getAllUsers,
+    deleteUser: exports.deleteUser,
     // Exported for use in other controllers if needed
     generateAccessToken,
     generateRefreshToken,

@@ -144,7 +144,8 @@ exports.editEmployee = async (req, res) => {
 exports.getAllEmployees = async (req, res) => {
     try {
         const { department, role, search, page = 1, limit = 20 } = req.query;
-        const filter = { role: { $nin: ["main_admin", "superadmin"] } };
+        // HR should only see employee and manager roles — not admin or superadmin
+        const filter = { role: { $nin: ["main_admin", "superadmin", "admin"] } };
         if (department) filter.department = department;
         if (role) filter.designation = role;
         if (search) {
@@ -1684,6 +1685,36 @@ exports.processSalary = async (req, res) => {
             { basicSalary: Number(basicSalary), bonus: Number(bonus || 0), deductions: Number(deductions || 0), allowances: 0, netPay, status },
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
+
+        // Notify employee about payroll update
+        try {
+            const { notifyUser, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
+            const actorName = req.user?.name || "HR/Admin";
+            const actorRole = req.user?.role;
+            await notifyUser({
+                recipient: userId,
+                category: "payroll",
+                headline: `Payroll Updated: ${month} ${year}`,
+                details: `Your salary record for ${month} ${year} has been updated by ${actorName}. Net Pay: ${netPay.toLocaleString()}.`,
+                sentBy: req.user?._id,
+            });
+
+            // Notify the other authority
+            const otherRoles = actorRole === "hr" ? ["admin", "superadmin"] : ["hr", "superadmin"];
+            await notifyRoleUsers({
+                roles: otherRoles,
+                category: "payroll",
+                headline: `Payroll Updated: ${targetUser.name || "Employee"}`,
+                details: `${actorName} updated the salary record for ${targetUser.name || "an employee"} (${month} ${year}).`,
+                sentBy: req.user?._id,
+                excludeUserId: req.user?._id,
+            });
+
+            // Confirmation to actor
+            emitToastToUser(req.user?._id, "success", `Salary record for ${month} ${year} saved.`);
+        } catch (notifyErr) {
+            console.warn("[Payroll] Notification failed (non-blocking):", notifyErr.message);
+        }
 
         res.status(201).json({ success: true, message: "Salary record saved", data: payroll });
     } catch (error) {

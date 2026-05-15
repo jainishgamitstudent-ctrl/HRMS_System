@@ -45,12 +45,15 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
   // Track open state for submenus
   const [openSubmenu, setOpenSubmenu] = useState(() => {
     if (location.pathname.startsWith('/attendance')) return 'attendance';
+    if (location.pathname.startsWith('/employee/attendance')) return 'attendance';
     if (location.pathname.startsWith('/leave')) return 'leave';
+    if (location.pathname.startsWith('/employee/leave')) return 'leave';
     if (location.pathname.startsWith('/recruitment')) return 'recruitment';
     if (location.pathname.startsWith('/payroll')) return 'payroll';
     if (location.pathname.startsWith('/performance')) return 'performance';
     if (location.pathname.startsWith('/analytics')) return 'analytics';
     if (location.pathname.startsWith('/resignation')) return 'resignation';
+    if (location.pathname.startsWith('/employee/resignation')) return 'resignation';
     if (location.pathname.startsWith('/employees')) return 'employees';
     if (location.pathname.startsWith('/admin/employees')) return 'employees';
     if (location.pathname.startsWith('/admin/department-management')) return 'departments';
@@ -60,13 +63,16 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
 
   const getActiveSubmenu = () => {
     if (location.pathname.startsWith('/attendance')) return 'attendance';
+    if (location.pathname.startsWith('/employee/attendance')) return 'attendance';
     if (location.pathname.startsWith('/leave')) return 'leave';
+    if (location.pathname.startsWith('/employee/leave')) return 'leave';
     if (location.pathname.startsWith('/recruitment')) return 'recruitment';
     if (location.pathname.startsWith('/admin/recruitment-control')) return 'recruitment';
     if (location.pathname.startsWith('/payroll')) return 'payroll';
     if (location.pathname.startsWith('/performance')) return 'performance';
     if (location.pathname.startsWith('/analytics')) return 'analytics';
     if (location.pathname.startsWith('/resignation')) return 'resignation';
+    if (location.pathname.startsWith('/employee/resignation')) return 'resignation';
     if (location.pathname.startsWith('/employees')) return 'employees';
     if (location.pathname.startsWith('/admin/employees')) return 'employees';
     if (location.pathname.startsWith('/admin/department-management')) return 'departments';
@@ -233,6 +239,56 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
       path: '/admin/settings',
       roles: ['Admin']
     },
+
+    // --- EMPLOYEE SELF-SERVICE PORTAL ---
+    {
+      name: 'My Profile',
+      icon: Users,
+      path: '/employee/profile',
+      roles: ['Employee']
+    },
+    {
+      name: 'Attendance',
+      icon: CalendarCheck,
+      path: '/employee/attendance',
+      key: 'attendance',
+      hasSubmenu: true,
+      roles: ['Employee'],
+      subItems: [
+        { name: 'Hub', icon: LayoutDashboard, path: '/employee/attendance' },
+        { name: 'My Records', icon: History, path: '/employee/attendance/records' },
+      ]
+    },
+    {
+      name: 'Leave',
+      icon: Clock,
+      path: '/employee/leave',
+      key: 'leave',
+      hasSubmenu: true,
+      roles: ['Employee'],
+      subItems: [
+        { name: 'Requests', icon: FileText, path: '/employee/leave/requests' },
+        { name: 'History', icon: History, path: '/employee/leave/history' },
+      ]
+    },
+    {
+      name: 'Payroll',
+      icon: CreditCard,
+      path: '/employee/payroll',
+      roles: ['Employee']
+    },
+    {
+      name: 'Performance',
+      icon: BarChart3,
+      path: '/employee/performance',
+      roles: ['Employee']
+    },
+    {
+      name: 'Resignation',
+      icon: DoorOpen,
+      path: '/employee/resignation/submit',
+      roles: ['Employee']
+    },
   ];
 
   const filteredMenuItems = allMenuItems.filter(item => item.roles.includes(role));
@@ -241,6 +297,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
     if (role === 'Main Admin') return 'Super Admin';
     if (role === 'Admin') return 'Company Admin';
     if (role === 'HR') return 'HR Manager';
+    if (role === 'Employee') return 'Employee';
     return 'User';
   };
 
@@ -248,6 +305,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
     if (role === 'Main Admin') return 'text-purple-600 bg-purple-50';
     if (role === 'Admin') return 'text-indigo-600 bg-indigo-50';
     if (role === 'HR') return 'text-emerald-600 bg-emerald-50';
+    if (role === 'Employee') return 'text-blue-600 bg-blue-50';
     return 'text-slate-600 bg-slate-50';
   };
 
@@ -350,6 +408,14 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
             >
               <PlusCircle size={16} />
               Add Employee
+            </button>
+          ) : role === 'Employee' ? (
+            <button
+              onClick={() => navigate('/employee/profile/edit')}
+              className="w-full flex items-center justify-center gap-2 py-3.5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-lg active:scale-95 text-[10px] uppercase tracking-widest"
+            >
+              <Users size={16} />
+              Edit Profile
             </button>
           ) : (
             <button
