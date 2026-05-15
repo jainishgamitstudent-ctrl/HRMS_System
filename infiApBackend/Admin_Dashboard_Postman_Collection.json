@@ -1,0 +1,800 @@
+{
+  "info": {
+    "_postman_id": "c62f93d6-6ad7-4bc2-95cb-e7cfb8e126af",
+    "name": "InfiAP Admin Dashboard APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Admin Dashboard endpoints from /api/v1/admin-dashboard"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Summary and Insights",
+      "item": [
+        {
+          "name": "Get Summary",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/summary"
+          }
+        },
+        {
+          "name": "Get Insights",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/insights"
+          }
+        },
+        {
+          "name": "Get Analytics Report",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/analytics/report"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile and Account Settings",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/profile"
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin User\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/profile"
+          }
+        },
+        {
+          "name": "Get Account Settings",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/account-settings"
+          }
+        },
+        {
+          "name": "Update Personal Information",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Admin User\",\n  \"phoneNumber\": \"9999999999\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/account-settings/personal-information"
+          }
+        },
+        {
+          "name": "Update Security Settings",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"twoFactorAuth\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/account-settings/security"
+          }
+        },
+        {
+          "name": "Update Password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"OldPassword@123\",\n  \"newPassword\": \"NewPassword@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/account-settings/password"
+          }
+        },
+        {
+          "name": "Update Notification Preferences",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailNotifications\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/account-settings/notifications"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Departments",
+      "item": [
+        {
+          "name": "Get Departments",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/departments"
+          }
+        },
+        {
+          "name": "Get Create Department Form",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/departments/create/form"
+          }
+        },
+        {
+          "name": "Create Department",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Engineering\",\n  \"description\": \"Product development team\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/departments"
+          }
+        },
+        {
+          "name": "Get Add Department Employee Form",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/departments/add-employee/form"
+          }
+        },
+        {
+          "name": "Add Department Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentId\": \"{{departmentId}}\",\n  \"userId\": \"{{userId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/departments/add-employee"
+          }
+        },
+        {
+          "name": "Update Department",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Engineering and Product\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/departments/:id"
+          }
+        },
+        {
+          "name": "Delete Department",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/departments/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Teams",
+      "item": [
+        {
+          "name": "Get Teams",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/teams"
+          }
+        },
+        {
+          "name": "Get Team Summary",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/teams/manage/summary"
+          }
+        },
+        {
+          "name": "Create Team",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Frontend Team\",\n  \"departmentId\": \"{{departmentId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/teams"
+          }
+        },
+        {
+          "name": "Update Team",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Frontend Platform Team\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/teams/:id"
+          }
+        },
+        {
+          "name": "Delete Team",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/teams/:id"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payroll",
+      "item": [
+        {
+          "name": "Get Payroll Dashboard",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/payroll/dashboard"
+          }
+        },
+        {
+          "name": "Get Salary Structure",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/payroll/salary-structure"
+          }
+        },
+        {
+          "name": "Create Salary Structure",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"Frontend Developer\",\n  \"baseSalary\": 750000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/payroll/salary-structure"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recruitment",
+      "item": [
+        {
+          "name": "Get Jobs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/jobs"
+          }
+        },
+        {
+          "name": "Get Job Posting Form",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/jobs/posting/form"
+          }
+        },
+        {
+          "name": "Create Job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Frontend Developer\",\n  \"department\": \"Engineering\",\n  \"type\": \"Full-time\",\n  \"status\": \"Open\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/jobs"
+          }
+        },
+        {
+          "name": "Update Job",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Closed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/jobs/:id"
+          }
+        },
+        {
+          "name": "Delete Job",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/jobs/:id"
+          }
+        },
+        {
+          "name": "Get Candidates",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/candidates"
+          }
+        },
+        {
+          "name": "Get Candidate Tracking",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/candidates/tracking"
+          }
+        },
+        {
+          "name": "Get Interview Management",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/candidates/interview-management"
+          }
+        },
+        {
+          "name": "Update Candidate Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Shortlisted\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/candidates/:id/status"
+          }
+        },
+        {
+          "name": "Schedule Interview",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"candidateId\": \"{{candidateId}}\",\n  \"date\": \"2026-04-20\",\n  \"time\": \"11:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/candidates/schedule-interview"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get Notification Panel",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/notifications/panel"
+          }
+        },
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/notifications"
+          }
+        },
+        {
+          "name": "Get Recent Broadcasts",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/notifications/recent-broadcasts"
+          }
+        },
+        {
+          "name": "Get Announcement Form",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/notifications/create/form"
+          }
+        },
+        {
+          "name": "Create Announcement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Holiday Notice\",\n  \"message\": \"Office will remain closed on Friday\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/notifications"
+          }
+        },
+        {
+          "name": "Edit Announcement",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Holiday Notice\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/notifications/:id"
+          }
+        },
+        {
+          "name": "Resend Announcement",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/notifications/:id/resend"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents and Settings",
+      "item": [
+        {
+          "name": "Get Documents",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/documents"
+          }
+        },
+        {
+          "name": "Create Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Security Policy\",\n  \"content\": \"Policy content\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/documents"
+          }
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/documents/:id"
+          }
+        },
+        {
+          "name": "Get System Settings",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/settings"
+          }
+        },
+        {
+          "name": "Update System Settings",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"maintenanceMode\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/settings"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Leave Management",
+      "item": [
+        {
+          "name": "Get Pending Leaves",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/leaves/pending"
+          }
+        },
+        {
+          "name": "Handle Leave Action",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveId\": \"{{leaveId}}\",\n  \"action\": \"Approved\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/leaves/action"
+          }
+        }
+      ]
+    },
+    {
+      "name": "HR Management",
+      "item": [
+        {
+          "name": "Get Staff Directory",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/staff-directory"
+          }
+        },
+        {
+          "name": "Get HR Staff",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/hr-staff"
+          }
+        },
+        {
+          "name": "Update HR Permissions",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hrId\": \"{{hrId}}\",\n  \"permissions\": [\"manage_employees\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/hr-staff/permissions"
+          }
+        },
+        {
+          "name": "Delete HR User",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/hr-staff/:hrId"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Activities",
+      "item": [
+        {
+          "name": "Get Recent Activities",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/activities"
+          }
+        },
+        {
+          "name": "Create Activity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Job posted\",\n  \"description\": \"Posted Frontend Developer role\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/admin-dashboard/activities"
+          }
+        }
+      ]
+    }
+  ]
+}
