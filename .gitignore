@@ -31,3 +31,4 @@ yarn-error.log*
 # Build output
 dist/
 build/
+.claude/worktrees/pensive-panini-8cecfa
