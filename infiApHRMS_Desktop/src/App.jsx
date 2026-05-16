@@ -348,6 +348,11 @@ function AppContent() {
                       {/* Departments — HR can view & create, Admin full access */}
                       <Route path="/departments" element={<AdminDepartments />} />
                       <Route path="/departments/create" element={<CreateDepartment />} />
+                      <Route path="/departments/edit/:id" element={<CreateDepartment />} />
+                      <Route path="/departments/teams" element={<ManageTeams />} />
+                      <Route path="/departments/teams/view/:departmentId" element={<ViewTeams />} />
+                      <Route path="/departments/teams/create" element={<CreateTeam />} />
+                      <Route path="/departments/teams/edit/:id" element={<EditTeam />} />
 
                       <Route path="/attendance" element={<AttendanceDashboard />} />
                       <Route path="/attendance/records" element={<CheckInRecords />} />

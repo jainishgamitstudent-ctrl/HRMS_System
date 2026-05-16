@@ -50,12 +50,12 @@ const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, openMe
     : `/departments/teams/view/${dept.id || dept._id}`;
 
   return (
-    <div className="rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-indigo-100/50 group relative flex flex-col h-full">
+    <div className="rounded-[32px] border border-slate-100 bg-white p-6 shadow-sm transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-indigo-100/50 group relative flex flex-col h-full min-h-[360px]">
       {/* Decorative Gradient Background */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-indigo-100/50 transition-colors duration-500"></div>
 
       <div className="flex justify-between items-start mb-8 relative z-10">
-        <div className="px-2.5 py-1 rounded-lg text-[9px] font-black tracking-wider uppercase bg-slate-50 text-slate-600 border border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-700 group-hover:border-indigo-100 transition-all duration-500 shadow-sm">
+        <div className="px-2.5 py-1 rounded-lg text-[9px] font-black tracking-wider uppercase bg-slate-50 text-slate-600 border border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-700 group-hover:border-indigo-100 transition-all duration-500 shadow-sm truncate max-w-[120px]">
           {dept.departmentCode || dept.sub || 'DEP-NEW'}
         </div>
         
@@ -79,29 +79,29 @@ const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, openMe
         )}
       </div>
 
-      <div className="relative z-10 flex-1">
-        <h3 className="text-2xl font-black text-slate-800 tracking-tight group-hover:text-indigo-600 transition-colors leading-tight mb-2 uppercase">{dept.name}</h3>
-        <div className="flex items-center gap-2 text-slate-400">
-            <span className="text-[10px] font-black uppercase tracking-widest">Head:</span>
-            <p className="text-xs font-bold text-slate-500">{dept.head}</p>
+      <div className="relative z-10 flex-1 min-w-0">
+        <h3 className="text-xl font-black text-slate-800 tracking-tight group-hover:text-indigo-600 transition-colors leading-tight mb-2 uppercase truncate" title={dept.name}>{dept.name}</h3>
+        <div className="flex items-center gap-2 text-slate-400 min-w-0">
+            <span className="text-[10px] font-black uppercase tracking-widest shrink-0">Head:</span>
+            <p className="text-[11px] font-bold text-slate-500 truncate" title={dept.head}>{dept.head}</p>
         </div>
       </div>
 
-      <div className="relative z-10 grid grid-cols-2 gap-4 mt-8 mb-8">
+      <div className="relative z-10 grid grid-cols-2 gap-3 mt-8 mb-8">
         <div className="p-4 rounded-2xl bg-slate-50/50 border border-slate-100 group-hover:bg-white group-hover:shadow-sm transition-all duration-500">
-          <span className="block text-2xl font-black text-slate-800 leading-none mb-2">{dept.teams}</span>
-          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Teams</span>
+          <span className="block text-xl font-black text-slate-800 leading-none mb-1.5">{dept.teams}</span>
+          <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block truncate">Total Teams</span>
         </div>
         <div className="p-4 rounded-2xl bg-slate-50/50 border border-slate-100 group-hover:bg-white group-hover:shadow-sm transition-all duration-500">
-          <span className="block text-2xl font-black text-slate-800 leading-none mb-2">{dept.employees}</span>
-          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Active Staff</span>
+          <span className="block text-xl font-black text-slate-800 leading-none mb-1.5">{dept.employees}</span>
+          <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block truncate">Active Staff</span>
         </div>
       </div>
 
       {isAdmin && (
         <button
           onClick={() => navigate(specificTeamRoute)}
-          className="relative z-10 w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl shadow-slate-100 group-hover:shadow-indigo-200 group-hover:bg-indigo-600 transition-all duration-500 text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95"
+          className="relative z-10 w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl shadow-slate-100 group-hover:shadow-indigo-200 group-hover:bg-indigo-600 transition-all duration-500 text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95"
         >
           View Teams
           <ChevronRight size={14} strokeWidth={3} className="group-hover:translate-x-1 transition-transform" />

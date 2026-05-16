@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import api from '../utils/axios';
 import { useAuth } from './AuthContext';
+import { useNotifications } from './NotificationContext';
 
 const AdminDashboardContext = createContext();
 
@@ -76,16 +77,16 @@ const normalizeDepartment = (department) => ({
     department.departmentHead ||
     department.head ||
     'Unassigned',
-  teams:
-    Number(department.teamCount) ||
-    Number(department.numberOfTeams) ||
-    Number(department.teams) ||
-    0,
-  employees:
-    Number(department.employeeCount) ||
-    Number(department.totalEmployees) ||
-    Number(department.employees) ||
-    0,
+  teams: Math.max(
+    Number(department.teamCount || 0),
+    Number(department.numberOfTeams || 0),
+    Number(department.teams || 0)
+  ),
+  employees: Math.max(
+    Number(department.employeeCount || 0),
+    Number(department.totalEmployees || 0),
+    Number(department.employees || 0)
+  ),
   color: department.color || 'indigo',
   description: department.description || ''
 });
@@ -137,6 +138,7 @@ const normalizeJob = (job) => {
 
 export const AdminDashboardProvider = ({ children }) => {
   const { role } = useAuth();
+  const { addToast } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState(normalizeSummary({}, {
     departments: defaultDepartments.length,
@@ -312,11 +314,14 @@ export const AdminDashboardProvider = ({ children }) => {
       setDepartments((prev) => [created, ...prev]);
       await fetchDepartments();
       await fetchSummary();
+      addToast('success', 'Department created successfully!');
       return { success: true, data: created };
     } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to create department';
+      addToast('error', msg);
       return {
         success: false,
-        error: error.response?.data?.message || error.response?.data?.error || 'Failed to create department'
+        error: msg
       };
     }
   };
@@ -328,11 +333,14 @@ export const AdminDashboardProvider = ({ children }) => {
       setDepartments((prev) => prev.map((dept) => (dept.id === deptId ? updated : dept)));
       await fetchDepartments();
       await fetchSummary();
+      addToast('success', 'Department updated successfully!');
       return { success: true, data: updated };
     } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to update department';
+      addToast('error', msg);
       return {
         success: false,
-        error: error.response?.data?.message || error.response?.data?.error || 'Failed to update department'
+        error: msg
       };
     }
   };
@@ -342,11 +350,14 @@ export const AdminDashboardProvider = ({ children }) => {
       await api.delete(`/admin-dashboard/departments/${deptId}`);
       setDepartments((prev) => prev.filter((dept) => dept.id !== deptId));
       await fetchSummary();
+      addToast('success', 'Department deleted successfully');
       return { success: true };
     } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to delete department';
+      addToast('error', msg);
       return {
         success: false,
-        error: error.response?.data?.message || error.response?.data?.error || 'Failed to delete department'
+        error: msg
       };
     }
   };
@@ -365,17 +376,15 @@ export const AdminDashboardProvider = ({ children }) => {
       const created = normalizeTeam(res.data?.data || requestPayload);
       setTeams((prev) => [created, ...prev]);
       await fetchSummary();
+      addToast('success', 'Team created successfully!');
       return { success: true, data: created };
     } catch (error) {
-      const fallback = normalizeTeam({
-        ...requestPayload,
-        id: `team_local_${Date.now()}`,
-        members: Number(payload.capacity) || 0,
-        type: 'Development',
-        keyMembers: []
-      });
-      setTeams((prev) => [fallback, ...prev]);
-      return { success: false, data: fallback, error: error.response?.data?.error || 'Failed to create team' };
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to create team';
+      addToast('error', msg);
+      return {
+        success: false,
+        error: msg
+      };
     }
   };
 
@@ -386,11 +395,14 @@ export const AdminDashboardProvider = ({ children }) => {
       setTeams((prev) => prev.map((team) => (team.id === teamId ? updated : team)));
       await fetchTeams();
       await fetchSummary();
+      addToast('success', 'Team updated successfully!');
       return { success: true, data: updated };
     } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to update team';
+      addToast('error', msg);
       return {
         success: false,
-        error: error.response?.data?.message || error.response?.data?.error || 'Failed to update team'
+        error: msg
       };
     }
   };
@@ -400,11 +412,14 @@ export const AdminDashboardProvider = ({ children }) => {
       await api.delete(`/admin-dashboard/teams/${teamId}`);
       setTeams((prev) => prev.filter((team) => team.id !== teamId));
       await fetchSummary();
+      addToast('success', 'Team deleted successfully');
       return { success: true };
     } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to delete team';
+      addToast('error', msg);
       return {
         success: false,
-        error: error.response?.data?.message || error.response?.data?.error || 'Failed to delete team'
+        error: msg
       };
     }
   };
@@ -433,28 +448,21 @@ export const AdminDashboardProvider = ({ children }) => {
 
     console.log('[addJob] Sending payload:', requestPayload);
 
-    // Always create a local version so user sees results immediately
-    const localJob = normalizeJob({
-      ...requestPayload,
-      id: `job_local_${Date.now()}`,
-      applicants: 0,
-      postedDate: new Date().toISOString().slice(0, 10),
-      status: 'Active'
-    });
-
     try {
       const res = await api.post('/admin-dashboard/jobs', requestPayload);
       console.log('[addJob] Success:', res.data);
       const created = normalizeJob(res.data?.data || requestPayload);
       setJobs((prev) => [created, ...prev]);
       await fetchSummary();
+      addToast('success', 'Job posted successfully!');
       return { success: true, data: created };
     } catch (error) {
-      const errMsg = error.response?.data?.message || error.response?.data?.error || '';
-      console.error('[addJob] Failed (saving locally):', errMsg, error.response?.data);
-      // Save locally so user still sees the job
-      setJobs((prev) => [localJob, ...prev]);
-      return { success: true, data: localJob }; // treat as success to not block UX
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to post job';
+      addToast('error', msg);
+      return {
+        success: false,
+        error: msg
+      };
     }
   };
 

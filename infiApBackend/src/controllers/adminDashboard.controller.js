@@ -324,18 +324,44 @@ const updateAdminProfileFields = async (adminId, payload) => {
 // --- 1. Dashboard Summary Stats ---
 exports.getSummaryStats = async (req, res) => {
     try {
-        const [totalDepartments, totalEmployees, activeJobs] = await Promise.all([
+        const [
+            totalDepartments,
+            activeDepartments,
+            totalEmployees,
+            activeStaff,
+            totalTeams,
+            activeTeams,
+            activeJobs,
+            pendingLeaves,
+            resignations
+        ] = await Promise.all([
+            Department.countDocuments(),
             Department.countDocuments({ isActive: true }),
-            User.countDocuments({ role: "employee" }),
-            Job.countDocuments({ status: "Open" })
+            User.countDocuments({ role: { $in: ["employee", "hr", "admin"] }, status: { $ne: "Terminate" } }),
+            User.countDocuments({ role: { $in: ["employee", "hr", "admin"] }, status: "Active" }),
+            Team.countDocuments(),
+            Team.countDocuments({ isActive: true }),
+            Job.countDocuments({ status: "Open" }),
+            LeaveApplication.countDocuments({ ApprovalStatus: "Awaiting Approve" }),
+            Resignation.countDocuments({ status: { $in: ["Submitted", "Under Review"] } })
         ]);
 
         res.status(200).json({
             success: true,
             data: {
                 totalDepartments,
+                activeDepartments,
+                departments: activeDepartments,
                 totalEmployees,
-                activeJobs
+                activeStaff,
+                employees: activeStaff,
+                totalTeams,
+                activeTeams,
+                teams: totalTeams,
+                activeJobs,
+                openJobs: activeJobs,
+                pendingLeaves,
+                resignations
             }
         });
     } catch (error) {
@@ -374,7 +400,7 @@ exports.getKeyInsights = async (req, res) => {
 
         // New Hires (joined this month)
         const newHires = await User.countDocuments({
-            role: "employee",
+            role: { $in: ["employee", "hr"] },
             joiningDate: { $gte: startOfMonth }
         });
 
@@ -912,14 +938,20 @@ exports.getDepartments = async (req, res) => {
         
         // Add member counts dynamically for each department
         const deptsWithCounts = await Promise.all(depts.map(async (dept) => {
-            const [employeeCount, teamCount] = await Promise.all([
-                User.countDocuments({ department: dept.name }),
-                Team.countDocuments({ departmentId: dept._id })
+            const [employeeCount, activeStaffCount, totalTeamCount, activeTeamCount] = await Promise.all([
+                User.countDocuments({ department: dept.name, status: { $ne: "Terminate" } }),
+                User.countDocuments({ department: dept.name, status: "Active" }),
+                Team.countDocuments({ departmentId: dept._id }),
+                Team.countDocuments({ departmentId: dept._id, isActive: true })
             ]);
             return {
                 ...dept._doc,
-                employeeCount,
-                teamCount
+                employeeCount: activeStaffCount,
+                totalEmployees: employeeCount,
+                teamCount: totalTeamCount,
+                activeTeams: activeTeamCount,
+                teams: totalTeamCount,
+                employees: activeStaffCount
             };
         }));
 
@@ -954,6 +986,13 @@ exports.createTeam = async (req, res) => {
     try {
         const { name, departmentId, lead, members, icon, color } = req.body;
         const team = await Team.create({ name, departmentId, lead, members, icon, color });
+        
+        // Update the department's team count if the new actual count exceeds the initial planned count
+        const actualTeamCount = await Team.countDocuments({ departmentId, isActive: true });
+        await Department.findByIdAndUpdate(departmentId, {
+            $max: { numberOfTeams: actualTeamCount }
+        });
+
         res.status(201).json({ success: true, data: team });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -965,7 +1004,7 @@ exports.getManageTeamSummary = async (req, res) => {
         const [departments, totalTeams, totalStaff] = await Promise.all([
             Department.find({ isActive: true }).select("name").lean(),
             Team.countDocuments({ isActive: true }),
-            User.countDocuments({ role: "employee" })
+            User.countDocuments({ role: { $in: ["employee", "hr", "admin"] }, status: "Active" })
         ]);
 
         const departmentCards = await Promise.all(
@@ -973,7 +1012,8 @@ exports.getManageTeamSummary = async (req, res) => {
                 const [members, totalDepartmentTeams] = await Promise.all([
                     User.find({
                         department: { $regex: `^${escapeRegex(department.name)}$`, $options: "i" },
-                        role: "employee"
+                        role: { $in: ["employee", "hr", "admin"] },
+                        status: "Active"
                     })
                         .select("name email employeeId designation department profileImage status")
                         .sort({ name: 1 })

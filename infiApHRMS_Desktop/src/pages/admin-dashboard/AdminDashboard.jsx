@@ -19,7 +19,10 @@ import {
    Wallet,
    X,
    Check,
-   DoorOpen
+   DoorOpen,
+   Settings,
+   CreditCard,
+   ShieldCheck
 } from 'lucide-react';
 
 const MONTHS = [
@@ -168,6 +171,16 @@ const AdminDashboard = () => {
       { label: 'Departments', path: '/admin/departments' },
       { label: 'Payroll', path: '/admin/payroll-management' },
       { label: 'Settings', path: '/admin/settings' }
+   ];
+
+   const payrollItems = [
+      { id: 1, name: 'Monthly Payroll', sub: 'Salary Processing', icon: Wallet, path: '/admin/payroll-management' },
+      { id: 2, name: 'Salary Slips', sub: 'Generate & Share', icon: CreditCard, path: '/admin/payroll-management' }
+   ];
+
+   const settingItems = [
+      { id: 1, name: 'Profile Management', sub: 'User Access Control', icon: Users, path: '/admin/profile-management' },
+      { id: 2, name: 'System Security', sub: 'WFH & Permissions', icon: ShieldCheck, path: '/admin/wfh-permissions' }
    ];
 
    return (
@@ -351,15 +364,15 @@ const AdminDashboard = () => {
             </div>
          </div>
 
-         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <div className="xl:col-span-1 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Departments</h3>
                   <button onClick={() => navigate('/admin/departments')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
                </div>
                <div className="space-y-2">
                   {recentDepartments.length > 0 ? recentDepartments.map((department) => (
-                     <div key={department.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 hover:bg-white transition-colors">
+                     <div key={department.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 hover:bg-white transition-colors cursor-pointer" onClick={() => navigate('/admin/departments')}>
                         <p className="text-sm font-black text-slate-900">{department.name}</p>
                         <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400">{department.head}</p>
                         <div className="mt-2.5 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-slate-500">
@@ -372,18 +385,56 @@ const AdminDashboard = () => {
                   )}
                </div>
             </div>
-         </div>
 
-         <div className="flex flex-wrap gap-3">
-            {quickActions.map((action) => (
-               <button
-                  key={action.label}
-                  onClick={() => navigate(action.path)}
-                  className="rounded-full border border-slate-200 bg-white px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-700 hover:border-slate-900 hover:text-slate-900 transition-all"
-               >
-                  {action.label}
-               </button>
-            ))}
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+               <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Payroll</h3>
+                  <button onClick={() => navigate('/admin/payroll-management')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
+               </div>
+               <div className="space-y-2">
+                  {payrollItems.map((item) => (
+                     <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 hover:bg-white transition-colors cursor-pointer group" onClick={() => navigate(item.path)}>
+                        <div className="flex items-center gap-3">
+                           <div className="p-2 rounded-lg bg-white border border-slate-100 group-hover:bg-indigo-50 group-hover:border-indigo-100 transition-colors">
+                              <item.icon size={14} className="text-slate-400 group-hover:text-indigo-600" />
+                           </div>
+                           <div>
+                              <p className="text-sm font-black text-slate-900">{item.name}</p>
+                              <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400">{item.sub}</p>
+                           </div>
+                        </div>
+                        <div className="mt-2.5 flex items-center justify-end">
+                           <ArrowRight size={10} className="text-slate-300 group-hover:text-indigo-500 transition-all group-hover:translate-x-1" />
+                        </div>
+                     </div>
+                  ))}
+               </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+               <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Settings</h3>
+                  <button onClick={() => navigate('/admin/settings')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
+               </div>
+               <div className="space-y-2">
+                  {settingItems.map((item) => (
+                     <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 hover:bg-white transition-colors cursor-pointer group" onClick={() => navigate(item.path)}>
+                        <div className="flex items-center gap-3">
+                           <div className="p-2 rounded-lg bg-white border border-slate-100 group-hover:bg-indigo-50 group-hover:border-indigo-100 transition-colors">
+                              <item.icon size={14} className="text-slate-400 group-hover:text-indigo-600" />
+                           </div>
+                           <div>
+                              <p className="text-sm font-black text-slate-900">{item.name}</p>
+                              <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400">{item.sub}</p>
+                           </div>
+                        </div>
+                        <div className="mt-2.5 flex items-center justify-end">
+                           <ArrowRight size={10} className="text-slate-300 group-hover:text-indigo-500 transition-all group-hover:translate-x-1" />
+                        </div>
+                     </div>
+                  ))}
+               </div>
+            </div>
          </div>
       </div>
    );

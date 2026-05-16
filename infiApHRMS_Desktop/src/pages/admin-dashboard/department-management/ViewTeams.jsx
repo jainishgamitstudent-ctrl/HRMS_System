@@ -37,10 +37,15 @@ const ViewTeams = () => {
   }, [departments, departmentId]);
 
   const departmentTeams = useMemo(() => {
-    return teams.filter(t => 
-        String(t.departmentId) === String(departmentId) || 
-        (department && String(t.departmentName).toLowerCase() === String(department.name).toLowerCase())
-    );
+    return teams.filter(t => {
+        const teamDeptId = String(t.departmentId || '').toLowerCase();
+        const urlDeptId = String(departmentId || '').toLowerCase();
+        const teamDeptName = String(t.departmentName || '').toLowerCase();
+        const currentDeptName = String(department?.name || '').toLowerCase();
+
+        return teamDeptId === urlDeptId || 
+               (currentDeptName && teamDeptName === currentDeptName);
+    });
   }, [teams, departmentId, department]);
 
   const filteredTeams = useMemo(() => {
@@ -96,12 +101,12 @@ const ViewTeams = () => {
             </button>
             <div>
                <div className="flex items-center gap-3 mb-2">
-                  <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-widest rounded-lg border border-indigo-100">
+                  <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase tracking-widest rounded-lg border border-indigo-100">
                      {department?.sub || 'DEPT NODE'}
                   </span>
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
                </div>
-               <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-none uppercase">
+               <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none uppercase">
                   {department?.name || 'Department'} <span className="text-indigo-600">Teams</span>
                </h1>
             </div>
@@ -158,7 +163,7 @@ const ViewTeams = () => {
                     <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase tracking-wider border border-indigo-100 shadow-sm">
                       {team.teamCode || 'TM-NEW'}
                     </span>
-                    <h3 className="text-xl font-black text-slate-900 tracking-tight group-hover:text-indigo-600 transition-colors truncate uppercase">{team.name}</h3>
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-indigo-600 transition-colors truncate uppercase" title={team.name}>{team.name}</h3>
                   </div>
                   <div className="flex items-center gap-2">
                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
