@@ -1,3 +1,4 @@
+import React, { useMemo } from 'react';
 import { Image } from 'expo-image';
 import { Platform, StyleSheet } from 'react-native';
 
@@ -12,6 +13,7 @@ import { Fonts } from '@/constants/theme';
 import { useAppTheme } from '@/context/ThemeContext';
 export default function TabTwoScreen() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => ExploreStyles(colors), [colors]);
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
@@ -100,15 +102,17 @@ export default function TabTwoScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-});
+function ExploreStyles(colors: any) {
+  return StyleSheet.create({
+    headerImage: {
+      color: colors.textMuted,
+      bottom: -90,
+      left: -35,
+      position: 'absolute',
+    },
+    titleContainer: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+  });
+}

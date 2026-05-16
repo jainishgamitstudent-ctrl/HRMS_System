@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform, Dimensions, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router, useLocalSearchParams } from 'expo-router';
@@ -20,6 +20,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function TwoFactorAuth() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => TwoFactorAuthStyles(colors), [colors]);
   const { updateUser, syncUserFromApi } = useUser();
   const params = useLocalSearchParams<{ email?: string }>();
   const [code, setCode] = useState<string>('');
@@ -354,14 +355,15 @@ export default function TwoFactorAuth() {
   );
 }
 
-const styles = StyleSheet.create({
+function TwoFactorAuthStyles(colors: any) {
+  return StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
   },
   cardContainer: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.card,
     marginHorizontal: 16,
     marginVertical: 12,
     borderRadius: 36,
@@ -398,7 +400,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 26,
@@ -417,15 +419,15 @@ const styles = StyleSheet.create({
     maxWidth: 46,
     height: 58,
     borderWidth: 2,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   codeBoxActive: {
     borderColor: '#007AFF',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     shadowColor: '#007AFF',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.15,
@@ -433,12 +435,12 @@ const styles = StyleSheet.create({
   },
   codeBoxFilled: {
     borderColor: '#007AFF',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
   },
   codeText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   cursor: {
     width: 2,
@@ -483,11 +485,11 @@ const styles = StyleSheet.create({
   },
   resendInfo: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textMuted,
   },
   timerInfo: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   resendAction: {
@@ -517,14 +519,14 @@ const styles = StyleSheet.create({
   numpadText: {
     fontSize: 26,
     fontWeight: '600',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   elegantFooter: {
     width: '100%',
     marginTop: 'auto',
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     paddingVertical: 18,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     alignItems: 'center',
@@ -532,12 +534,12 @@ const styles = StyleSheet.create({
   elegantBackButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -594,7 +596,7 @@ const styles = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: 16,
-    color: '#64748b',
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 24,
@@ -647,3 +649,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+}

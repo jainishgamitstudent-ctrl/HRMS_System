@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -38,6 +38,7 @@ const getSenderName = (sender: RequestRoomMessage['sender']) => {
 
 export default function RequestRoomDetailPage() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => RequestRoomDetailStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useUser();
   const [room, setRoom] = useState<RequestRoom | null>(null);
@@ -173,16 +174,16 @@ export default function RequestRoomDetailPage() {
               disabled={acting}
             >
               {acting ? (
-                <ActivityIndicator size="small" color="#16a34a" />
+                <ActivityIndicator size="small" color={colors.success} />
               ) : (
                 <>
-                  <Ionicons name="checkmark" size={20} color="#16a34a" />
-                  <Text style={[styles.actionBtnText, { color: '#16a34a' }]}>Approve</Text>
+                  <Ionicons name="checkmark" size={20} color={colors.success} />
+                  <Text style={[styles.actionBtnText, { color: colors.textSecondary4a }]}>Approve</Text>
                 </>
               )}
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: '#fee2e2' }]}
+              style={[styles.actionBtn, { backgroundColor: colors.errorLight }]}
               onPress={() => handleStatusChange('rejected')}
               disabled={acting}
             >
@@ -262,10 +263,11 @@ export default function RequestRoomDetailPage() {
   );
 }
 
-const styles = StyleSheet.create({
+function RequestRoomDetailStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   center: {
     flex: 1,
@@ -310,11 +312,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   infoCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
   },
   infoHeader: {
     flexDirection: 'row',
@@ -340,7 +342,7 @@ const styles = StyleSheet.create({
   },
   infoMeta: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   infoDesc: {
@@ -379,7 +381,7 @@ const styles = StyleSheet.create({
   },
   emptyMessagesText: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: colors.textMuted,
   },
   messageRow: {
     flexDirection: 'row',
@@ -401,11 +403,11 @@ const styles = StyleSheet.create({
   },
   messageBody: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
   },
   messageHeader: {
     flexDirection: 'row',
@@ -420,7 +422,7 @@ const styles = StyleSheet.create({
   },
   messageTime: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: colors.textMuted,
   },
   messageText: {
     fontSize: 14,
@@ -433,13 +435,13 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
   },
   input: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -447,7 +449,7 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     maxHeight: 100,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   sendBtn: {
     width: 44,
@@ -461,3 +463,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#c7d2fe',
   },
 });
+}

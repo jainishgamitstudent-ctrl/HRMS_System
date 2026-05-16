@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -14,7 +14,8 @@ import Animated, {
 
 const { width } = Dimensions.get('window');
 
-const styles = StyleSheet.create({
+function NotificationDetailsStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -51,9 +52,9 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#22c55e',
+    backgroundColor: colors.success,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: colors.borderLight,
   },
   senderTextInfo: {
     flex: 1,
@@ -61,16 +62,16 @@ const styles = StyleSheet.create({
   senderName: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   divisionName: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   timestamp: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textMuted,
     marginTop: 4,
   },
   divider: {
@@ -144,17 +145,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   secondaryButton: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     flexDirection: 'row',
     paddingVertical: 16,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   secondaryButtonText: {
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontSize: 15,
     fontWeight: '800',
   },
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
   attachmentLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textMuted,
     marginBottom: 16,
   },
   attachmentCard: {
@@ -172,7 +173,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 16,
     padding: 12,
   },
@@ -199,12 +200,12 @@ const styles = StyleSheet.create({
   attachmentName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 2,
   },
   attachmentSize: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textMuted,
   },
   downloadButton: {
     padding: 8,
@@ -218,13 +219,15 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginTop: 16,
   },
 });
+}
 
 const NotificationDetails = () => {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => NotificationDetailsStyles(colors), [colors]);
   const { id } = useLocalSearchParams();
   const { getNotificationById } = useNotifications();
 

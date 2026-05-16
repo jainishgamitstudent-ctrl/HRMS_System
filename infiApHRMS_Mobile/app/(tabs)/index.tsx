@@ -1,3 +1,4 @@
+import React, { useMemo } from 'react';
 import { Image } from 'expo-image';
 import { Platform, StyleSheet } from 'react-native';
 
@@ -10,6 +11,7 @@ import { Link } from 'expo-router';
 import { useAppTheme } from '@/context/ThemeContext';
 export default function HomeScreen() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => HomeStyles(colors), [colors]);
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -80,21 +82,23 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 200,
-    width: 300,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+function HomeStyles(_colors: any) {
+  return StyleSheet.create({
+    titleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    stepContainer: {
+      gap: 8,
+      marginBottom: 8,
+    },
+    reactLogo: {
+      height: 200,
+      width: 300,
+      bottom: 0,
+      left: 0,
+      position: 'absolute',
+    },
+  });
+}
