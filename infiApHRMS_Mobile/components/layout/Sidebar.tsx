@@ -40,7 +40,6 @@ const MENU_CONFIG = {
     { icon: 'chatbubbles-outline', label: 'Request Rooms', route: '/(employee)/request-rooms' },
     { icon: 'time-outline', label: 'Attendance', route: '/(employee)/attendance' },
     { icon: 'cash-outline', label: 'Payroll', route: '/(employee)/payroll' },
-    { icon: 'trending-up-outline', label: 'Performance', route: '/(employee)/performance' },
     { icon: 'notifications-outline', label: 'Notifications', route: '/(employee)/notifications' },
     { icon: 'settings-outline', label: 'Settings', route: '/(employee)/profile-settings' },
   ],

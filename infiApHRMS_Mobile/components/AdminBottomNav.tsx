@@ -30,6 +30,12 @@ const NAV_ITEMS = [
     label: 'WFH Access',
     route: '/(admin)/wfh-permissions',
   },
+  {
+    icon: 'moon-outline',
+    activeIcon: 'moon',
+    label: 'Double Shift',
+    route: '/(hr)/double-shift-permissions',
+  },
 ];
 
 const NavItem = ({ item, isActive }: { item: typeof NAV_ITEMS[number]; isActive: boolean }) => {

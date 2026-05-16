@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { 
@@ -19,6 +19,7 @@ const TAB_WIDTH = width / 3;
 
 export default function LeaveApprovals() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => LeaveApprovalsStyles(colors), [colors]);
   const { leaves } = useLeave();
   const [activeTab, setActiveTab] = useState('All');
   const indicatorPosition = useSharedValue(0);
@@ -188,10 +189,11 @@ export default function LeaveApprovals() {
   );
 }
 
-const styles = StyleSheet.create({
+function LeaveApprovalsStyles(colors: any) {
+  return StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -208,10 +210,10 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#64748b',
+    color: colors.textMuted,
   },
   tabTextActive: {
-    color: '#4f39f6',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
   indicatorContainer: {
@@ -225,7 +227,7 @@ const styles = StyleSheet.create({
   indicator: {
     width: 24,
     height: 3,
-    backgroundColor: '#4f39f6',
+    backgroundColor: colors.primary,
     borderRadius: 2,
   },
   listContent: {
@@ -238,14 +240,14 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   emptyText: {
-    color: '#94a3b8',
+    color: colors.textMuted,
     fontSize: 15,
     marginTop: 16,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
     borderRadius: 16,
     marginBottom: 16,
     padding: 16,
@@ -268,21 +270,21 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#eef2ff',
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
     borderWidth: 1,
-    borderColor: '#c7d2fe',
+    borderColor: colors.border,
   },
   employeeName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   employeeRole: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textMuted,
     marginTop: 2,
   },
   badge: {
@@ -298,7 +300,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.background,
     marginTop: 12,
     marginBottom: 12,
   },
@@ -322,12 +324,12 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 2,
   },
   cardDates: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   approverBox: {
@@ -338,12 +340,12 @@ const styles = StyleSheet.create({
   },
   approverText: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   approverName: {
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   reasonBox: {
     marginTop: 10,
@@ -363,3 +365,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+}

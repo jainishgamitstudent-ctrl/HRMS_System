@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import Header from '../../components/layout/Header';
 import { useAppTheme } from '@/context/ThemeContext';
 export default function LeaveDetails() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => LeaveDetailsStyles(colors), [colors]);
   const { id } = useLocalSearchParams();
   const { leaves } = useLeave();
   
@@ -146,15 +147,16 @@ export default function LeaveDetails() {
   );
 }
 
-const styles = StyleSheet.create({
+function LeaveDetailsStyles(colors: any) {
+  return StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0f172a',
+    color: colors.textSecondary,
   },
   content: {
     padding: 20,
@@ -167,11 +169,11 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#64748b',
+    color: colors.textMuted,
     marginTop: 16,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -181,7 +183,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -204,12 +206,12 @@ const styles = StyleSheet.create({
   leaveType: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   appliedDate: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   divider: {
@@ -239,21 +241,21 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
     marginBottom: 8,
   },
   detailValue: {
     fontSize: 16,
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   approvalRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 12,
   },
@@ -268,13 +270,13 @@ const styles = StyleSheet.create({
   },
   approvalLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '700',
     marginBottom: 3,
   },
   approvalValue: {
     fontSize: 14,
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontWeight: '700',
     lineHeight: 20,
   },
@@ -303,12 +305,13 @@ const styles = StyleSheet.create({
   rejectedLabel: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#ef4444',
+    color: colors.error,
     marginLeft: 6,
   },
   rejectedText: {
     fontSize: 15,
-    color: '#991b1b',
+    color: colors.textMuted,
     lineHeight: 22,
   },
 });
+}

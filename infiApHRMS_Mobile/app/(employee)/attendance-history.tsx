@@ -8,6 +8,7 @@ import { fetchAttendanceHistory, type AttendanceRecord } from '../../services/au
 import { useAppTheme } from '@/context/ThemeContext';
 export default function AttendanceHistory() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => AttendanceHistoryStyles(colors), [colors]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -274,10 +275,11 @@ export default function AttendanceHistory() {
   );
 }
 
-const styles = StyleSheet.create({
+function AttendanceHistoryStyles(colors: any) {
+  return StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
   },
   scrollContent: {
     padding: 20,
@@ -289,16 +291,16 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#f8faff',
+    backgroundColor: colors.background,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#edf2ff',
+    borderColor: colors.border,
   },
   statLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textMuted,
     marginBottom: 8,
     letterSpacing: 0.5,
   },
@@ -329,11 +331,11 @@ const styles = StyleSheet.create({
     color: '#22c55e',
   },
   calendarCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 24,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
     marginBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -350,7 +352,7 @@ const styles = StyleSheet.create({
   monthTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   weekDays: {
     flexDirection: 'row',
@@ -362,7 +364,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 13,
     fontWeight: '700',
-    color: '#94a3b8',
+    color: colors.textMuted,
   },
   daysGrid: {
     flexDirection: 'row',
@@ -388,7 +390,7 @@ const styles = StyleSheet.create({
   dayText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   selectedDayText: {
     color: '#4f46e5',
@@ -426,7 +428,7 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#94a3b8',
+    color: colors.textMuted,
     letterSpacing: 0.5,
   },
   sectionHeader: {
@@ -438,7 +440,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   viewHistory: {
     fontSize: 14,
@@ -450,11 +452,11 @@ const styles = StyleSheet.create({
   },
   logCard: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
     alignItems: 'center',
   },
   logDateColumn: {
@@ -467,13 +469,13 @@ const styles = StyleSheet.create({
   logMonth: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#94a3b8',
+    color: colors.textMuted,
     marginBottom: 4,
   },
   logDay: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   logInfo: {
     paddingHorizontal: 16,
@@ -488,7 +490,7 @@ const styles = StyleSheet.create({
   punchTime: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textMuted,
   },
   logRight: {
     alignItems: 'flex-end',
@@ -497,7 +499,7 @@ const styles = StyleSheet.create({
   durationText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94a3b8',
+    color: colors.textMuted,
   },
   presentBadge: {
     backgroundColor: '#dcfce7',
@@ -540,12 +542,12 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginTop: 16,
   },
   emptyStateSubText: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
     marginTop: 8,
   },
   regularizeBtn: {
@@ -563,3 +565,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+}

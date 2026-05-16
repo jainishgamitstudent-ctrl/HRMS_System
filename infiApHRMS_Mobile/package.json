@@ -11,8 +11,11 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "quality": "npm run lint && npm run typecheck",
-    "clear-cache": "npx expo start --clear",
-    "reset-metro": "watchman watch-del-all && rm -rf $TMPDIR/metro-* && rm -rf $TMPDIR/haste-map-*"
+    "start:clean": "expo start --clear",
+    "android:clean": "expo start --android --clear",
+    "ios:clean": "expo start --ios --clear",
+    "clear-cache": "expo start --clear",
+    "reset-metro": "watchman watch-del-all && rm -rf $TMPDIR/metro-* && rm -rf $TMPDIR/haste-map-* && rm -rf $TMPDIR/react-* && rm -rf .expo"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

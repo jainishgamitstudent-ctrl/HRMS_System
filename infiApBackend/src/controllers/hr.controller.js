@@ -89,22 +89,57 @@ exports.getHRAdminProfile = async (req, res) => {
 // ---> HR Operations: Employee <---
 exports.addEmployee = async (req, res) => {
     try {
-        const { name, email, phone, employeeId: providedEmployeeId, department, designation, reportingManager, annualSalary, employmentType, password = "Password@123" } = req.body;
+        const { name, email, phone, role: providedRole, employeeId: providedEmployeeId, department, designation, reportingManager, annualSalary, employmentType, password = "Password@123" } = req.body;
+
+        if (!name || !email) {
+            return res.status(400).json({ success: false, message: "Name and email are required" });
+        }
+
+        // Validate phone: if provided, must contain at least 10 digits (country code + 10 digits)
+        if (phone) {
+            const digitsOnly = String(phone).replace(/\D/g, '');
+            if (digitsOnly.length < 10) {
+                return res.status(400).json({ success: false, message: "Phone number must contain exactly 10 digits" });
+            }
+        }
 
         const existing = await User.findOne({ email });
         if (existing) return res.status(400).json({ success: false, message: "Email already exists" });
 
+        // Determine role — default to employee; only admin/superadmin can create HR
+        let targetRole = String(providedRole || "employee").trim().toLowerCase();
+        if (!["employee", "hr"].includes(targetRole)) {
+            targetRole = "employee";
+        }
+        const requesterRole = String(req.user?.role || "").toLowerCase();
+        if (targetRole === "hr" && !["admin", "superadmin", "main_admin"].includes(requesterRole)) {
+            return res.status(403).json({ success: false, message: "Only Admin can create HR users" });
+        }
+
         // Auto-generate employeeId if not provided
         let employeeId = providedEmployeeId;
         if (!employeeId) {
-            const count = await User.countDocuments({ role: "employee" });
-            employeeId = `EMP-${String(count + 1).padStart(4, '0')}`;
+            const latestUser = await User.findOne({ employeeId: { $regex: /^EMP-\d+$/ } })
+                .sort({ employeeId: -1 })
+                .select("employeeId")
+                .lean();
+            let nextNum = 1;
+            if (latestUser?.employeeId) {
+                const match = latestUser.employeeId.match(/EMP-(\d+)/);
+                if (match) nextNum = parseInt(match[1], 10) + 1;
+            }
+            employeeId = `EMP-${String(nextNum).padStart(4, '0')}`;
         }
 
-        const newEmployee = new User({
-            name, email, phone, password, role: "employee",
-            employeeId, department, designation, reportingManager, annualSalary, employmentType
-        });
+        const userData = {
+            name, email, phone, password, role: targetRole,
+            employeeId, department, designation, annualSalary, employmentType
+        };
+        if (reportingManager && String(reportingManager).trim()) {
+            userData.reportingManager = reportingManager;
+        }
+
+        const newEmployee = new User(userData);
 
         await newEmployee.save();
         res.status(201).json({ success: true, message: "Employee added successfully", data: newEmployee });
@@ -118,6 +153,19 @@ exports.editEmployee = async (req, res) => {
         const { id } = req.params;
         const updates = req.body;
         delete updates.password; // Forbid password update here
+
+        // Validate phone if being updated (country code + number = >= 10 digits total)
+        if (updates.phone) {
+            const digitsOnly = String(updates.phone).replace(/\D/g, '');
+            if (digitsOnly.length < 10) {
+                return res.status(400).json({ success: false, message: "Phone number must contain exactly 10 digits" });
+            }
+        }
+
+        // Strip empty-string ObjectId fields to avoid cast errors
+        if (updates.reportingManager !== undefined && !String(updates.reportingManager).trim()) {
+            delete updates.reportingManager;
+        }
 
         // Log for debugging
         logger.info('Edit Employee', { id });
@@ -141,12 +189,57 @@ exports.editEmployee = async (req, res) => {
     }
 };
 
+exports.updateDoubleShiftPermission = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { doubleShiftAllowed } = req.body;
+
+        if (typeof doubleShiftAllowed !== 'boolean') {
+            return res.status(400).json({ success: false, message: "doubleShiftAllowed must be a boolean" });
+        }
+
+        const employee = await User.findByIdAndUpdate(
+            id,
+            { doubleShiftAllowed },
+            { new: true, runValidators: false }
+        ).select("-password -refreshToken");
+
+        if (!employee) {
+            return res.status(404).json({ success: false, message: "Employee not found" });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Double shift permission ${doubleShiftAllowed ? 'granted' : 'revoked'} successfully`,
+            data: employee,
+        });
+    } catch (error) {
+        logger.error('Update Double Shift Permission Error', { error: error.message });
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 exports.getAllEmployees = async (req, res) => {
     try {
         const { department, role, search, page = 1, limit = 20 } = req.query;
-        // HR should only see employee and manager roles — not admin or superadmin
-        const filter = { role: { $nin: ["main_admin", "superadmin", "admin"] } };
-        if (department) filter.department = department;
+        // Admin/SuperAdmin can see all; HR should only see employees, not other HR or admin
+        const requesterRole = String(req.user?.role || "").toLowerCase();
+        const excludedRoles = ["main_admin", "superadmin", "admin"];
+        if (requesterRole === "hr") {
+            excludedRoles.push("hr");
+        }
+        const filter = { role: { $nin: excludedRoles } };
+
+        // Admin can filter by any department; HR is restricted to their own department
+        if (requesterRole === "hr") {
+            const hrDepartment = String(req.user?.department || "").trim();
+            if (hrDepartment) {
+                filter.department = hrDepartment;
+            }
+        } else if (department) {
+            filter.department = department;
+        }
+
         if (role) filter.designation = role;
         if (search) {
             filter.$or = [

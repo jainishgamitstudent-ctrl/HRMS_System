@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, ActivityIndicator, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -16,7 +16,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 const { width } = Dimensions.get('window');
 
 // Mock SVGs / Images using Ionicons and Views
-const CircularProgress = ({ value, total, color, label, subLabel }: { value: number, total: number, color: string, label: string, subLabel: string }) => {
+const CircularProgress = ({ value, total, color, label, subLabel, styles }: { value: number, total: number, color: string, label: string, subLabel: string, styles: any }) => {
   // A simple representation since SVG isn't available out of the box
   return (
     <View style={styles.leaveCard}>
@@ -37,7 +37,7 @@ const CircularProgress = ({ value, total, color, label, subLabel }: { value: num
 };
 
 // Swipe to Check-in Component
-const SwipeToCheckIn = () => {
+const SwipeToCheckIn = ({ styles }: { styles: any }) => {
   const SWIPE_WIDTH = width - 72; // Dynamic width: window width - screen padding (40) - card padding (32)
   const KNOB_SIZE = 48;
   const MAX_TRANSLATE = SWIPE_WIDTH - KNOB_SIZE - 8;
@@ -226,7 +226,7 @@ const SwipeToCheckIn = () => {
 };
 
 
-const FeatureCard = ({ icon, title, sub, color, bgColor, route, delay, unreadCount, disabled }: { icon: any, title: string, sub: string, color: string, bgColor: string, route: string, delay: number, unreadCount?: number, disabled?: boolean }) => {
+const FeatureCard = ({ icon, title, sub, color, bgColor, route, delay, unreadCount, disabled, styles }: { icon: any, title: string, sub: string, color: string, bgColor: string, route: string, delay: number, unreadCount?: number, disabled?: boolean, styles: any }) => {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -274,6 +274,7 @@ const FeatureCard = ({ icon, title, sub, color, bgColor, route, delay, unreadCou
 
 export default function EmployeeDashboard() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => DashboardStyles(colors), [colors]);
   const { notifications } = useNotifications();
   const { user } = useUser();
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -407,7 +408,7 @@ export default function EmployeeDashboard() {
 
               {/* Check-In Section */}
               <Text style={styles.sectionHeader}>Check-In</Text>
-              <SwipeToCheckIn />
+              <SwipeToCheckIn styles={styles} />
 
               {/* Leave Balance Section */}
               <View style={styles.sectionHeaderRow}>
@@ -418,9 +419,9 @@ export default function EmployeeDashboard() {
               </View>
 
               <View style={styles.leaveGrid}>
-                <CircularProgress value={leaveBalance.privilegeLeave} total={6} color="#3b82f6" label="Privilege Leave" subLabel="AVAILABLE" />
-                <CircularProgress value={leaveBalance.casualLeave} total={6} color="#6366f1" label="Casual Leave" subLabel="AVAILABLE" />
-                <CircularProgress value={leaveBalance.sickLeave} total={6} color="#22c55e" label="Sick Leave" subLabel="AVAILABLE" />
+                <CircularProgress value={leaveBalance.privilegeLeave} total={6} color="#3b82f6" label="Privilege Leave" subLabel="AVAILABLE" styles={styles} />
+                <CircularProgress value={leaveBalance.casualLeave} total={6} color="#6366f1" label="Casual Leave" subLabel="AVAILABLE" styles={styles} />
+                <CircularProgress value={leaveBalance.sickLeave} total={6} color="#22c55e" label="Sick Leave" subLabel="AVAILABLE" styles={styles} />
                 <View style={[styles.leaveCard, styles.darkCard]}>
                   <View style={styles.darkCircle}>
                     <Text style={styles.darkCircleValue}>{leaveBalance.totalBalance}</Text>
@@ -493,6 +494,7 @@ export default function EmployeeDashboard() {
                   bgColor="#eff6ff"
                   route="/(employee)/leave"
                   delay={100}
+                  styles={styles}
                 />
                 <FeatureCard
                   icon="laptop-outline"
@@ -503,6 +505,7 @@ export default function EmployeeDashboard() {
                   route="/(employee)/upcoming-wfh"
                   delay={200}
                   disabled={!wfhEnabled}
+                  styles={styles}
                 />
              
                 <FeatureCard
@@ -513,16 +516,9 @@ export default function EmployeeDashboard() {
                   bgColor="#f5f3ff"
                   route="/(employee)/payroll"
                   delay={300}
+                  styles={styles}
                 />
-                {/* <FeatureCard
-                  icon="trending-up-outline"
-                  title="Performance"
-                  sub="Metrics"
-                  color="#6366f1"
-                  bgColor="#f5f3ff"
-                  route="/(employee)/performance"
-                  delay={400}
-                /> */}
+            
                 <FeatureCard
                   icon="notifications-outline"
                   title="Notifications"
@@ -532,6 +528,7 @@ export default function EmployeeDashboard() {
                   route="/(employee)/notifications"
                   delay={500}
                   unreadCount={unreadCount}
+                  styles={styles}
                 />
               </View>
 
@@ -664,831 +661,834 @@ export default function EmployeeDashboard() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  container: {
-    paddingBottom: 140,
-  },
-  contentPadding: {
-    paddingHorizontal: 20,
-  },
+function DashboardStyles(colors: any) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    container: {
+      paddingBottom: 140,
+    },
+    contentPadding: {
+      paddingHorizontal: 20,
+    },
 
-  // Header
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+    // Header
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    logoContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
 
-  profileCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#e2e8f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+    profileCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
 
-  // Banner
-  bannerContainer: {
-    backgroundColor: '#2e4ce6',
-    borderRadius: 20,
-    padding: 24,
-    marginTop: 10,
-    marginBottom: 16,
-    shadowColor: '#2e4ce6',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  bannerBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-  },
-  bannerBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  bannerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  bannerSubtitle: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  sendWelcomeBtn: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  sendWelcomeText: {
-    color: '#2e4ce6',
-    fontWeight: '700',
-    fontSize: 13,
-  },
+    // Banner
+    bannerContainer: {
+      backgroundColor: colors.primary,
+      borderRadius: 20,
+      padding: 24,
+      marginTop: 10,
+      marginBottom: 16,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    bannerBadge: {
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+      alignSelf: 'flex-start',
+      marginBottom: 16,
+    },
+    bannerBadgeText: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    bannerTitle: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: '#fff',
+      marginBottom: 8,
+    },
+    bannerSubtitle: {
+      color: 'rgba(255,255,255,0.8)',
+      fontSize: 13,
+      lineHeight: 20,
+      marginBottom: 20,
+    },
+    sendWelcomeBtn: {
+      backgroundColor: '#fff',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 20,
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    sendWelcomeText: {
+      color: colors.primary,
+      fontWeight: '700',
+      fontSize: 13,
+    },
 
-  // Typography Elements
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionHeader: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1e293b',
-    marginBottom: 8,
-  },
-  historyLink: {
-    color: '#3b82f6',
-    fontWeight: '600',
-    fontSize: 13,
-  },
+    // Typography Elements
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    sectionHeader: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    historyLink: {
+      color: colors.primary,
+      fontWeight: '600',
+      fontSize: 13,
+    },
 
-  // Swipe Card
-  swipeContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    alignItems: 'center',
-  },
-  swipeTrack: {
-    width: width - 72,
-    height: 56,
-    backgroundColor: '#f8fafc',
-    borderRadius: 28,
-    justifyContent: 'center',
-    marginBottom: 16,
-    overflow: 'hidden',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  swipeTrackSuccess: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#bbf7d0',
-  },
-  swipeTrackLocked: {
-    backgroundColor: '#eff6ff',
-    borderColor: '#bfdbfe',
-  },
-  swipeKnob: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#2e4ce6',
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'absolute',
-    left: 4,
-    shadowColor: '#2e4ce6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  swipeKnobSuccess: {
-    backgroundColor: '#22c55e',
-    shadowColor: '#22c55e',
-  },
-  swipeKnobLocked: {
-    backgroundColor: '#2563eb',
-    shadowColor: '#2563eb',
-  },
-  swipeTextContainer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  swipeText: {
-    color: '#94a3b8',
-    fontWeight: '700',
-    fontSize: 12,
-    letterSpacing: 1,
-    marginLeft: 30, // Offset for the knob
-  },
-  swipeTextLocked: {
-    color: '#2563eb',
-    marginLeft: 10,
-  },
-  swipeFooter: {
-    flexDirection: 'row',
-    width: '100%',
-    justifyContent: 'space-between',
-    gap: 16,
-    flexWrap: 'wrap',
-  },
-  footerItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-    flex: 1,
-    minWidth: '45%',
-  },
-  footerText: {
-    color: '#64748b',
-    fontSize: 12,
-    fontWeight: '500',
-    flex: 1,
-  },
-  footerTextError: {
-    color: '#dc2626',
-  },
-  swipeNote: {
-    marginTop: 12,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748b',
-    textAlign: 'center',
-  },
-  swipeNoteLocked: {
-    color: '#2563eb',
-  },
-  resetButton: {
-    marginTop: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#dc2626',
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  resetButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+    // Swipe Card
+    swipeContainer: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 16,
+      marginBottom: 16,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+      alignItems: 'center',
+    },
+    swipeTrack: {
+      width: width - 72,
+      height: 56,
+      backgroundColor: colors.background,
+      borderRadius: 28,
+      justifyContent: 'center',
+      marginBottom: 16,
+      overflow: 'hidden',
+      position: 'relative',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    swipeTrackSuccess: {
+      backgroundColor: '#dcfce7',
+      borderColor: '#bbf7d0',
+    },
+    swipeTrackLocked: {
+      backgroundColor: colors.primaryBg,
+      borderColor: colors.heroBorder,
+    },
+    swipeKnob: {
+      width: 48,
+      height: 48,
+      backgroundColor: colors.primary,
+      borderRadius: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'absolute',
+      left: 4,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
+      elevation: 4,
+    },
+    swipeKnobSuccess: {
+      backgroundColor: '#22c55e',
+      shadowColor: '#22c55e',
+    },
+    swipeKnobLocked: {
+      backgroundColor: '#2563eb',
+      shadowColor: '#2563eb',
+    },
+    swipeTextContainer: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    swipeText: {
+      color: colors.textMuted,
+      fontWeight: '700',
+      fontSize: 12,
+      letterSpacing: 1,
+      marginLeft: 30,
+    },
+    swipeTextLocked: {
+      color: colors.primary,
+      marginLeft: 10,
+    },
+    swipeFooter: {
+      flexDirection: 'row',
+      width: '100%',
+      justifyContent: 'space-between',
+      gap: 16,
+      flexWrap: 'wrap',
+    },
+    footerItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 6,
+      flex: 1,
+      minWidth: '45%',
+    },
+    footerText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: '500',
+      flex: 1,
+    },
+    footerTextError: {
+      color: '#dc2626',
+    },
+    swipeNote: {
+      marginTop: 12,
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted,
+      textAlign: 'center',
+    },
+    swipeNoteLocked: {
+      color: colors.primary,
+    },
+    resetButton: {
+      marginTop: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      backgroundColor: colors.error,
+      borderRadius: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    resetButtonText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '600',
+    },
 
-  // Double Shift Toggle
-  doubleShiftRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-  },
-  doubleShiftLabelWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  doubleShiftLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  doubleShiftLabelDisabled: {
-    color: '#94a3b8',
-  },
-  doubleShiftHint: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#94a3b8',
-    marginLeft: 4,
-  },
-  doubleShiftToggle: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#e2e8f0',
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-  doubleShiftToggleActive: {
-    backgroundColor: '#4f46e5',
-  },
-  doubleShiftToggleDisabled: {
-    backgroundColor: '#e2e8f0',
-    opacity: 0.6,
-  },
-  doubleShiftKnob: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-    transform: [{ translateX: 0 }],
-  },
-  doubleShiftKnobActive: {
-    transform: [{ translateX: 20 }],
-  },
-  doubleShiftKnobDisabled: {
-    backgroundColor: '#f8fafc',
-  },
+    // Double Shift Toggle
+    doubleShiftRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '100%',
+      marginTop: 12,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight,
+    },
+    doubleShiftLabelWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flex: 1,
+    },
+    doubleShiftLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    doubleShiftLabelDisabled: {
+      color: colors.textMuted,
+    },
+    doubleShiftHint: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: colors.textMuted,
+      marginLeft: 4,
+    },
+    doubleShiftToggle: {
+      width: 44,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: colors.border,
+      justifyContent: 'center',
+      paddingHorizontal: 2,
+    },
+    doubleShiftToggleActive: {
+      backgroundColor: '#4f46e5',
+    },
+    doubleShiftToggleDisabled: {
+      backgroundColor: colors.border,
+      opacity: 0.6,
+    },
+    doubleShiftKnob: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: '#fff',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+      transform: [{ translateX: 0 }],
+    },
+    doubleShiftKnobActive: {
+      transform: [{ translateX: 20 }],
+    },
+    doubleShiftKnobDisabled: {
+      backgroundColor: colors.background,
+    },
 
-  // Leave Balance Grid
-  leaveGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 12,
-  },
-  leaveCard: {
-    width: '48%',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  darkCard: {
-    backgroundColor: '#0f172a',
-    borderColor: '#0f172a',
-  },
-  progressCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    position: 'relative',
-  },
-  progressCircleInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 4,
-    ...StyleSheet.absoluteFillObject,
-    left: -4, top: -4,
-  },
-  progressValueText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1e293b',
-  },
-  leaveTypeLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  leaveTypeSub: {
-    fontSize: 10,
-    color: '#94a3b8',
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  darkCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  darkCircleValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#fff',
-  },
-  leaveTypeSubDark: {
-    fontSize: 10,
-    color: '#94a3b8',
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
+    // Leave Balance Grid
+    leaveGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginBottom: 12,
+    },
+    leaveCard: {
+      width: '48%',
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 6,
+      elevation: 1,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+    },
+    darkCard: {
+      backgroundColor: colors.background,
+      borderColor: colors.cardBorder,
+    },
+    progressCircle: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      borderWidth: 4,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 12,
+      position: 'relative',
+    },
+    progressCircleInner: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      borderWidth: 4,
+      ...StyleSheet.absoluteFillObject,
+      left: -4, top: -4,
+    },
+    progressValueText: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.textSecondary,
+    },
+    leaveTypeLabel: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 2,
+      textAlign: 'center',
+    },
+    leaveTypeSub: {
+      fontSize: 10,
+      color: colors.textMuted,
+      fontWeight: '600',
+      letterSpacing: 0.5,
+    },
+    darkCircle: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.2)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    darkCircleValue: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: '#fff',
+    },
+    leaveTypeSubDark: {
+      fontSize: 10,
+      color: colors.textMuted,
+      fontWeight: '600',
+      letterSpacing: 0.5,
+    },
 
-  // Stats Grid Mini
-  statsRowGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
-  },
-  statBadge: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    borderRadius: 16,
-    width: '48%',
-    padding: 4,
-  },
-  statBadgeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  statBadgeLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748b',
-    flex: 1,
-  },
-  statBadgeValue: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1e293b',
-    marginLeft: 8,
-  },
+    // Stats Grid Mini
+    statsRowGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 16,
+    },
+    statBadge: {
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+      borderRadius: 16,
+      width: '48%',
+      padding: 4,
+    },
+    statBadgeContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+    },
+    statBadgeLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted,
+      flex: 1,
+    },
+    statBadgeValue: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      marginLeft: 8,
+    },
 
-  // Attendance Summary
-  attendanceSummaryContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-  },
-  attendanceItem: {
-    alignItems: 'center',
-    width: '30%',
-  },
-  attIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  attNumber: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1e293b',
-    marginBottom: 2,
-  },
-  attLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748b',
-    letterSpacing: 0.5,
-  },
+    // Attendance Summary
+    attendanceSummaryContainer: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      justifyContent: 'space-between',
+      marginBottom: 16,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 6,
+      elevation: 1,
+    },
+    attendanceItem: {
+      alignItems: 'center',
+      width: '30%',
+    },
+    attIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    attNumber: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      marginBottom: 2,
+    },
+    attLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.5,
+    },
 
-  // Missed Punches Carousel
-  missedPunchesCarousel: {
-    paddingRight: 20, // To allow the last card to be centered or at least have some space
-    gap: 12,
-    paddingBottom: 24,
-  },
-  missedPunchCard: {
-    width: 200,
-    backgroundColor: '#fff5f5',
-    borderWidth: 1,
-    borderColor: '#fee2e2',
-    borderRadius: 16,
-    padding: 16,
-    // Add shadow to make it pop more in the carousel
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  missedPunchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  missedPunchDate: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#ef4444',
-  },
-  missedPunchTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 16,
-  },
-  missedPunchAction: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
+    // Missed Punches Carousel
+    missedPunchesCarousel: {
+      paddingRight: 20,
+      gap: 12,
+      paddingBottom: 24,
+    },
+    missedPunchCard: {
+      width: 200,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+      borderRadius: 16,
+      padding: 16,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    missedPunchRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    missedPunchDate: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.error,
+    },
+    missedPunchTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 16,
+    },
+    missedPunchAction: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
 
-  // Approvals List
-  listCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  listIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  listItemBody: {
-    flex: 1,
-  },
-  listItemTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 2,
-  },
-  listItemSub: {
-    fontSize: 12,
-    color: '#64748b',
-  },
-  listDivider: {
-    height: 1,
-    backgroundColor: '#f1f5f9',
-    marginVertical: 12,
-  },
+    // Approvals List
+    listCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 24,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 6,
+      elevation: 1,
+    },
+    listItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+    },
+    listIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    listItemBody: {
+      flex: 1,
+    },
+    listItemTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 2,
+    },
+    listItemSub: {
+      fontSize: 12,
+      color: colors.textMuted,
+    },
+    listDivider: {
+      height: 1,
+      backgroundColor: colors.borderLight,
+      marginVertical: 12,
+    },
 
-  // Features Grid
-  featuresGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    gap: 12,
-  },
-  featureCard: {
-    width: (width - 52) / 2, // 20 padding * 2 + 12 gap = 52
-    borderRadius: 20,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-  },
-  featureIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  featureTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#1e293b',
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  featureSub: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: '#64748b',
-    textAlign: 'center',
-  },
-  featureCardDisabled: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  featureTitleDisabled: {
-    color: '#94a3b8',
-  },
-  featureSubDisabled: {
-    color: '#cbd5e1',
-  },
-  lockOverlay: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    backgroundColor: '#64748b',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  notiBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#ef4444',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: '#fef2f2',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notiBadgeText: {
-    color: '#fff',
-    fontSize: 8,
-    fontWeight: '900',
-  },
+    // Features Grid
+    featuresGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+      gap: 12,
+    },
+    featureCard: {
+      width: (width - 52) / 2,
+      borderRadius: 20,
+      padding: 16,
+      alignItems: 'center',
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      elevation: 2,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    featureIconWrap: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 10,
+      position: 'relative',
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 6,
+      elevation: 4,
+    },
+    featureTitle: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      marginBottom: 2,
+      textAlign: 'center',
+    },
+    featureSub: {
+      fontSize: 9,
+      fontWeight: '600',
+      color: colors.textMuted,
+      textAlign: 'center',
+    },
+    featureCardDisabled: {
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    featureTitleDisabled: {
+      color: colors.textMuted,
+    },
+    featureSubDisabled: {
+      color: colors.border,
+    },
+    lockOverlay: {
+      position: 'absolute',
+      bottom: -2,
+      right: -2,
+      backgroundColor: colors.textMuted,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: colors.card,
+    },
+    notiBadge: {
+      position: 'absolute',
+      top: -4,
+      right: -4,
+      backgroundColor: colors.error,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 2,
+      borderColor: colors.card,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    notiBadgeText: {
+      color: '#fff',
+      fontSize: 8,
+      fontWeight: '900',
+    },
 
-  // Employee of the Month
-  eomCard: {
-    backgroundColor: '#0f172a',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  eomContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-    zIndex: 2,
-  },
-  eomAvatarWrap: {
-    position: 'relative',
-    marginRight: 16,
-  },
-  eomAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 2,
-    borderColor: '#3b82f6',
-  },
-  eomBadge: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 20,
-    height: 20,
-    backgroundColor: '#6366f1',
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#0f172a',
-  },
-  eomLabel: {
-    color: '#6366f1',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  eomName: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  eomRole: {
-    color: '#94a3b8',
-    fontSize: 12,
-  },
-  eomWatermark: {
-    position: 'absolute',
-    right: -20,
-    bottom: -20,
-    zIndex: 1,
-    transform: [{ rotate: '-15deg' }],
-  },
+    // Employee of the Month
+    eomCard: {
+      backgroundColor: colors.background,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      position: 'relative',
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    eomContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      position: 'relative',
+      zIndex: 2,
+    },
+    eomAvatarWrap: {
+      position: 'relative',
+      marginRight: 16,
+    },
+    eomAvatar: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      borderWidth: 2,
+      borderColor: colors.primary,
+    },
+    eomBadge: {
+      position: 'absolute',
+      bottom: -4,
+      right: -4,
+      width: 20,
+      height: 20,
+      backgroundColor: '#6366f1',
+      borderRadius: 10,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    eomLabel: {
+      color: '#6366f1',
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      marginBottom: 4,
+    },
+    eomName: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '800',
+      marginBottom: 2,
+    },
+    eomRole: {
+      color: colors.textMuted,
+      fontSize: 12,
+    },
+    eomWatermark: {
+      position: 'absolute',
+      right: -20,
+      bottom: -20,
+      zIndex: 1,
+      transform: [{ rotate: '-15deg' }],
+    },
 
-  // Birthdays
-  birthdayCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-  },
-  birthdayHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  birthdayTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1e293b',
-  },
-  birthdayTag: {
-    backgroundColor: '#fdf2f8',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  birthdayTagText: {
-    color: '#db2777',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  avatarsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatarOverlap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  avatarMore: {
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarMoreText: {
-    color: '#64748b',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  birthdayMsg: {
-    fontSize: 13,
-    color: '#64748b',
-  },
-  birthdayMessage: {
-    marginLeft: 12,
-    fontSize: 12,
-    color: '#666',
-    flex: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    minHeight: '50%',
-    maxHeight: '80%',
-    padding: 24,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-  },
-  birthdayList: {
-    flex: 1,
-  },
-  birthdayListItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  listAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  listInfo: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  listName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
-  listDept: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  listDate: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#3b82f6',
-  },
-  emptyBirthday: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
-    marginTop: 12,
-    textAlign: 'center',
-  },
-});
+    // Birthdays
+    birthdayCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 6,
+      elevation: 1,
+    },
+    birthdayHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    birthdayTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.textSecondary,
+    },
+    birthdayTag: {
+      backgroundColor: colors.primarySoft,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+    },
+    birthdayTagText: {
+      color: colors.primary,
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    avatarsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    avatarOverlap: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      borderWidth: 2,
+      borderColor: colors.card,
+    },
+    avatarMore: {
+      backgroundColor: colors.surfaceAlt,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    avatarMoreText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    birthdayMsg: {
+      fontSize: 13,
+      color: colors.textMuted,
+    },
+    birthdayMessage: {
+      marginLeft: 12,
+      fontSize: 12,
+      color: colors.textMuted,
+      flex: 1,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalContent: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      minHeight: '50%',
+      maxHeight: '80%',
+      padding: 24,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: colors.text,
+    },
+    birthdayList: {
+      flex: 1,
+    },
+    birthdayListItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+    },
+    listAvatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+    },
+    listInfo: {
+      flex: 1,
+      marginLeft: 16,
+    },
+    listName: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    listDept: {
+      fontSize: 14,
+      color: colors.textMuted,
+      marginTop: 2,
+    },
+    listDate: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.primary,
+    },
+    emptyBirthday: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 40,
+    },
+    emptyText: {
+      fontSize: 16,
+      color: colors.textMuted,
+      marginTop: 12,
+      textAlign: 'center',
+    },
+  });
+}

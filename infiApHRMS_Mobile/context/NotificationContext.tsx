@@ -15,7 +15,7 @@ import {
 } from '../services/notifications';
 import { useUser } from './UserContext';
 
-export type NotificationType = 'leave' | 'attendance' | 'payroll' | 'performance' | 'system';
+export type NotificationType = 'leave' | 'attendance' | 'payroll' | 'system';
 
 export interface NotificationAttachment {
   name: string;
@@ -59,7 +59,6 @@ const getNotificationType = (category?: string): NotificationType => {
   if (normalized.includes('leave')) return 'leave';
   if (normalized.includes('attendance')) return 'attendance';
   if (normalized.includes('payroll')) return 'payroll';
-  if (normalized.includes('performance')) return 'performance';
   return 'system';
 };
 
@@ -67,7 +66,6 @@ const getNotificationRoute = (type: NotificationType) => {
   if (type === 'leave') return '/(employee)/leave';
   if (type === 'attendance') return '/(employee)/attendance';
   if (type === 'payroll') return '/(employee)/payroll';
-  if (type === 'performance') return '/(employee)/performance';
   return undefined;
 };
 

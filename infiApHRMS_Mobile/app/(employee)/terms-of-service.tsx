@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import Header from '../../components/layout/Header';
 import { BottomNav } from '../../components/BottomNav';
@@ -89,6 +90,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
 
 export default function TermsOfServiceScreen() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => TermsOfServiceStyles(colors), [colors]);
   return (
     <View style={styles.root}>
       <Header title="Terms of Service" showBack={true} />
@@ -121,15 +123,17 @@ export default function TermsOfServiceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#fff' },
+function TermsOfServiceStyles(colors: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.card },
   content: { padding: 20, paddingBottom: 120 },
-  brand: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
-  meta: { fontSize: 12, color: '#64748b', marginTop: 4, marginBottom: 16 },
-  intro: { fontSize: 14, color: '#334155', lineHeight: 22, marginBottom: 18 },
+  brand: { fontSize: 16, fontWeight: '800', color: colors.textSecondary },
+  meta: { fontSize: 12, color: colors.textMuted, marginTop: 4, marginBottom: 16 },
+  intro: { fontSize: 14, color: colors.textMuted, lineHeight: 22, marginBottom: 18 },
   section: { marginBottom: 20 },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#1e293b', marginBottom: 8 },
-  paragraph: { fontSize: 14, color: '#475569', lineHeight: 22, marginBottom: 6 },
-  footer: { fontSize: 13, color: '#1e293b', fontWeight: '600', marginTop: 12 },
-  footerSmall: { fontSize: 12, color: '#94a3b8', marginTop: 6 },
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: colors.textSecondary, marginBottom: 8 },
+  paragraph: { fontSize: 14, color: colors.textMuted, lineHeight: 22, marginBottom: 6 },
+  footer: { fontSize: 13, color: colors.textSecondary, fontWeight: '600', marginTop: 12 },
+  footerSmall: { fontSize: 12, color: colors.textMuted, marginTop: 6 },
 });
+}

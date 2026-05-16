@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, Region } from 'react-native-maps';
@@ -43,6 +43,7 @@ const createLocationRegion = (location: Pick<CurrentLocation, 'latitude' | 'long
 
 export default function AttendanceLogging() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => AttendanceLoggingStyles(colors), [colors]);
   const mapRef = useRef<MapView | null>(null);
   const [selectedMode, setSelectedMode] = useState('office');
   const [isConfirming, setIsConfirming] = useState(false);
@@ -437,10 +438,11 @@ export default function AttendanceLogging() {
   );
 }
 
-const styles = StyleSheet.create({
+function AttendanceLoggingStyles(colors: any) {
+  return StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -475,12 +477,12 @@ const styles = StyleSheet.create({
   sessionTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   sessionSub: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   modeSection: {
@@ -489,7 +491,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#94a3b8',
+    color: colors.textMuted,
     letterSpacing: 1,
     textAlign: 'center',
     marginBottom: 16,
@@ -501,12 +503,12 @@ const styles = StyleSheet.create({
   },
   modeCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   modeCardActive: {
     backgroundColor: '#4f46e5',
@@ -520,7 +522,7 @@ const styles = StyleSheet.create({
   modeLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textMuted,
     marginTop: 8,
   },
   modeLabelActive: {
@@ -574,7 +576,7 @@ const styles = StyleSheet.create({
   mapPillText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   mapPillTextActive: {
     color: '#fff',
@@ -627,15 +629,14 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#4f46e5',
+    backgroundColor: colors.primary,
     borderWidth: 4,
-    borderColor: '#fff',
+    borderColor: colors.borderLight,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 6,
-    zIndex: 2,
   },
   mapRipple: {
     position: 'absolute',
@@ -646,7 +647,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   locationCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 24,
     padding: 24,
     marginBottom: 24,
@@ -665,7 +666,7 @@ const styles = StyleSheet.create({
   locationTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#64748b',
+    color: colors.textMuted,
   },
   verifiedBadge: {
     flexDirection: 'row',
@@ -694,13 +695,13 @@ const styles = StyleSheet.create({
   },
   coordLabel: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textMuted,
     marginBottom: 4,
   },
   coordValue: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   addressRow: {
     flexDirection: 'row',
@@ -724,18 +725,18 @@ const styles = StyleSheet.create({
   addressMain: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   addressSub: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textMuted,
   },
   locationFallback: {
     paddingVertical: 12,
   },
   locationFallbackText: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     lineHeight: 20,
   },
   confirmBtn: {
@@ -769,3 +770,4 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 });
+}

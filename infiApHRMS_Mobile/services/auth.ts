@@ -570,7 +570,7 @@ export type PayrollHistoryData = {
 
 export type ApiNotification = {
   id: string;
-  category: 'announcement' | 'policy' | 'alert' | 'leave' | 'payroll' | 'attendance' | 'performance' | 'system';
+  category: 'announcement' | 'policy' | 'alert' | 'leave' | 'payroll' | 'attendance' | 'system';
   headline: string;
   details: string;
   scheduleAt?: string | null;
@@ -619,6 +619,14 @@ export const fetchPayrollHistory = async () => {
   return request<{ status: string; statusCode: number; data: PayrollHistoryData }>(
     '/payroll/history',
     { method: 'POST', headers },
+  );
+};
+
+export const fetchPayrollHistoryWithParams = async (params: { limit?: number; month?: string; year?: number }) => {
+  const headers = await getAuthHeaders();
+  return request<{ status: string; statusCode: number; data: PayrollHistoryData }>(
+    '/payroll/history',
+    { method: 'POST', headers, body: params },
   );
 };
 

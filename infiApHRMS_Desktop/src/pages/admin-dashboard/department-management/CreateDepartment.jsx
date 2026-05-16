@@ -18,11 +18,12 @@ const CreateDepartment = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = !!id;
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const { addDepartment, updateDepartment, departments } = useAdminDashboard();
   const { employees } = useEmployeeContext();
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [assignSelf, setAssignSelf] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -30,6 +31,8 @@ const CreateDepartment = () => {
     teams: '',
     manager: ''
   });
+
+  const hasEmployees = (employees || []).length > 0;
 
   useEffect(() => {
     if (isEditMode && departments.length > 0) {
@@ -50,14 +53,19 @@ const CreateDepartment = () => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
-    
+
+    const payload = {
+      ...formData,
+      manager: assignSelf ? (user?._id || user?.id) : formData.manager
+    };
+
     let result;
     if (isEditMode) {
-      result = await updateDepartment(id, formData);
+      result = await updateDepartment(id, payload);
     } else {
-      result = await addDepartment(formData);
+      result = await addDepartment(payload);
     }
-    
+
     setIsSubmitting(false);
 
     if (result?.success) {
@@ -165,19 +173,36 @@ const CreateDepartment = () => {
                 <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Department Head / Manager</label>
                 <div className="relative">
                   <Users className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                  <select 
-                    className="w-full bg-slate-50 border border-slate-100 rounded-[18px] pl-14 pr-8 py-3.5 text-base font-bold text-slate-800 focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 focus:bg-white transition-all outline-none appearance-none cursor-pointer"
+                  <select
+                    className={`w-full bg-slate-50 border border-slate-100 rounded-[18px] pl-14 pr-8 py-3.5 text-base font-bold text-slate-800 focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 focus:bg-white transition-all outline-none appearance-none cursor-pointer ${assignSelf ? 'opacity-50 pointer-events-none' : ''}`}
                     value={formData.manager}
                     onChange={(e) => setFormData({...formData, manager: e.target.value})}
-                    required
+                    required={!assignSelf}
+                    disabled={assignSelf}
                   >
-                    <option value="">Select a manager...</option>
+                    <option value="">{hasEmployees ? 'Select a manager...' : 'No employees available'}</option>
                     {(employees || []).map(emp => (
                       <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                 </div>
+
+                {/* Self-assign checkbox */}
+                <label className="flex items-center gap-3 mt-3 cursor-pointer select-none group">
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${assignSelf ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 group-hover:border-indigo-400'}`}>
+                    {assignSelf && <Check size={14} className="text-white" strokeWidth={3} />}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={assignSelf}
+                    onChange={(e) => setAssignSelf(e.target.checked)}
+                  />
+                  <span className="text-sm font-semibold text-slate-600">
+                    Assign myself as department head {user?.name ? `(${user.name})` : ''}
+                  </span>
+                </label>
               </div>
             </div>
 

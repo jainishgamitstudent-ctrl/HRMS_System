@@ -4,8 +4,15 @@ const adminDashboardController = require("../controllers/adminDashboard.controll
 const { verifyJWT } = require("../middlewares/auth.middleware");
 const { verifyRole } = require("../middlewares/role.middleware");
 
-// All admin dashboard routes require authentication (Admin or SuperAdmin only)
+// All admin dashboard routes require authentication
 router.use(verifyJWT);
+
+// --- Shared: Department view & create (Admin + HR) ---
+router.get("/departments", verifyRole(["admin", "superadmin", "hr"]), adminDashboardController.getDepartments);
+router.get("/departments/create/form", verifyRole(["admin", "superadmin", "hr"]), adminDashboardController.getCreateDepartmentForm);
+router.post("/departments", verifyRole(["admin", "superadmin", "hr"]), adminDashboardController.createDepartment);
+
+// --- Admin-only role gate for remaining routes ---
 router.use(verifyRole(["admin", "superadmin"]));
 
 // --- Summary & Insights ---
@@ -22,10 +29,7 @@ router.patch("/account-settings/security", adminDashboardController.updateAdminS
 router.patch("/account-settings/password", adminDashboardController.updateAdminPassword);
 router.patch("/account-settings/notifications", adminDashboardController.updateAdminNotificationPreferences);
 
-// --- Department Management ---
-router.get("/departments", adminDashboardController.getDepartments);
-router.get("/departments/create/form", adminDashboardController.getCreateDepartmentForm);
-router.post("/departments", adminDashboardController.createDepartment);
+// --- Department Management (Admin-only edit/delete) ---
 router.get("/departments/add-employee/form", adminDashboardController.getDepartmentAddEmployeeForm);
 router.post("/departments/add-employee", adminDashboardController.addDepartmentEmployee);
 router.patch("/departments/:id", adminDashboardController.updateDepartment);

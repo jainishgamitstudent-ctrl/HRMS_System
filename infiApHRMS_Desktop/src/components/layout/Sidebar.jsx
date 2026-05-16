@@ -32,7 +32,8 @@ import {
   Lock,
   Mail,
   ShieldCheck,
-  Globe
+  Globe,
+  Home,
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
@@ -58,6 +59,8 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
     if (location.pathname.startsWith('/admin/employees')) return 'employees';
     if (location.pathname.startsWith('/admin/department-management')) return 'departments';
     if (location.pathname.startsWith('/admin/payroll-management')) return 'payroll';
+    if (location.pathname.startsWith('/wfh-access')) return 'wfh-access';
+    if (location.pathname.startsWith('/admin/wfh-access')) return 'wfh-access';
     return null;
   });
 
@@ -77,6 +80,8 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
     if (location.pathname.startsWith('/admin/employees')) return 'employees';
     if (location.pathname.startsWith('/admin/department-management')) return 'departments';
     if (location.pathname.startsWith('/admin/payroll-management')) return 'payroll';
+    if (location.pathname.startsWith('/wfh-access')) return 'wfh-access';
+    if (location.pathname.startsWith('/admin/wfh-access')) return 'wfh-access';
     return null;
   };
 
@@ -172,9 +177,9 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
       hasSubmenu: true,
       roles: ['HR', 'Admin'],
       subItems: [
-        { name: 'View Departments', icon: Building2, path: role === 'HR' ? '/departments' : '/admin/department-management' },
-        { name: 'Create Department', icon: PlusCircle, path: role === 'HR' ? '/departments/create' : '/admin/department-management/create' },
-        { name: 'Manage Teams', icon: LayoutGrid, path: role === 'HR' ? '/departments/teams' : '/admin/department-management/teams' },
+        { name: 'View Departments', icon: Building2, path: role === 'HR' ? '/departments' : '/admin/department-management', roles: ['HR', 'Admin'] },
+        { name: 'Create Department', icon: PlusCircle, path: role === 'HR' ? '/departments/create' : '/admin/department-management/create', roles: ['HR', 'Admin'] },
+        { name: 'Manage Teams', icon: LayoutGrid, path: role === 'HR' ? '/departments/teams' : '/admin/department-management/teams', roles: ['Admin'] },
       ]
     },
     {
@@ -231,6 +236,12 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
       name: 'Resignation',
       icon: DoorOpen,
       path: role === 'HR' ? '/resignation' : '/admin/resignation',
+      roles: ['HR', 'Admin']
+    },
+    {
+      name: 'WFH Access',
+      icon: Home,
+      path: role === 'HR' ? '/wfh-access' : '/admin/wfh-access',
       roles: ['HR', 'Admin']
     },
     {
@@ -359,23 +370,25 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
                   <div className={`grid transition-all duration-300 ease-in-out ${(openSubmenu === item.key || activeSubmenu === item.key) ? 'grid-rows-[1fr] opacity-100 pointer-events-auto' : 'grid-rows-[0fr] opacity-0 pointer-events-none'}`}>
                     <div className="overflow-hidden">
                       <ul className="mt-1 ml-4 border-l-2 border-slate-100 pl-2 space-y-1">
-                        {item.subItems.map(sub => (
-                          <li key={sub.name}>
-                            <NavLink
-                              to={sub.path}
-                              onClick={() => setMobileMenuOpen?.(false)}
-                              className={({ isActive }) =>
-                                `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 group ${isActive
-                                  ? 'bg-indigo-50 text-indigo-600 font-black'
-                                  : 'text-slate-400 hover:bg-slate-50 hover:text-slate-800'
-                                }`
-                              }
-                            >
-                              <sub.icon size={14} className="group-hover:scale-110 transition-transform" />
-                              <span className="text-[12px] tracking-tight">{sub.name}</span>
-                            </NavLink>
-                          </li>
-                        ))}
+                        {item.subItems
+                          .filter(sub => !sub.roles || sub.roles.includes(role))
+                          .map(sub => (
+                            <li key={sub.name}>
+                              <NavLink
+                                to={sub.path}
+                                onClick={() => setMobileMenuOpen?.(false)}
+                                className={({ isActive }) =>
+                                  `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 group ${isActive
+                                    ? 'bg-indigo-50 text-indigo-600 font-black'
+                                    : 'text-slate-400 hover:bg-slate-50 hover:text-slate-800'
+                                  }`
+                                }
+                              >
+                                <sub.icon size={14} className="group-hover:scale-110 transition-transform" />
+                                <span className="text-[12px] tracking-tight">{sub.name}</span>
+                              </NavLink>
+                            </li>
+                          ))}
                       </ul>
                     </div>
                   </div>

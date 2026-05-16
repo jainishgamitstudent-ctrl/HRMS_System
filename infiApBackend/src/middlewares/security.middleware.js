@@ -20,7 +20,7 @@ const generalLimiter = makeLimiter(
 
 const authLimiter = makeLimiter(
   15 * 60 * 1000,
-  5,
+  100,
   "Too many authentication attempts. Please try again later."
 );
 

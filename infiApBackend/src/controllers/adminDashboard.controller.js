@@ -2328,8 +2328,16 @@ exports.createEmployee = async (req, res) => {
 
         let employeeId = providedEmployeeId;
         if (!employeeId) {
-            const count = await User.countDocuments({ role: "employee" });
-            employeeId = `EMP-${String(count + 1).padStart(4, '0')}`;
+            const latestUser = await User.findOne({ employeeId: { $regex: /^EMP-\d+$/ } })
+                .sort({ employeeId: -1 })
+                .select("employeeId")
+                .lean();
+            let nextNum = 1;
+            if (latestUser?.employeeId) {
+                const match = latestUser.employeeId.match(/EMP-(\d+)/);
+                if (match) nextNum = parseInt(match[1], 10) + 1;
+            }
+            employeeId = `EMP-${String(nextNum).padStart(4, '0')}`;
         }
 
         const user = await User.create({

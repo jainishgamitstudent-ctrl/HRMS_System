@@ -19,7 +19,8 @@ import {
     UserPlus,
     Camera,
     X,
-    Upload
+    Upload,
+    Moon
 } from 'lucide-react';
 import { useEmployeeContext } from '../../../context/EmployeeContext';
 
@@ -45,7 +46,8 @@ const EditEmployee = () => {
         manager: '',
         location: '',
         status: '',
-        profilePicture: ''
+        profilePicture: '',
+        doubleShiftAllowed: false
     });
 
     // --- IDENTITY FETCH ---
@@ -60,7 +62,8 @@ const EditEmployee = () => {
                 manager: employee.manager,
                 location: employee.location || 'Mumbai Office',
                 status: employee.status,
-                profilePicture: employee.profileImage || employee.profilePicture || ''
+                profilePicture: employee.profileImage || employee.profilePicture || '',
+                doubleShiftAllowed: employee.doubleShiftAllowed ?? false
             });
             // Set existing profile image preview
             if (employee.profileImage || employee.profilePicture) {
@@ -246,6 +249,42 @@ const EditEmployee = () => {
                                     }`} />
                                 </button>
                             ))}
+                        </div>
+                   </div>
+
+                   {/* Shift Permissions */}
+                   <div className="bg-white border border-slate-200 rounded-2xl p-6">
+                        <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                            <Moon size={16} className="text-indigo-500" />
+                            Shift Permissions
+                        </h3>
+                        <div className="space-y-3">
+                            <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, doubleShiftAllowed: !prev.doubleShiftAllowed }))}
+                                className={`w-full flex items-center justify-between p-3 rounded-xl transition-all border ${
+                                    formData.doubleShiftAllowed
+                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Moon size={16} />
+                                    <span className="text-sm font-medium">Double Shift</span>
+                                </div>
+                                <div className={`w-10 h-5 rounded-full transition-colors relative ${
+                                    formData.doubleShiftAllowed ? 'bg-indigo-500' : 'bg-slate-300'
+                                }`}>
+                                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                                        formData.doubleShiftAllowed ? 'translate-x-5' : 'translate-x-0.5'
+                                    }`} />
+                                </div>
+                            </button>
+                            <p className="text-xs text-slate-500">
+                                {formData.doubleShiftAllowed
+                                    ? 'Employee can enable double shift on the mobile app.'
+                                    : 'Employee cannot use double shift. Toggle to grant permission.'}
+                            </p>
                         </div>
                    </div>
                 </div>

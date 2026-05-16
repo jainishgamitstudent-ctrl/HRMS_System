@@ -273,7 +273,7 @@ const NotificationDetails = () => {
                   notification.type === 'leave' ? 'calendar' :
                   notification.type === 'attendance' ? 'time' :
                   notification.type === 'payroll' ? 'cash' :
-                  notification.type === 'performance' ? 'trending-up' : 'megaphone'
+                  'megaphone'
                 } 
                 size={24} 
                 color="#4f46e5" 

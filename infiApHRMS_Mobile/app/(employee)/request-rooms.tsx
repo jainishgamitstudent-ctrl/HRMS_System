@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import {
   type RequestRoom,
 } from '../../services/requestRooms';
 
-const StatusBadge = ({ status }: { status: string }) => {
+const StatusBadge = ({ status, styles }: { status: string; styles: any }) => {
   const config: Record<string, { bg: string; text: string; label: string }> = {
     pending: { bg: '#fef9c3', text: '#ca8a04', label: 'Pending' },
     approved: { bg: '#dcfce7', text: '#16a34a', label: 'Approved' },
@@ -35,6 +35,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 export default function RequestRoomsPage() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => RequestRoomsStyles(colors), [colors]);
   const { user } = useUser();
   const [rooms, setRooms] = useState<RequestRoom[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +147,7 @@ export default function RequestRoomsPage() {
                     </Text>
                   </View>
                 </View>
-                <StatusBadge status={room.status} />
+                <StatusBadge status={room.status} styles={styles} />
               </View>
               {room.description ? (
                 <Text style={styles.cardDesc} numberOfLines={2}>
@@ -174,10 +175,11 @@ export default function RequestRoomsPage() {
   );
 }
 
-const styles = StyleSheet.create({
+function RequestRoomsStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   headerRow: {
     paddingHorizontal: 20,
@@ -185,7 +187,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   center: {
@@ -197,117 +199,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#334155',
-    marginTop: 16,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#94a3b8',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#ef4444',
-    marginBottom: 12,
-  },
-  retryBtn: {
-    backgroundColor: '#4f39f6',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  retryText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    gap: 12,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  cardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 8,
-  },
-  typeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  cardInfo: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 2,
-  },
-  cardMeta: {
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: '600',
-  },
-  cardDesc: {
-    fontSize: 13,
-    color: '#475569',
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  messagePreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    gap: 6,
-  },
-  messagePreviewText: {
-    fontSize: 12,
-    color: '#64748b',
-    flex: 1,
   },
 });
+}

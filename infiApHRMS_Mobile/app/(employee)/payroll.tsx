@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Modal, ActivityIndicator, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -12,6 +12,7 @@ import { resolveImageSource } from '../../utils/image';
 import {
   fetchPayrollCurrent,
   fetchPayrollHistory,
+  fetchPayrollHistoryWithParams,
   type PayrollCurrentData,
   type PayrollHistoryItem,
 } from '../../services/auth';
@@ -185,6 +186,70 @@ const createPayslipPdf = async (
   return result.uri;
 };
 
+const buildMultiPayslipHtml = (items: {
+  month: string;
+  salary: string;
+  payDate: string;
+  status: string;
+  earnings: { category: string; amount: number }[];
+  deductions: { category: string; amount: number }[];
+}[]) => {
+  const slips = items.map((item) => `
+    <div style="page-break-after: always; padding: 36px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #4f46e5; padding-bottom: 20px; margin-bottom: 28px;">
+        <div>
+          <div style="font-size: 28px; font-weight: 800; color: #4f46e5;">infiAp HRMS</div>
+          <div style="color: #64748b; font-size: 13px; margin-top: 4px;">Salary Slip • ${item.month}</div>
+          <div style="color: #64748b; font-size: 13px;">Pay Date: ${item.payDate}</div>
+        </div>
+        <div style="background: #dcfce7; color: #15803d; font-weight: 800; padding: 8px 14px; border-radius: 8px; font-size: 12px;">${item.status.toUpperCase()}</div>
+      </div>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; margin-bottom: 24px;">
+        <div style="color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase;">Net Payable Salary</div>
+        <div style="font-size: 36px; font-weight: 900; margin-top: 8px;">${item.salary}</div>
+      </div>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+        <thead>
+          <tr>
+            <th style="text-align: left; background: #eef2ff; color: #3730a3; padding: 12px; font-size: 13px;">Earnings</th>
+            <th style="text-align: right; background: #eef2ff; color: #3730a3; padding: 12px; font-size: 13px;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${item.earnings.map((row: any) => `<tr><td style="border-bottom: 1px solid #e2e8f0; padding: 12px; font-size: 14px;">${row.category}</td><td style="border-bottom: 1px solid #e2e8f0; padding: 12px; font-size: 14px; text-align: right;">${formatINR(row.amount)}</td></tr>`).join('')}
+          ${item.deductions.map((row: any) => `<tr><td style="border-bottom: 1px solid #e2e8f0; padding: 12px; font-size: 14px; color: #dc2626;">${row.category}</td><td style="border-bottom: 1px solid #e2e8f0; padding: 12px; font-size: 14px; text-align: right; color: #dc2626;">-${formatINR(row.amount)}</td></tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top: 22px; display: flex; justify-content: space-between; background: #4f46e5; color: white; border-radius: 12px; padding: 16px 18px; font-size: 18px; font-weight: 800;">
+        <span>Total Net Pay</span>
+        <span>${item.salary}</span>
+      </div>
+      <div style="margin-top: 28px; color: #64748b; font-size: 12px;">This computer-generated payslip does not require a signature.</div>
+    </div>
+  `).join('');
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #0f172a; margin: 0; }
+        </style>
+      </head>
+      <body>${slips}</body>
+    </html>
+  `;
+};
+
+const createMultiPayslipPdf = async (items: Parameters<typeof buildMultiPayslipHtml>[0]) => {
+  const result = await Print.printToFileAsync({
+    html: buildMultiPayslipHtml(items),
+    base64: false,
+  });
+  return result.uri;
+};
+
 
 
 const formatINR = (n: number) =>
@@ -219,13 +284,9 @@ const getDeductionRows = (item?: PayrollCurrentData | null) => {
   return total > 0 ? [{ category: 'Deductions', amount: total }] : [];
 };
 
-type PayrollTrendPoint = {
-  month: string;
-  net: number;
-};
-
 export default function PayrollDashboard() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => PayrollStyles(colors), [colors]);
   const { user } = useUser();
   const [detailsVisible, setDetailsVisible] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -234,7 +295,11 @@ export default function PayrollDashboard() {
   const [current, setCurrent] = useState<PayrollCurrentData | null>(null);
   const [historyData, setHistoryData] = useState<PayrollHistoryItem[]>([]);
   const [historySummary, setHistorySummary] = useState<{ totalYTD?: number; ytdGrowth?: string; avgNet?: number; avgPeriod?: string } | null>(null);
-  const [trendData, setTrendData] = useState<PayrollTrendPoint[]>([]);
+  const [batchDownloading, setBatchDownloading] = useState(false);
+  const [customPickerVisible, setCustomPickerVisible] = useState(false);
+  const [fromDateKey, setFromDateKey] = useState<string>('');
+  const [toDateKey, setToDateKey] = useState<string>('');
+  const [pickerMode, setPickerMode] = useState<'from' | 'to'>('from');
   const avatarSource = resolveImageSource(user.avatar);
 
   useEffect(() => {
@@ -246,7 +311,6 @@ export default function PayrollDashboard() {
         setCurrent(cur.data);
         setHistoryData(hist.data?.paymentHistory || (Array.isArray(hist.data as any) ? (hist.data as any) : []));
         setHistorySummary(hist.data?.summary || null);
-        setTrendData(Array.isArray((hist.data as any)?.trend) ? (hist.data as any).trend : []);
       } catch (error) {
         console.warn('Failed to load payroll:', error);
       } finally {
@@ -264,14 +328,6 @@ export default function PayrollDashboard() {
   const statusLabel = current?.status || 'PAID';
   const earningsRows = getEarningsRows(current);
   const deductionRows = getDeductionRows(current);
-  const chartData = trendData.length > 0
-    ? trendData
-    : historyData.slice(0, 6).map((item) => ({
-        month: (item.monthYear || formatMonthYear(item.month, item.year)).split(' ')[0]?.slice(0, 3).toUpperCase() || '—',
-        net: getNetPay(item),
-      })).reverse();
-  const chartMax = Math.max(...chartData.map((item) => item.net), 1);
-
   const handleDownload = async () => {
     if (downloading) return;
     setDownloading(true);
@@ -284,11 +340,13 @@ export default function PayrollDashboard() {
         earnings: earningsRows,
         deductions: deductionRows,
       });
-      // Open the native print dialog which has a built-in "Save as PDF" option
-      // on both iOS (AirPrint -> Save to Files) and Android (PDF Printer -> Save).
-      await Print.printAsync({ html });
+      const result = await Print.printToFileAsync({ html, base64: false });
+      await Sharing.shareAsync(result.uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `${currentMonth} Salary Slip`,
+        UTI: 'com.adobe.pdf',
+      });
     } catch (error: any) {
-      // User cancelling the print dialog throws; ignore that case.
       const message = error instanceof Error ? error.message : String(error);
       if (!/cancel|dismiss/i.test(message)) {
         Alert.alert('Download Failed', message || 'Unable to create the salary slip PDF.');
@@ -325,6 +383,191 @@ export default function PayrollDashboard() {
     } finally {
       setSharing(false);
     }
+  };
+
+  const getItemEarnings = (item: PayrollHistoryItem) => {
+    return [
+      { category: 'Basic Salary', amount: Number(item.basicSalary ?? 0) },
+      { category: 'Allowances', amount: Number(item.allowances ?? 0) },
+      { category: 'Bonus', amount: Number(item.bonus ?? 0) },
+    ].filter(row => row.amount > 0 || row.category === 'Basic Salary');
+  };
+
+  const getItemDeductions = (item: PayrollHistoryItem) => {
+    const total = Number(item.deductions ?? 0);
+    return total > 0 ? [{ category: 'Deductions', amount: total }] : [];
+  };
+
+  const handleDownloadBatch = async (items: PayrollHistoryItem[], label: string) => {
+    if (batchDownloading || items.length === 0) return;
+    setBatchDownloading(true);
+    try {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('Sharing Unavailable', 'PDF sharing is not available on this device.');
+        return;
+      }
+      const slips = items.map((item) => {
+        const monthLabel = item.monthYear || formatMonthYear(item.month, item.year);
+        const salary = formatINR(getNetPay(item));
+        const dateStr = item.paidAt || item.updatedAt || item.createdAt || monthLabel;
+        const status = item.status || 'Pending';
+        return {
+          month: monthLabel,
+          salary,
+          payDate: dateStr,
+          status,
+          earnings: getItemEarnings(item),
+          deductions: getItemDeductions(item),
+        };
+      });
+      const html = buildMultiPayslipHtml(slips);
+      const result = await Print.printToFileAsync({ html, base64: false });
+      await Sharing.shareAsync(result.uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `${label} Salary Slips`,
+        UTI: 'com.adobe.pdf',
+      });
+    } catch (error: any) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/cancel|dismiss/i.test(message)) {
+        Alert.alert('Download Failed', message || `Unable to create the ${label} PDF.`);
+      }
+    } finally {
+      setBatchDownloading(false);
+    }
+  };
+
+  const generateRecentMonths = (count: number): PayrollHistoryItem[] => {
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const now = new Date();
+    let year = now.getFullYear();
+    let monthIdx = now.getMonth();
+
+    const result: PayrollHistoryItem[] = [];
+    for (let i = 0; i < count; i++) {
+      const month = monthNames[monthIdx];
+      const existing = historyData.find((item) => item.year === year && item.month === month);
+      if (existing) {
+        result.push(existing);
+      } else {
+        result.push({
+          _id: `${year}-${month}`,
+          month,
+          year,
+          monthYear: `${month} ${year}`,
+          basicSalary: 0,
+          allowances: 0,
+          bonus: 0,
+          deductions: 0,
+          net: 0,
+          netPay: 0,
+          netSalary: 0,
+          status: 'No Data',
+          paidAt: '—',
+        });
+      }
+      monthIdx -= 1;
+      if (monthIdx < 0) {
+        monthIdx = 11;
+        year -= 1;
+      }
+    }
+    return result;
+  };
+
+  const handleDownloadLast3Months = async () => {
+    const items = generateRecentMonths(3);
+    await handleDownloadBatch(items, 'Last 3 Months');
+  };
+
+  const handleDownloadLast6Months = async () => {
+    const items = generateRecentMonths(6);
+    await handleDownloadBatch(items, 'Last 6 Months');
+  };
+
+  const getUniqueMonthOptions = () => {
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonthIdx = now.getMonth();
+
+    const dataYears = Array.from(new Set(historyData.map((item) => Number(item.year || 0)).filter(Boolean)));
+    const earliestYear = dataYears.length > 0 ? Math.min(...dataYears) : currentYear;
+
+    const options: { month: string; year: number; label: string; hasData: boolean }[] = [];
+    for (let year = currentYear; year >= earliestYear; year--) {
+      const maxMonthIdx = year === currentYear ? currentMonthIdx : 11;
+      for (let m = maxMonthIdx; m >= 0; m--) {
+        const month = monthNames[m];
+        const key = `${year}-${month}`;
+        const hasData = historyData.some((item) => `${item.year}-${item.month}` === key);
+        options.push({ month, year, label: `${month} ${year}`, hasData });
+      }
+    }
+    return options;
+  };
+
+  const getDateSortValue = (key: string) => {
+    const monthOrder = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const [yearStr, month] = key.split('-');
+    const year = Number(yearStr || 0);
+    const monthIndex = monthOrder.indexOf(month);
+    return year * 100 + (monthIndex >= 0 ? monthIndex : 0);
+  };
+
+  const generateMonthRangeItems = (fromKey: string, toKey: string): PayrollHistoryItem[] => {
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const fromVal = getDateSortValue(fromKey);
+    const toVal = getDateSortValue(toKey);
+    const minVal = Math.min(fromVal, toVal);
+    const maxVal = Math.max(fromVal, toVal);
+
+    const result: PayrollHistoryItem[] = [];
+    for (let val = minVal; val <= maxVal; val++) {
+      const year = Math.floor(val / 100);
+      const monthIndex = val % 100;
+      const month = monthNames[monthIndex];
+      if (!month) continue;
+
+      const existing = historyData.find(
+        (item) => item.year === year && item.month === month
+      );
+
+      if (existing) {
+        result.push(existing);
+      } else {
+        result.push({
+          _id: `${year}-${month}`,
+          month,
+          year,
+          monthYear: `${month} ${year}`,
+          basicSalary: 0,
+          allowances: 0,
+          bonus: 0,
+          deductions: 0,
+          net: 0,
+          netPay: 0,
+          netSalary: 0,
+          status: 'No Data',
+          paidAt: '—',
+        });
+      }
+    }
+    return result;
+  };
+
+  const handleDownloadCustomRange = async () => {
+    if (!fromDateKey || !toDateKey) {
+      Alert.alert('Select Range', 'Please choose both From and To months.');
+      return;
+    }
+    const items = generateMonthRangeItems(fromDateKey, toDateKey);
+    if (items.length === 0) {
+      Alert.alert('No Data', 'No payroll records found in the selected range.');
+      return;
+    }
+    await handleDownloadBatch(items, 'Custom Range');
   };
 
   return (
@@ -376,31 +619,6 @@ export default function PayrollDashboard() {
           </View>
         </View>
 
-        {/* Trend */}
-        <View style={styles.trendCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Salary Trend</Text>
-            <Text style={styles.sectionLink}>{historySummary?.avgPeriod || 'Recent months'}</Text>
-          </View>
-          <View style={styles.chartArea}>
-            {chartData.length === 0 ? (
-              <Text style={{ color: '#94a3b8', fontWeight: '600' }}>No trend data available.</Text>
-            ) : (
-              chartData.map((item) => {
-                const barHeight = Math.max(28, Math.round((item.net / chartMax) * 96));
-                return (
-                  <View key={item.month} style={styles.barContainer}>
-                    <View style={[styles.bar, { height: barHeight, backgroundColor: item.month === chartData[chartData.length - 1]?.month ? '#4f46e5' : '#c7d2fe' }]} />
-                    <Text style={styles.barLabel}>{item.month}</Text>
-                  </View>
-                );
-              })
-            )}
-          </View>
-        </View>
-
-
-
         {/* Action Buttons */}
         <View style={styles.actionRow}>
           {[
@@ -425,6 +643,74 @@ export default function PayrollDashboard() {
               </TouchableOpacity>
             </Animated.View>
           ))}
+        </View>
+
+        {/* Batch Download Options */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Download Payslips</Text>
+        </View>
+        <View style={{ gap: 10, marginBottom: 30 }}>
+          <TouchableOpacity
+            style={[styles.batchBtn, { backgroundColor: colors.card }]}
+            activeOpacity={0.7}
+            onPress={handleDownloadLast3Months}
+            disabled={batchDownloading}
+          >
+            <View style={[styles.batchIconCircle, { backgroundColor: '#dbeafe' }]}>
+              <Ionicons name="document-text-outline" size={22} color="#2563eb" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.batchBtnTitle}>Last 3 Months</Text>
+              <Text style={styles.batchBtnSub}>Download payslips as combined PDF</Text>
+            </View>
+            {batchDownloading ? <ActivityIndicator size="small" color="#4f46e5" /> : <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.batchBtn, { backgroundColor: colors.card }]}
+            activeOpacity={0.7}
+            onPress={handleDownloadLast6Months}
+            disabled={batchDownloading}
+          >
+            <View style={[styles.batchIconCircle, { backgroundColor: '#ede9fe' }]}>
+              <Ionicons name="documents-outline" size={22} color="#7c3aed" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.batchBtnTitle}>Last 6 Months</Text>
+              <Text style={styles.batchBtnSub}>Download payslips as combined PDF</Text>
+            </View>
+            {batchDownloading ? <ActivityIndicator size="small" color="#4f46e5" /> : <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.batchBtn, { backgroundColor: colors.card }]}
+            activeOpacity={0.7}
+            onPress={() => {
+              if (historyData.length === 0) {
+                Alert.alert('No Data', 'No payroll history available to select from.');
+                return;
+              }
+              const now = new Date();
+              const currentYear = now.getFullYear();
+              const currentMonthIdx = now.getMonth();
+              const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+              const currentMonth = monthNames[currentMonthIdx];
+              setFromDateKey(`${currentYear}-January`);
+              setToDateKey(`${currentYear}-${currentMonth}`);
+              setPickerMode('from');
+              setCustomPickerVisible(true);
+            }}
+            disabled={batchDownloading}
+          >
+            <View style={[styles.batchIconCircle, { backgroundColor: '#dcfce7' }]}>
+              <Ionicons name="calendar-outline" size={22} color="#16a34a" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.batchBtnTitle}>Custom Range</Text>
+              <Text style={styles.batchBtnSub}>Pick From and To months to download</Text>
+            </View>
+            {batchDownloading ? <ActivityIndicator size="small" color="#4f46e5" /> : <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />}
+          </TouchableOpacity>
         </View>
 
         {/* Salary History */}
@@ -541,16 +827,130 @@ export default function PayrollDashboard() {
         </TouchableOpacity>
       </Modal>
 
+      {/* Custom Range Picker Modal */}
+      <Modal
+        visible={customPickerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setCustomPickerVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setCustomPickerVisible(false)}
+        >
+          <Animated.View entering={SlideInUp} style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Range</Text>
+              <TouchableOpacity onPress={() => setCustomPickerVisible(false)}>
+                <Ionicons name="close-circle" size={32} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* From / To selectors */}
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+              <TouchableOpacity
+                style={[
+                  styles.rangeSelector,
+                  pickerMode === 'from' && { borderColor: '#4f46e5', backgroundColor: '#eef2ff' },
+                ]}
+                onPress={() => setPickerMode('from')}
+              >
+                <Text style={{ fontSize: 11, color: colors.textMuted, fontWeight: '700', textTransform: 'uppercase' }}>From</Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: fromDateKey ? colors.textSecondary : '#94a3b8', marginTop: 4 }}>
+                  {fromDateKey ? fromDateKey.replace('-', ' ') : 'Select'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.rangeSelector,
+                  pickerMode === 'to' && { borderColor: '#4f46e5', backgroundColor: '#eef2ff' },
+                ]}
+                onPress={() => setPickerMode('to')}
+              >
+                <Text style={{ fontSize: 11, color: colors.textMuted, fontWeight: '700', textTransform: 'uppercase' }}>To</Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: toDateKey ? colors.textSecondary : '#94a3b8', marginTop: 4 }}>
+                  {toDateKey ? toDateKey.replace('-', ' ') : 'Select'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase' }}>
+              Tap a month to set {pickerMode === 'from' ? 'From' : 'To'}
+            </Text>
+
+            <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
+              {getUniqueMonthOptions().map((opt) => {
+                const key = `${opt.year}-${opt.month}`;
+                const isFrom = fromDateKey === key;
+                const isTo = toDateKey === key;
+                const isActive = isFrom || isTo;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[
+                      styles.monthPickerItem,
+                      isActive && { backgroundColor: '#eef2ff', borderColor: '#4f46e5' },
+                    ]}
+                    onPress={() => {
+                      if (pickerMode === 'from') {
+                        setFromDateKey(key);
+                        if (!toDateKey) setPickerMode('to');
+                      } else {
+                        setToDateKey(key);
+                        if (!fromDateKey) setPickerMode('from');
+                      }
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.monthPickerTitle, isActive && { color: '#4f46e5' }]}>{opt.label}</Text>
+                      {!opt.hasData && !isActive && (
+                        <Text style={{ fontSize: 11, color: '#cbd5e1', fontWeight: '600', marginTop: 1 }}>No payslip</Text>
+                      )}
+                    </View>
+                    {isFrom && (
+                      <View style={{ backgroundColor: '#4f46e5', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginRight: 6 }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>FROM</Text>
+                      </View>
+                    )}
+                    {isTo && (
+                      <View style={{ backgroundColor: '#16a34a', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>TO</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity
+              style={[styles.closeBtn, { marginTop: 16, opacity: fromDateKey && toDateKey ? 1 : 0.5 }]}
+              onPress={() => {
+                setCustomPickerVisible(false);
+                handleDownloadCustomRange();
+              }}
+              disabled={!fromDateKey || !toDateKey || batchDownloading}
+            >
+              {batchDownloading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.closeBtnText}>Download Range</Text>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+        </TouchableOpacity>
+      </Modal>
+
       <BottomNav />
 
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+function PayrollStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: 20,
@@ -577,9 +977,9 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.24)',
+    borderColor: colors.border,
   },
   profileMeta: {
     flex: 1,
@@ -650,12 +1050,12 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
-    shadowColor: '#000',
+    borderColor: colors.borderLight,
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
     shadowRadius: 10,
@@ -664,14 +1064,14 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#64748b',
+    color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   summaryValue: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginTop: 8,
   },
   sectionHeaderRow: {
@@ -683,78 +1083,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   sectionLink: {
     fontSize: 14,
     color: '#6366f1',
     fontWeight: '700',
-  },
-  trendCard: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  chartArea: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    height: 140,
-    paddingTop: 10,
-  },
-  barContainer: {
-    alignItems: 'center',
-    gap: 12,
-  },
-  bar: {
-    width: 32,
-    borderRadius: 8,
-  },
-  inactiveBar: {
-    backgroundColor: '#f1f5f9',
-  },
-  activeBar: {
-    backgroundColor: '#4f46e5',
-  },
-  barLabel: {
-    fontSize: 10,
-    color: '#94a3b8',
-    fontWeight: '800',
-  },
-  activeBarLabel: {
-    color: '#4f46e5',
-  },
-  tooltip: {
-    position: 'absolute',
-    top: -45,
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    zIndex: 100,
-  },
-  tooltipText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  tooltipArrow: {
-    position: 'absolute',
-    bottom: -6,
-    left: '50%',
-    marginLeft: -6,
-    width: 12,
-    height: 12,
-    backgroundColor: '#1e293b',
-    transform: [{ rotate: '45deg' }],
   },
   actionRow: {
     flexDirection: 'row',
@@ -765,14 +1099,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   actionBtn: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 16,
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
-    shadowColor: '#000',
+    borderColor: colors.borderLight,
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 10,
@@ -788,17 +1122,17 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   historyList: {
     gap: 12,
   },
   historyCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
-    shadowColor: '#000',
+    borderColor: colors.borderLight,
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.03,
     shadowRadius: 10,
@@ -819,16 +1153,16 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 16,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
   },
   historyMonth: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   historySub: {
     fontSize: 12,
@@ -862,7 +1196,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     padding: 24,
@@ -877,7 +1211,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   breakdownRow: {
     flexDirection: 'row',
@@ -888,12 +1222,12 @@ const styles = StyleSheet.create({
   },
   breakdownLabel: {
     fontSize: 15,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   breakdownValue: {
     fontSize: 15,
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontWeight: '800',
   },
   deductionBorder: {
@@ -923,7 +1257,7 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   totalValue: {
     fontSize: 18,
@@ -945,7 +1279,7 @@ const styles = StyleSheet.create({
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     paddingHorizontal: 30,
     paddingVertical: 12,
     borderTopWidth: 1,
@@ -978,6 +1312,68 @@ const styles = StyleSheet.create({
   successText: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
+  },
+  batchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  batchIconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  batchBtnTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textSecondary,
+  },
+  batchBtnSub: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  rangeSelector: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+  },
+  monthPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    marginBottom: 8,
+    backgroundColor: colors.card,
+  },
+  monthPickerTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textSecondary,
+  },
+  monthPickerSub: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '600',
+    marginTop: 2,
   },
 });
+}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import { UI } from '@/constants/ui';
 import { useAppTheme } from '@/context/ThemeContext';
 export default function EditProfilePage() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => EditProfileStyles(colors), [colors]);
   const { user, syncUserFromApi } = useUser();
   const [name, setName] = useState(user.name);
   const [designation, setDesignation] = useState(user.role);
@@ -51,6 +52,14 @@ export default function EditProfilePage() {
     if (!name.trim()) {
       Alert.alert('Missing Info', 'Please enter your full name.');
       return;
+    }
+
+    if (phone.trim()) {
+      const digitsOnly = phone.trim().replace(/\D/g, '');
+      if (digitsOnly.length !== 10) {
+        Alert.alert('Invalid Phone', 'Mobile number must be exactly 10 digits.');
+        return;
+      }
     }
 
     try {
@@ -118,7 +127,7 @@ export default function EditProfilePage() {
                   value={name}
                   onChangeText={setName}
                   placeholder="Enter full name"
-                  placeholderTextColor="#94a3b8"
+                  placeholderTextColor={colors.textMuted}
                 />
               </View>
             </View>
@@ -132,7 +141,7 @@ export default function EditProfilePage() {
                     value={phone}
                     onChangeText={setPhone}
                     placeholder="Enter mobile number"
-                    placeholderTextColor="#94a3b8"
+                    placeholderTextColor={colors.textMuted}
                     keyboardType="phone-pad"
                   />
                 </View>
@@ -157,7 +166,7 @@ export default function EditProfilePage() {
                     value={department}
                     onChangeText={setDepartment}
                     placeholder="Enter department"
-                    placeholderTextColor="#94a3b8"
+                    placeholderTextColor={colors.textMuted}
                   />
                 </View>
               </View>
@@ -170,7 +179,7 @@ export default function EditProfilePage() {
                     value={designation}
                     onChangeText={setDesignation}
                     placeholder="Enter designation"
-                    placeholderTextColor="#94a3b8"
+                    placeholderTextColor={colors.textMuted}
                   />
                 </View>
               </View>
@@ -184,7 +193,7 @@ export default function EditProfilePage() {
                   value={address}
                   onChangeText={setAddress}
                   placeholder="Enter your address"
-                  placeholderTextColor="#94a3b8"
+                  placeholderTextColor={colors.textMuted}
                   multiline
                   textAlignVertical="top"
                 />
@@ -219,152 +228,154 @@ export default function EditProfilePage() {
   );
 }
 
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-  root: {
-    flex: 1,
-    // backgroundColor: '#007AFF',
-    backgroundColor: UI.colors.background,
-  },
-  scrollContent: {
-    paddingHorizontal: 14,
-    paddingTop: 20,
-    paddingBottom: 44,
-  },
-  heroCard: {
-    backgroundColor: '#007AFF',
-    borderRadius: 16,
-    padding: 14,
-    alignItems: 'center',
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: UI.colors.border,
-  },
-  avatarWrap: {
-    position: 'relative',
-    marginBottom: 10,
-  },
-  avatar: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    borderWidth: 2,
-    borderColor: '#D9E8FF',
-    backgroundColor: '#e2e8f0',
-  },
-  cameraBtn: {
-    position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: UI.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: UI.colors.surface,
-  },
-  heroTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 3,
-  },
-  heroSubtitle: {
-    fontSize: 11,
-    lineHeight: 16,
-    color: '#fff',
-    textAlign: 'center',
-  },
-  formCard: {
-    backgroundColor: UI.colors.surface,
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: UI.colors.border,
-  },
-  twoColumnRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  halfWidth: {
-    flex: 1,
-  },
-  inputGroup: {
-    marginBottom: 12,
-  },
-  label: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#98A2B3',
-    marginBottom: 5,
-    textTransform: 'uppercase',
-  },
-  inputWrapper: {
-    minHeight: 42,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: UI.colors.border,
-    backgroundColor: UI.colors.surfaceAlt,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  readOnlyInputWrapper: {
-    backgroundColor: '#f1f5f9',
-  },
-  input: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: UI.colors.text,
-  },
-  readOnlyText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#475569',
-  },
-  textAreaWrapper: {
-    minHeight: 88,
-    paddingVertical: 10,
-  },
-  textArea: {
-    minHeight: 56,
-  },
-  actions: {
-    gap: 10,
-    marginTop: 12,
-  },
-  saveBtn: {
-    minHeight: 46,
-    borderRadius: 12,
-    backgroundColor: UI.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  saveBtnDisabled: {
-    opacity: 0.75,
-  },
-  saveBtnText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  cancelBtn: {
-    minHeight: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: UI.colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  cancelBtnText: {
-    color: '#475569',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-});
+function EditProfileStyles(colors: any) {
+  return StyleSheet.create({
+    flex: {
+      flex: 1,
+    },
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scrollContent: {
+      paddingHorizontal: 14,
+      paddingTop: 20,
+      paddingBottom: 44,
+    },
+    heroCard: {
+      backgroundColor: colors.primary,
+      borderRadius: 16,
+      padding: 14,
+      alignItems: 'center',
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    avatarWrap: {
+      position: 'relative',
+      marginBottom: 10,
+    },
+    avatar: {
+      width: 84,
+      height: 84,
+      borderRadius: 42,
+      borderWidth: 2,
+      borderColor: colors.border,
+      backgroundColor: '#e2e8f0',
+    },
+    cameraBtn: {
+      position: 'absolute',
+      right: -2,
+      bottom: -2,
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: colors.surface,
+    },
+    heroTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#fff',
+      marginBottom: 3,
+    },
+    heroSubtitle: {
+      fontSize: 11,
+      lineHeight: 16,
+      color: '#fff',
+      textAlign: 'center',
+    },
+    formCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    twoColumnRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    halfWidth: {
+      flex: 1,
+    },
+    inputGroup: {
+      marginBottom: 12,
+    },
+    label: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginBottom: 5,
+      textTransform: 'uppercase',
+    },
+    inputWrapper: {
+      minHeight: 42,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceAlt,
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+    },
+    readOnlyInputWrapper: {
+      backgroundColor: colors.surfaceAlt,
+      borderColor: colors.borderLight,
+    },
+    input: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    readOnlyText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.textMuted,
+    },
+    textAreaWrapper: {
+      minHeight: 88,
+      paddingVertical: 10,
+    },
+    textArea: {
+      minHeight: 56,
+    },
+    actions: {
+      gap: 10,
+      marginTop: 12,
+    },
+    saveBtn: {
+      minHeight: 46,
+      borderRadius: 12,
+      backgroundColor: colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    saveBtnDisabled: {
+      opacity: 0.75,
+    },
+    saveBtnText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    cancelBtn: {
+      minHeight: 44,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+    },
+    cancelBtnText: {
+      color: colors.textMuted,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+  });
+}

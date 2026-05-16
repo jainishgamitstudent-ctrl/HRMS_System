@@ -6,6 +6,7 @@ import { BottomNav } from '../../components/BottomNav';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Header from '../../components/layout/Header';
 import { useAttendanceSession } from '../../hooks/useAttendanceSession';
+import { useUser } from '@/context/UserContext';
 import { submitEmployeePunch, fetchAttendanceHistory } from '../../services/auth';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -49,6 +50,7 @@ type CorrectionTab = 'Pending' | 'Approved' | 'Rejected';
 
 export default function AttendancePage() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => AttendanceStyles(colors), [colors]);
   // State
   const [allRecords, setAllRecords] = useState<AttendanceRecord[]>([]);
   const [corrections, setCorrections] = useState<CorrectionRequest[]>(INITIAL_CORRECTIONS);
@@ -69,11 +71,14 @@ export default function AttendancePage() {
     loading: attendanceLoading,
     recordCheckIn,
     recordCheckOut,
+    toggleDoubleShift,
     canCheckIn,
     canCheckOut,
     isLockedForToday,
+    doubleShiftEnabled,
     nextResetLabel,
   } = useAttendanceSession();
+  const { user } = useUser();
 
   // ── Filtered Records ──
   const filteredRecords = useMemo(() => {
@@ -324,7 +329,9 @@ export default function AttendancePage() {
   const checkInTime = session.checkInSnapshot?.time ?? '--';
   const checkOutTime = session.checkOutSnapshot?.time ?? '--';
   const attendanceBannerText = checkedOut
-    ? `Checked out for today. Available again at ${nextResetLabel}.`
+    ? isLockedForToday
+      ? `Checked out for today. Available again at ${nextResetLabel}.`
+      : `First shift complete. Enable Double Shift to check in again.`
     : checkedIn
       ? `Checked in at ${checkInTime}.`
       : `Ready to check in. Daily reset happens at ${nextResetLabel}.`;
@@ -387,6 +394,44 @@ export default function AttendancePage() {
           </View>
         </Animated.View>
 
+        {/* Double Shift Toggle */}
+        <View style={styles.doubleShiftRow}>
+          <View style={styles.doubleShiftLabelWrap}>
+            <Ionicons
+              name={doubleShiftEnabled ? 'moon' : 'moon-outline'}
+              size={16}
+              color={user.doubleShiftAllowed ? (doubleShiftEnabled ? '#4f46e5' : '#64748b') : '#94a3b8'}
+            />
+            <Text style={[styles.doubleShiftLabel, !user.doubleShiftAllowed && styles.doubleShiftLabelDisabled]}>
+              Double Shift
+            </Text>
+            {!user.doubleShiftAllowed && (
+              <Text style={styles.doubleShiftHint}>Contact HR</Text>
+            )}
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.doubleShiftToggle,
+              doubleShiftEnabled && styles.doubleShiftToggleActive,
+              !user.doubleShiftAllowed && styles.doubleShiftToggleDisabled,
+            ]}
+            onPress={() => {
+              if (user.doubleShiftAllowed) {
+                toggleDoubleShift();
+              }
+            }}
+            activeOpacity={user.doubleShiftAllowed ? 0.8 : 1}
+          >
+            <View
+              style={[
+                styles.doubleShiftKnob,
+                doubleShiftEnabled && styles.doubleShiftKnobActive,
+                !user.doubleShiftAllowed && styles.doubleShiftKnobDisabled,
+              ]}
+            />
+          </TouchableOpacity>
+        </View>
+
         {/* Action Buttons */}
         {isLockedForToday ? (
           <View style={styles.actionRowSingle}>
@@ -408,7 +453,7 @@ export default function AttendancePage() {
                 <Ionicons name="log-in-outline" size={24} color={canCheckIn ? '#fff' : '#94a3b8'} />
               )}
               <Text style={canCheckIn ? styles.actionBtnTextActive : styles.actionBtnTextDisabled}>
-                {checkedIn ? 'Checked In' : 'Check In'}
+                {checkedIn ? (doubleShiftEnabled ? '2nd Check In' : 'Checked In') : 'Check In'}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -422,7 +467,7 @@ export default function AttendancePage() {
                 <Ionicons name="log-out-outline" size={24} color={canCheckOut ? '#fff' : '#94a3b8'} />
               )}
               <Text style={canCheckOut ? styles.actionBtnTextActive : styles.actionBtnTextDisabled}>
-                {checkedIn ? 'Check Out' : 'Check In First'}
+                {checkedIn ? (session.todayPunchCount >= 3 ? '2nd Check Out' : 'Check Out') : 'Check In First'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -687,150 +732,165 @@ export default function AttendancePage() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f8fafc' },
-  scrollContent: { paddingBottom: 20 },
+function AttendanceStyles(colors: any) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.background },
+    scrollContent: { paddingBottom: 20 },
 
-  // Toast
-  toast: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf4', margin: 20, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#dcfce7' },
-  toastIcon: { marginRight: 8 },
-  toastText: { fontSize: 14, color: '#166534', fontWeight: '600' },
-  toastTextLocked: { color: '#1d4ed8' },
+    // Toast
+    toast: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf4', margin: 20, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#dcfce7' },
+    toastIcon: { marginRight: 8 },
+    toastText: { fontSize: 14, color: '#166534', fontWeight: '600' },
+    toastTextLocked: { color: '#1d4ed8' },
 
-  // Details
-  detailsCard: { backgroundColor: '#fff', marginHorizontal: 20, borderRadius: 24, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2, marginBottom: 20 },
-  detailsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  detailsSub: { fontSize: 13, color: '#94a3b8', fontWeight: '500', marginBottom: 4 },
-  detailsDate: { fontSize: 22, fontWeight: '800', color: '#1e293b' },
-  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  statusText: { fontSize: 11, fontWeight: '800' },
-  checkRow: { flexDirection: 'row', gap: 12 },
-  checkItem: { flex: 1, backgroundColor: '#f8fafc', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#f1f5f9' },
-  checkLabel: { fontSize: 10, fontWeight: '800', color: '#94a3b8', marginBottom: 8, letterSpacing: 0.5 },
-  checkTime: { fontSize: 16, fontWeight: '800', color: '#1e293b', marginBottom: 4 },
-  checkStatus: { fontSize: 11, color: '#10b981', fontWeight: '600' },
-  checkStatusCompleted: { fontSize: 11, color: '#64748b', fontWeight: '600' },
+    // Details
+    detailsCard: { backgroundColor: colors.card, marginHorizontal: 20, borderRadius: 24, padding: 24, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2, marginBottom: 20 },
+    detailsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
+    detailsSub: { fontSize: 13, color: colors.textMuted, fontWeight: '500', marginBottom: 4 },
+    detailsDate: { fontSize: 22, fontWeight: '800', color: colors.textSecondary },
+    statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+    statusText: { fontSize: 11, fontWeight: '800' },
+    checkRow: { flexDirection: 'row', gap: 12 },
+    checkItem: { flex: 1, backgroundColor: colors.surfaceAlt, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.borderLight },
+    checkLabel: { fontSize: 10, fontWeight: '800', color: colors.textMuted, marginBottom: 8, letterSpacing: 0.5 },
+    checkTime: { fontSize: 16, fontWeight: '800', color: colors.textSecondary, marginBottom: 4 },
+    checkStatus: { fontSize: 11, color: '#10b981', fontWeight: '600' },
+    checkStatusCompleted: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
 
-  // Action Buttons
-  actionRow: { flexDirection: 'row', marginHorizontal: 20, gap: 12, marginBottom: 20 },
-  actionRowSingle: { marginHorizontal: 20, marginBottom: 20 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff', gap: 8 },
-  actionBtnActive: { backgroundColor: '#007AFF', borderColor: '#007AFF', shadowColor: '#007AFF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 4 },
-  actionBtnLocked: { flex: undefined, backgroundColor: '#eff6ff', borderColor: '#bfdbfe', justifyContent: 'flex-start', paddingHorizontal: 16, minHeight: 58 },
-  actionBtnTextActive: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  actionBtnTextDisabled: { fontSize: 15, fontWeight: '700', color: '#94a3b8' },
-  actionBtnTextLocked: { fontSize: 15, fontWeight: '700', color: '#2563eb' },
+    // Action Buttons
+    actionRow: { flexDirection: 'row', marginHorizontal: 20, gap: 12, marginBottom: 20 },
+    actionRowSingle: { marginHorizontal: 20, marginBottom: 20 },
+    actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, gap: 8 },
+    actionBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 4 },
+    actionBtnLocked: { flex: undefined, backgroundColor: colors.primaryBg, borderColor: colors.heroBorder, justifyContent: 'flex-start', paddingHorizontal: 16, minHeight: 58 },
+    actionBtnTextActive: { fontSize: 15, fontWeight: '700', color: '#fff' },
+    actionBtnTextDisabled: { fontSize: 15, fontWeight: '700', color: colors.textMuted },
+    actionBtnTextLocked: { fontSize: 15, fontWeight: '700', color: colors.primary },
 
-  // Section
-  section: { paddingHorizontal: 20, marginBottom: 24 },
-  sectionTitle: { fontSize: 12, fontWeight: '800', color: '#1e293b', letterSpacing: 0.5, marginBottom: 16 },
+    // Section
+    section: { paddingHorizontal: 20, marginBottom: 24 },
+    sectionTitle: { fontSize: 12, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.5, marginBottom: 16 },
 
-  // Tabs
-  tabRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  tabBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f1f5f9' },
-  tabBtnActive: { backgroundColor: '#007AFF' },
-  tabBtnText: { fontSize: 13, fontWeight: '700', color: '#64748b' },
-  tabBtnTextActive: { color: '#fff' },
+    // Tabs
+    tabRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+    tabBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.borderLight },
+    tabBtnActive: { backgroundColor: colors.primary },
+    tabBtnText: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
+    tabBtnTextActive: { color: '#fff' },
 
-  // Department Filter
-  deptFilter: { marginBottom: 16 },
-  deptChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', marginRight: 8 },
-  deptChipActive: { backgroundColor: '#eef2ff', borderColor: '#007AFF' },
-  deptChipText: { fontSize: 12, fontWeight: '600', color: '#64748b' },
-  deptChipTextActive: { color: '#007AFF' },
+    // Department Filter
+    deptFilter: { marginBottom: 16 },
+    deptChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, marginRight: 8 },
+    deptChipActive: { backgroundColor: colors.primaryBg, borderColor: colors.primary },
+    deptChipText: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
+    deptChipTextActive: { color: colors.primary },
 
-  // Stats
-  statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 12, borderLeftWidth: 3, alignItems: 'center' },
-  statValue: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
-  statLabel: { fontSize: 9, fontWeight: '700', color: '#94a3b8', marginTop: 4, textTransform: 'uppercase' },
+    // Stats
+    statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+    statCard: { flex: 1, backgroundColor: colors.card, borderRadius: 12, padding: 12, borderLeftWidth: 3, alignItems: 'center' },
+    statValue: { fontSize: 18, fontWeight: '800', color: colors.textSecondary },
+    statLabel: { fontSize: 9, fontWeight: '700', color: colors.textMuted, marginTop: 4, textTransform: 'uppercase' },
 
-  // Records
-  recordCard: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8, alignItems: 'center', borderWidth: 1, borderColor: '#f1f5f9' },
-  recordLeft: { flex: 1 },
-  recordDate: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
-  recordDept: { fontSize: 11, color: '#94a3b8', fontWeight: '500', marginTop: 2 },
-  recordCenter: { flex: 1, alignItems: 'center' },
-  recordTime: { fontSize: 11, fontWeight: '600', color: '#64748b' },
-  recordHours: { fontSize: 12, fontWeight: '800', color: '#1e293b', marginTop: 2 },
-  recordBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  recordBadgeText: { fontSize: 10, fontWeight: '800' },
+    // Records
+    recordCard: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 16, padding: 14, marginBottom: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.borderLight },
+    recordLeft: { flex: 1 },
+    recordDate: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+    recordDept: { fontSize: 11, color: colors.textMuted, fontWeight: '500', marginTop: 2 },
+    recordCenter: { flex: 1, alignItems: 'center' },
+    recordTime: { fontSize: 11, fontWeight: '600', color: colors.textMuted },
+    recordHours: { fontSize: 12, fontWeight: '800', color: colors.textSecondary, marginTop: 2 },
+    recordBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+    recordBadgeText: { fontSize: 10, fontWeight: '800' },
 
-  // Generate Report
-  generateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#007AFF', paddingVertical: 14, borderRadius: 16, gap: 8, marginTop: 8, shadowColor: '#007AFF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 4 },
-  generateBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+    // Generate Report
+    generateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, paddingVertical: 14, borderRadius: 16, gap: 8, marginTop: 8, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 4 },
+    generateBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 
-  // Corrections
-  correctionCard: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#f1f5f9' },
-  checkbox: { marginRight: 12, justifyContent: 'center' },
-  correctionBody: { flex: 1 },
-  correctionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  correctionDate: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
-  correctionType: { fontSize: 11, color: '#94a3b8', fontWeight: '600', marginTop: 2 },
-  correctionTimes: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  correctionTimeItem: { alignItems: 'center' },
-  correctionTimeLabel: { fontSize: 10, fontWeight: '700', color: '#94a3b8', marginBottom: 4 },
-  correctionTimeValue: { fontSize: 14, fontWeight: '800', color: '#1e293b' },
-  correctionReason: { fontSize: 12, color: '#64748b', fontWeight: '500', marginBottom: 12 },
-  correctionActions: { flexDirection: 'row', gap: 8 },
-  approveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#22c55e', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  approveBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
-  rejectBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fef2f2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#fee2e2' },
-  rejectBtnText: { fontSize: 12, fontWeight: '700', color: '#ef4444' },
-  reviewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#eef2ff', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#c7d2fe' },
-  reviewBtnText: { fontSize: 12, fontWeight: '700', color: '#007AFF' },
+    // Corrections
+    correctionCard: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.borderLight },
+    checkbox: { marginRight: 12, justifyContent: 'center' },
+    correctionBody: { flex: 1 },
+    correctionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    correctionDate: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+    correctionType: { fontSize: 11, color: colors.textMuted, fontWeight: '600', marginTop: 2 },
+    correctionTimes: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
+    correctionTimeItem: { alignItems: 'center' },
+    correctionTimeLabel: { fontSize: 10, fontWeight: '700', color: colors.textMuted, marginBottom: 4 },
+    correctionTimeValue: { fontSize: 14, fontWeight: '800', color: colors.textSecondary },
+    correctionReason: { fontSize: 12, color: colors.textMuted, fontWeight: '500', marginBottom: 12 },
+    correctionActions: { flexDirection: 'row', gap: 8 },
+    approveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#22c55e', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+    approveBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+    rejectBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fef2f2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#fee2e2' },
+    rejectBtnText: { fontSize: 12, fontWeight: '700', color: '#ef4444' },
+    reviewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#eef2ff', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#c7d2fe' },
+    reviewBtnText: { fontSize: 12, fontWeight: '700', color: '#007AFF' },
 
-  // Bulk
-  bulkRow: { marginBottom: 12 },
-  bulkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#22c55e', paddingVertical: 10, borderRadius: 12 },
-  bulkBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+    // Bulk
+    bulkRow: { marginBottom: 12 },
+    bulkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#22c55e', paddingVertical: 10, borderRadius: 12 },
+    bulkBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
-  // Empty
-  emptyState: { alignItems: 'center', paddingVertical: 32 },
-  emptyText: { fontSize: 14, color: '#94a3b8', fontWeight: '600', marginTop: 12 },
+    // Empty
+    emptyState: { alignItems: 'center', paddingVertical: 32 },
+    emptyText: { fontSize: 14, color: colors.textMuted, fontWeight: '600', marginTop: 12 },
 
-  // Shift
-  shiftCard: { backgroundColor: '#eff6ff', marginHorizontal: 20, borderRadius: 24, padding: 20, marginBottom: 24 },
-  shiftHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
-  shiftTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
-  shiftBody: { flexDirection: 'row', alignItems: 'center' },
-  shiftInfo: { flex: 1 },
-  shiftLabel: { fontSize: 13, color: '#64748b', fontWeight: '600', marginBottom: 4 },
-  shiftTime: { fontSize: 14, fontWeight: '800', color: '#1e293b', marginBottom: 4 },
-  shiftDays: { fontSize: 12, color: '#94a3b8', fontWeight: '500' },
-  shiftDivider: { width: 1, height: 40, backgroundColor: '#dbeafe', marginHorizontal: 16 },
+    // Shift
+    shiftCard: { backgroundColor: colors.primaryBg, marginHorizontal: 20, borderRadius: 24, padding: 20, marginBottom: 24 },
+    shiftHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+    shiftTitle: { fontSize: 15, fontWeight: '700', color: colors.textSecondary },
+    shiftBody: { flexDirection: 'row', alignItems: 'center' },
+    shiftInfo: { flex: 1 },
+    shiftLabel: { fontSize: 13, color: colors.textMuted, fontWeight: '600', marginBottom: 4 },
+    shiftTime: { fontSize: 14, fontWeight: '800', color: colors.textSecondary, marginBottom: 4 },
+    shiftDays: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
+    shiftDivider: { width: 1, height: 40, backgroundColor: colors.heroBorder, marginHorizontal: 16 },
 
-  // Quick Actions
-  quickActionItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 16, marginBottom: 12, gap: 12 },
-  quickActionIcon: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  quickActionText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#1e293b' },
+    // Double Shift
+    doubleShiftRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, marginBottom: 16, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.borderLight },
+    doubleShiftLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    doubleShiftLabel: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+    doubleShiftLabelDisabled: { color: colors.textMuted },
+    doubleShiftHint: { fontSize: 11, fontWeight: '600', color: '#94a3b8', marginLeft: 4 },
+    doubleShiftToggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: '#e2e8f0', justifyContent: 'center', paddingHorizontal: 4 },
+    doubleShiftToggleActive: { backgroundColor: '#4f46e5' },
+    doubleShiftToggleDisabled: { backgroundColor: '#f1f5f9' },
+    doubleShiftKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2, elevation: 2 },
+    doubleShiftKnobActive: { transform: [{ translateX: 20 }] },
+    doubleShiftKnobDisabled: { backgroundColor: '#cbd5e1' },
 
-  // Modals
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  reportModal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
-  reportSubTitle: { fontSize: 13, color: '#94a3b8', fontWeight: '600', marginBottom: 20 },
-  reportGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
-  reportItem: { width: '47%', backgroundColor: '#f8fafc', borderRadius: 16, padding: 16, alignItems: 'center' },
-  reportValue: { fontSize: 24, fontWeight: '800', color: '#1e293b' },
-  reportLabel: { fontSize: 11, color: '#94a3b8', fontWeight: '700', marginTop: 4 },
-  exportRow: { flexDirection: 'row', gap: 12, paddingBottom: Platform.OS === 'ios' ? 30 : 10 },
-  exportBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
-  exportBtnText: { fontSize: 14, fontWeight: '700', color: '#007AFF' },
+    // Quick Actions
+    quickActionItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, padding: 12, borderRadius: 16, marginBottom: 12, gap: 12 },
+    quickActionIcon: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    quickActionText: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.textSecondary },
 
-  // Reject Modal
-  rejectModal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  rejectInput: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 12, fontSize: 14, color: '#1e293b', minHeight: 80, textAlignVertical: 'top', marginVertical: 16 },
-  rejectModalActions: { flexDirection: 'row', gap: 12, paddingBottom: Platform.OS === 'ios' ? 30 : 10 },
-  cancelModalBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center' },
-  cancelModalText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
-  confirmRejectBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#ef4444', alignItems: 'center' },
-  confirmRejectText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+    // Modals
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    reportModal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    modalTitle: { fontSize: 18, fontWeight: '800', color: colors.textSecondary },
+    reportSubTitle: { fontSize: 13, color: colors.textMuted, fontWeight: '600', marginBottom: 20 },
+    reportGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
+    reportItem: { width: '47%', backgroundColor: colors.surfaceAlt, borderRadius: 16, padding: 16, alignItems: 'center' },
+    reportValue: { fontSize: 24, fontWeight: '800', color: colors.textSecondary },
+    reportLabel: { fontSize: 11, color: colors.textMuted, fontWeight: '700', marginTop: 4 },
+    exportRow: { flexDirection: 'row', gap: 12, paddingBottom: Platform.OS === 'ios' ? 30 : 10 },
+    exportBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceAlt },
+    exportBtnText: { fontSize: 14, fontWeight: '700', color: colors.primary },
 
-  // Detail Modal
-  detailModal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  detailLabel: { fontSize: 13, fontWeight: '600', color: '#94a3b8' },
-  detailValue: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
-});
+    // Reject Modal
+    rejectModal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    rejectInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, fontSize: 14, color: colors.inputText, minHeight: 80, textAlignVertical: 'top', marginVertical: 16 },
+    rejectModalActions: { flexDirection: 'row', gap: 12, paddingBottom: Platform.OS === 'ios' ? 30 : 10 },
+    cancelModalBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: colors.borderLight, alignItems: 'center' },
+    cancelModalText: { fontSize: 14, fontWeight: '700', color: colors.textMuted },
+    confirmRejectBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: colors.error, alignItems: 'center' },
+    confirmRejectText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+
+    // Detail Modal
+    detailModal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
+    detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    detailLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+    detailValue: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+  });
+}

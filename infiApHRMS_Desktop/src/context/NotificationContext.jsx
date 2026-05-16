@@ -48,6 +48,22 @@ export const NotificationProvider = ({ children }) => {
         }
     }, [token]);
 
+    const addToast = useCallback((type, message, duration = 4000) => {
+        const id = Date.now() + Math.random();
+        setToasts(prev => {
+            const newToasts = [...prev, { id, type, message, duration }];
+            return newToasts.slice(-4);
+        });
+
+        setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+        }, duration);
+    }, []);
+
+    const removeToast = useCallback((id) => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+    }, []);
+
     useEffect(() => {
         if (!token || !user) return;
         fetchNotifications();
@@ -59,7 +75,7 @@ export const NotificationProvider = ({ children }) => {
 
         const newSocket = io(API_CONFIG.socketURL, {
             auth: { token },
-            transports: ['websocket']
+            transports: ['websocket', 'polling']
         });
 
         newSocket.on('connect', () => {
@@ -94,23 +110,7 @@ export const NotificationProvider = ({ children }) => {
         setSocket(newSocket);
 
         return () => newSocket.close();
-    }, [token, user]);
-
-    const addToast = useCallback((type, message, duration = 4000) => {
-        const id = Date.now() + Math.random();
-        setToasts(prev => {
-            const newToasts = [...prev, { id, type, message, duration }];
-            return newToasts.slice(-4);
-        });
-
-        setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id));
-        }, duration);
-    }, []);
-
-    const removeToast = useCallback((id) => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-    }, []);
+    }, [token, user, addToast]);
 
     const addNotification = useCallback((notification) => {
         const newNotification = {

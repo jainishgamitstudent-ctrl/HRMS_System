@@ -27,6 +27,7 @@ export default function HRLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="double-shift-permissions" />
     </Stack>
   );
 }

@@ -60,6 +60,12 @@ const ADMIN_NAV_ITEMS = [
     route: '/(employee)/attendance'
   },
   {
+    icon: 'moon-outline',
+    activeIcon: 'moon',
+    label: 'Double Shift',
+    route: '/(hr)/double-shift-permissions'
+  },
+  {
     icon: 'person-outline',
     activeIcon: 'person',
     label: 'Profile',
@@ -179,7 +185,8 @@ export const BottomNav = () => {
             (item.route === '/(employee)/directory' && pathname === '/(employee)/directory') ||
             ((item.route === '/(employee)/attendance') &&
               (pathname === '/(employee)/attendance' || pathname === '/(employee)/attendance-logging' || pathname === '/(employee)/attendance-history')) ||
-            (item.route === '/(admin)/manage-hr' && pathname.startsWith('/(admin)'));
+            (item.route === '/(admin)/manage-hr' && pathname.startsWith('/(admin)')) ||
+            (item.route === '/(hr)/double-shift-permissions' && pathname.startsWith('/(hr)/double-shift-permissions'));
 
           return <NavItem key={i} item={item} isActive={isActive} />;
         })}

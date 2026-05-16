@@ -2,17 +2,32 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Loader2, Plus } from 'lucide-react';
 import { useEmployeeContext } from '../../../context/EmployeeContext';
+import { useAuth } from '../../../context/AuthContext';
 import { getCompanyDepartments } from '../../../services/adminApi';
+
+const COUNTRY_CODES = [
+  { code: '+91', label: 'IN (+91)' },
+  { code: '+1', label: 'US (+1)' },
+  { code: '+44', label: 'UK (+44)' },
+  { code: '+61', label: 'AU (+61)' },
+  { code: '+971', label: 'AE (+971)' },
+  { code: '+65', label: 'SG (+65)' },
+  { code: '+81', label: 'JP (+81)' },
+  { code: '+49', label: 'DE (+49)' },
+];
 
 const emptyForm = {
   name: '',
   email: '',
-  phone: '',
+  countryCode: '+91',
+  phoneNumber: '',
   joiningDate: '',
   department: '',
+  systemRole: 'employee',
   role: '',
   manager: '',
   salary: '',
+  password: '',
 };
 
 const fieldClass =
@@ -30,6 +45,10 @@ const AddEmployee = () => {
   const location = useLocation();
   const basePath = location.pathname.startsWith('/admin') ? '/admin' : '';
   const { addEmployee, employees, fetchEmployees, loading } = useEmployeeContext();
+  const { user } = useAuth();
+
+  const isAdmin = ['admin', 'superadmin'].includes((user?.role || '').toString().toLowerCase());
+  const isHR = (user?.role || '').toString().toLowerCase() === 'hr';
 
   const [formData, setFormData] = useState(emptyForm);
   const [departments, setDepartments] = useState([]);
@@ -37,6 +56,7 @@ const AddEmployee = () => {
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     fetchEmployees?.({ limit: 100 });
@@ -81,19 +101,38 @@ const AddEmployee = () => {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
+    if (name === 'phoneNumber') {
+      const digitsOnly = value.replace(/\D/g, '').slice(0, 10);
+      setFormData((prev) => ({ ...prev, [name]: digitsOnly }));
+      return;
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const isPhoneValid = formData.phoneNumber.length === 10;
+
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setIsSubmitting(true);
     setSubmitError('');
+
+    if (formData.phoneNumber && !isPhoneValid) {
+      setSubmitError('Phone number must be exactly 10 digits.');
+      return;
+    }
+
+    setIsSubmitting(true);
     setSuccessMessage('');
+
+    const fullPhone = formData.phoneNumber
+      ? `${formData.countryCode} ${formData.phoneNumber}`
+      : '';
 
     const result = await addEmployee({
       ...formData,
+      phone: fullPhone,
       salary: formData.salary ? Number(formData.salary) : undefined,
       status: 'Active',
+      systemRole: formData.systemRole,
     });
 
     setIsSubmitting(false);
@@ -180,14 +219,34 @@ const AddEmployee = () => {
 
             <label className="space-y-1.5">
               <span className={labelClass}>Phone</span>
-              <input
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                type="tel"
-                placeholder="+91 98765 43210"
-                className={fieldClass}
-              />
+              <div className="flex gap-2">
+                <select
+                  name="countryCode"
+                  value={formData.countryCode}
+                  onChange={handleChange}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 shrink-0"
+                  style={{ width: '7rem' }}
+                >
+                  {COUNTRY_CODES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleChange}
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="9876543210"
+                  className={`min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 ${formData.phoneNumber && !isPhoneValid ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : ''}`}
+                />
+              </div>
+              {formData.phoneNumber && !isPhoneValid && (
+                <span className="text-xs text-red-500">Enter exactly 10 digits</span>
+              )}
             </label>
 
             <label className="space-y-1.5">
@@ -210,7 +269,26 @@ const AddEmployee = () => {
             </label>
 
             <label className="space-y-1.5">
-              <span className={labelClass}>Role</span>
+              <span className={labelClass}>User Role</span>
+              <select
+                name="systemRole"
+                value={formData.systemRole}
+                onChange={handleChange}
+                required
+                disabled={!isAdmin}
+                className={fieldClass}
+                title={!isAdmin ? 'Only Admin can create HR users' : ''}
+              >
+                <option value="employee">Employee</option>
+                {isAdmin && <option value="hr">HR</option>}
+              </select>
+              {!isAdmin && (
+                <span className="text-[10px] text-slate-400">Only Admin can create HR users</span>
+              )}
+            </label>
+
+            <label className="space-y-1.5">
+              <span className={labelClass}>Designation</span>
               <input
                 name="role"
                 value={formData.role}
@@ -220,6 +298,28 @@ const AddEmployee = () => {
                 placeholder="Software Engineer"
                 className={fieldClass}
               />
+            </label>
+
+            <label className="space-y-1.5">
+              <span className={labelClass}>Password</span>
+              <div className="relative">
+                <input
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Set employee password"
+                  className={`${fieldClass} pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-indigo-600 transition-colors px-2 py-1 rounded"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </label>
 
             <label className="space-y-1.5">

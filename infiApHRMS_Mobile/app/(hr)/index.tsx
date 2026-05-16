@@ -10,6 +10,7 @@ export default function HRDashboard() {
 
   const menuItems = [
     { label: 'Employee Directory', icon: 'people-outline', route: '/(employee)/directory' },
+    { label: 'Double Shift Permissions', icon: 'moon-outline', route: '/(hr)/double-shift-permissions' },
     { label: 'Leave Approvals', icon: 'checkmark-circle-outline', route: '/(employee)/leave-approvals' },
     { label: 'Attendance Records', icon: 'time-outline', route: '/(employee)/attendance-history' },
     { label: 'My Profile', icon: 'person-outline', route: '/(employee)/profile' },

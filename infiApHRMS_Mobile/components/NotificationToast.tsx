@@ -10,7 +10,6 @@ const ICON_BY_TYPE: Record<NotificationType, { name: any; color: string; bg: str
   leave: { name: 'calendar', color: '#3b82f6', bg: '#eff6ff' },
   attendance: { name: 'time', color: '#ef4444', bg: '#fef2f2' },
   payroll: { name: 'cash', color: '#8b5cf6', bg: '#f5f3ff' },
-  performance: { name: 'trending-up', color: '#10b981', bg: '#ecfdf5' },
   system: { name: 'megaphone', color: '#f59e0b', bg: '#fff7ed' },
 };
 

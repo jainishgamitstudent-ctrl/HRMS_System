@@ -3,6 +3,7 @@ const router = express.Router();
 const hrController = require("../controllers/hr.controller");
 const { verifyJWT } = require("../middlewares/auth.middleware");
 const { verifyRole } = require("../middlewares/role.middleware");
+const { verifyDepartmentAccess } = require("../middlewares/departmentAuth.middleware");
 const { uploadSingle } = require("../middlewares/upload.middleware");
 const { uploadLimiter } = require("../middlewares/security.middleware");
 
@@ -23,9 +24,10 @@ router.get("/profile", hrController.getHRAdminProfile);
 // -> Employee
 router.get("/employees", hrController.getAllEmployees);
 router.post("/employees", hrController.addEmployee);
-router.put("/employees/:id/json", hrController.editEmployee);
-router.put("/employees/:id", uploadLimiter, uploadSingle, hrController.editEmployee);
+router.put("/employees/:id/json", verifyDepartmentAccess, hrController.editEmployee);
+router.put("/employees/:id", uploadLimiter, uploadSingle, verifyDepartmentAccess, hrController.editEmployee);
 router.get("/employees/:id/profile", hrController.getEmployeeProfile);
+router.put("/employees/:id/double-shift", verifyDepartmentAccess, hrController.updateDoubleShiftPermission);
 
 // -> Attendance (Detailed)
 router.get("/attendance/daily-overview", hrController.getAttendanceDailyOverview);

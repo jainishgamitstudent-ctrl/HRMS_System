@@ -83,6 +83,7 @@ import CreateJob from './pages/admin-dashboard/recruitment-control/CreateJob';
 import CompanyPolicies from './pages/admin-dashboard/policies/CompanyPolicies';
 import SystemSettings from './pages/admin-dashboard/settings/SystemSettings';
 import AdminPreferences from './pages/admin-dashboard/settings/AdminPreferences';
+import WFHPermissions from './pages/admin-dashboard/WFHPermissions';
 
 // Main Admin (Super Admin) Pages
 import MainDashboard from './pages/main-admin/MainDashboard';
@@ -273,6 +274,9 @@ function AppContent() {
 
                       <Route path="/preferences" element={<AdminPreferences />} />
 
+                      {/* WFH Access Control */}
+                      <Route path="/wfh-access" element={<WFHPermissions />} />
+
                       {/* Resignation Control */}
                       <Route path="/resignation" element={<ResignationHub />} />
                       <Route path="/resignation/requests" element={<ResignationRequests />} />
@@ -341,14 +345,9 @@ function AppContent() {
                       <Route path="/profile" element={<MyProfile />} />
                       <Route path="/profile/edit" element={<EditProfile />} />
 
-                      {/* Departments (HR accessible) */}
+                      {/* Departments — HR can view & create, Admin full access */}
                       <Route path="/departments" element={<AdminDepartments />} />
                       <Route path="/departments/create" element={<CreateDepartment />} />
-                      <Route path="/departments/edit/:id" element={<CreateDepartment />} />
-                      <Route path="/departments/teams" element={<ManageTeams />} />
-                      <Route path="/departments/teams/view/:departmentId" element={<ViewTeams />} />
-                      <Route path="/departments/teams/create" element={<CreateTeam />} />
-                      <Route path="/departments/teams/edit/:id" element={<EditTeam />} />
 
                       <Route path="/attendance" element={<AttendanceDashboard />} />
                       <Route path="/attendance/records" element={<CheckInRecords />} />
@@ -394,6 +393,9 @@ function AppContent() {
                       <Route path="/resignation/submit" element={<SubmitResignation />} />
                       <Route path="/resignation/requests" element={<ResignationRequests />} />
                       <Route path="/resignation/exit" element={<ExitProcess />} />
+
+                      {/* WFH Access Control */}
+                      <Route path="/wfh-access" element={<WFHPermissions />} />
 
                       <Route path="/settings" element={<Placeholder title="Settings" />} />
                     </Routes>

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, TextInput, Modal, Pressable, Linking, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -47,6 +47,7 @@ const getImageUrl = (profile: string) => {
 
 export default function DirectoryPage() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => DirectoryStyles(colors), [colors]);
   const [activeTeam, setActiveTeam] = useState('All Teams');
   const [searchQuery, setSearchQuery] = useState('');
   const [employees, setEmployees] = useState<UIEmployee[]>([]);
@@ -282,10 +283,11 @@ export default function DirectoryPage() {
   );
 }
 
-const styles = StyleSheet.create({
+function DirectoryStyles(colors: any) {
+  return StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -294,7 +296,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.background,
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 48,
@@ -306,7 +308,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   chipsScroll: {
     paddingBottom: 24,
@@ -318,16 +320,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 24,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.background,
     marginRight: 8,
   },
   chipActive: {
-    backgroundColor: '#4f46e5',
+    backgroundColor: colors.primary,
   },
   chipText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#64748b',
+    color: colors.textMuted,
   },
   chipTextActive: {
     color: '#fff',
@@ -342,21 +344,21 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0f172a',
+    color: colors.text,
   },
   viewAllLink: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#4f46e5',
+    color: colors.primary,
   },
   card: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -379,9 +381,9 @@ const styles = StyleSheet.create({
     height: 600,
     borderRadius: 28,
     overflow: 'hidden',
-    backgroundColor: '#0b1220',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.28,
@@ -400,7 +402,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: colors.border,
   },
   modalImage: {
     width: '100%',
@@ -429,18 +431,18 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 32,
     fontWeight: '800',
-    color: '#ffffff',
+    color: colors.text,
   },
   modalRole: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.82)',
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   modalBio: {
     fontSize: 15,
     lineHeight: 22,
-    color: 'rgba(255,255,255,0.88)',
+    color: colors.textSecondary,
   },
   statsRow: {
     flexDirection: 'row',
@@ -449,7 +451,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.28)',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.border,
     paddingVertical: 14,
     paddingHorizontal: 10,
     marginBottom: 18,
@@ -467,17 +469,17 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#ffffff',
+    color: colors.text,
   },
   statLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.72)',
+    color: colors.textSecondary,
   },
   statDivider: {
     width: 1,
     marginVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: colors.border,
   },
   modalActions: {
     flexDirection: 'row',
@@ -488,7 +490,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 56,
     borderRadius: 28,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.background,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -497,7 +499,7 @@ const styles = StyleSheet.create({
   primaryActionText: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.text,
   },
   secondaryAction: {
     width: 56,
@@ -507,7 +509,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.18)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: colors.border,
   },
   cardInfo: {
     flex: 1,
@@ -526,18 +528,18 @@ const styles = StyleSheet.create({
   teamLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#64748b',
+    color: colors.textMuted,
     letterSpacing: 0.5,
   },
   employeeName: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0f172a',
+    color: colors.text,
     marginBottom: 2,
   },
   employeeRole: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textSecondary,
     marginBottom: 16,
   },
   cardButtons: {
@@ -547,7 +549,7 @@ const styles = StyleSheet.create({
   emailBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4f46e5',
+    backgroundColor: colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
@@ -561,14 +563,14 @@ const styles = StyleSheet.create({
   slackBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.background,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     gap: 6,
   },
   slackBtnText: {
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -583,7 +585,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingTop: 12,
@@ -598,7 +600,7 @@ const styles = StyleSheet.create({
   navLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#94a3b8',
+    color: colors.textMuted,
     marginTop: 4,
   },
   navLabelActive: {
@@ -612,7 +614,7 @@ const styles = StyleSheet.create({
   loaderText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   emptyContainer: {
@@ -623,7 +625,8 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#94a3b8',
+    color: colors.textMuted,
     fontWeight: '600',
   },
 });
+}

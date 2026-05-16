@@ -11,26 +11,27 @@ import Animated, {
   Layout, 
 } from 'react-native-reanimated';
 
+const iconBoxBase = { width: 48, height: 48, borderRadius: 16, justifyContent: 'center' as const, alignItems: 'center' as const, marginRight: 16 };
+
 const NotificationIcon = ({ type }: { type: NotificationType }) => {
   const { colors } = useAppTheme();
   switch (type) {
     case 'leave':
-      return <View style={[styles.iconBox, { backgroundColor: '#eff6ff' }]}><Ionicons name="calendar" size={20} color="#3b82f6" /></View>;
+      return <View style={[iconBoxBase, { backgroundColor: '#eff6ff' }]}><Ionicons name="calendar" size={20} color="#3b82f6" /></View>;
     case 'attendance':
-      return <View style={[styles.iconBox, { backgroundColor: '#fef2f2' }]}><Ionicons name="time" size={20} color="#ef4444" /></View>;
+      return <View style={[iconBoxBase, { backgroundColor: '#fef2f2' }]}><Ionicons name="time" size={20} color="#ef4444" /></View>;
     case 'payroll':
-      return <View style={[styles.iconBox, { backgroundColor: '#f5f3ff' }]}><Ionicons name="cash" size={20} color="#8b5cf6" /></View>;
-    case 'performance':
-      return <View style={[styles.iconBox, { backgroundColor: '#ecfdf5' }]}><Ionicons name="trending-up" size={20} color="#10b981" /></View>;
+      return <View style={[iconBoxBase, { backgroundColor: '#f5f3ff' }]}><Ionicons name="cash" size={20} color="#8b5cf6" /></View>;
     case 'system':
-      return <View style={[styles.iconBox, { backgroundColor: '#fff7ed' }]}><Ionicons name="megaphone" size={20} color="#f59e0b" /></View>;
+      return <View style={[iconBoxBase, { backgroundColor: '#fff7ed' }]}><Ionicons name="megaphone" size={20} color="#f59e0b" /></View>;
     default:
-      return <View style={[styles.iconBox, { backgroundColor: '#f1f5f9' }]}><Ionicons name="notifications" size={20} color={colors.textMuted} /></View>;
+      return <View style={[iconBoxBase, { backgroundColor: '#f1f5f9' }]}><Ionicons name="notifications" size={20} color={colors.textMuted} /></View>;
   }
 };
 
 export default function NotificationsPage() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => NotificationsStyles(colors), [colors]);
   const { notifications, isLoading, error, refreshNotifications, markAsRead, markAllAsRead } = useNotifications();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const unreadCount = useMemo(() => notifications.filter((item) => !item.isRead).length, [notifications]);
@@ -157,15 +158,16 @@ export default function NotificationsPage() {
   );
 }
 
-const styles = StyleSheet.create({
+function NotificationsStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   markAllText: {
     fontSize: 12,
@@ -178,7 +180,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
@@ -206,7 +208,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textMuted,
   },
   activeTabText: {
     color: '#fff',
@@ -235,13 +237,13 @@ const styles = StyleSheet.create({
   },
   notiCard: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
-    shadowColor: '#000',
+    borderColor: colors.borderLight,
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
     shadowRadius: 8,
@@ -277,7 +279,7 @@ const styles = StyleSheet.create({
   notiTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   unreadText: {
     fontWeight: '800',
@@ -291,13 +293,13 @@ const styles = StyleSheet.create({
   },
   notiMessage: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textMuted,
     lineHeight: 18,
     marginBottom: 8,
   },
   notiTime: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   emptyState: {
@@ -309,11 +311,11 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.05,
     shadowRadius: 20,
@@ -322,12 +324,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   emptySub: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     textAlign: 'center',
     paddingHorizontal: 40,
     lineHeight: 20,
@@ -345,3 +347,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+}

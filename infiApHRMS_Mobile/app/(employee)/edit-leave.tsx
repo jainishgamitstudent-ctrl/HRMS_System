@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Platform, KeyboardAvoidingView, Modal, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -15,6 +15,7 @@ import Header from '../../components/layout/Header';
 import { useAppTheme } from '@/context/ThemeContext';
 export default function EditLeave() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => EditLeaveStyles(colors), [colors]);
   const { id } = useLocalSearchParams();
   const { leaves, updateLeave, balances } = useLeave();
   
@@ -332,10 +333,11 @@ export default function EditLeave() {
   );
 }
 
-const styles = StyleSheet.create({
+function EditLeaveStyles(colors: any) {
+  return StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
   },
   scrollContent: {
     padding: 20,
@@ -346,7 +348,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 10,
     marginTop: 16,
   },
@@ -354,19 +356,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 54,
   },
   placeholderText: {
-    color: '#94a3b8',
+    color: colors.textMuted,
     fontSize: 15,
   },
   inputText: {
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontSize: 15,
   },
   row: {
@@ -378,9 +380,9 @@ const styles = StyleSheet.create({
     width: '48%',
   },
   inputWrap: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 54,
@@ -392,7 +394,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   textArea: {
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontSize: 15,
     minHeight: 100,
   },
@@ -422,7 +424,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     minHeight: '50%',
@@ -432,19 +434,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.borderLight,
   },
   modalHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 2,
+    backgroundColor: colors.borderLight,
     marginBottom: 12,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   modalList: {
     padding: 16,
@@ -469,7 +470,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   typeOptionLabelActive: {
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
   modalSeparator: {
@@ -518,7 +519,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   successCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
@@ -545,14 +546,15 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 12,
   },
   successSub: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
 });
+}

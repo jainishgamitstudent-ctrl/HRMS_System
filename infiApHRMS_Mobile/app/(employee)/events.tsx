@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Modal, TextInput, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -51,7 +51,7 @@ const MOCK_EVENTS = [
   },
 ];
 
-const EventCard = ({ item, index }: { item: typeof MOCK_EVENTS[0]; index: number }) => {
+const EventCard = ({ item, index, styles }: { item: typeof MOCK_EVENTS[0]; index: number; styles: any }) => {
   const { colors } = useAppTheme();
   return (
     <Animated.View 
@@ -83,6 +83,7 @@ const EventCard = ({ item, index }: { item: typeof MOCK_EVENTS[0]; index: number
 
 export default function EventsPage() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => EventsStyles(colors), [colors]);
   const [activeTab, setActiveTab] = useState<'Upcoming' | 'Past'>('Upcoming');
   const [events, setEvents] = useState(MOCK_EVENTS);
   const [modalVisible, setModalVisible] = useState(false);
@@ -161,7 +162,7 @@ export default function EventsPage() {
         <Animated.View entering={FadeIn.duration(400)} style={styles.listContainer}>
           {filteredEvents.length > 0 ? (
             filteredEvents.map((item, index) => (
-              <EventCard key={item.id} item={item} index={index} />
+              <EventCard key={item.id} item={item} index={index} styles={styles} />
             ))
           ) : (
             <Animated.View entering={ZoomIn} style={styles.emptyState}>
@@ -256,20 +257,21 @@ export default function EventsPage() {
   );
 }
 
-const styles = StyleSheet.create({
+function EventsStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   tabContainer: {
     flexDirection: 'row',
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     gap: 12,
   },
   tab: {
@@ -284,7 +286,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textMuted,
   },
   activeTabText: {
     color: '#fff',
@@ -296,16 +298,16 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
   },
   cardImage: {
     width: '100%',
@@ -340,7 +342,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 10,
   },
   infoRow: {
@@ -351,12 +353,12 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   description: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: colors.textMuted,
     marginTop: 8,
     lineHeight: 18,
   },
@@ -369,11 +371,11 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.05,
     shadowRadius: 20,
@@ -382,12 +384,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 6,
   },
   emptySub: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     textAlign: 'center',
     paddingHorizontal: 40,
   },
@@ -413,7 +415,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     padding: 24,
@@ -428,7 +430,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   formGroup: {
     marginBottom: 20,
@@ -436,16 +438,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textMuted,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 14,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   textArea: {
     height: 100,
@@ -477,6 +479,7 @@ const styles = StyleSheet.create({
   successText: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
 });
+}

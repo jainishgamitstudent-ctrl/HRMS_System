@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../../components/layout/Header';
@@ -8,7 +8,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { checkMyWFHPermission } from '../../services/wfh';
 const MOCK_WFH: any[] = [];  // Empty initial data - will be fetched from API
 
-const WFHCard = ({ item, index }: { item: any, index: number }) => {
+const WFHCard = ({ item, index, styles }: { item: any, index: number, styles: any }) => {
   const { colors } = useAppTheme();
   const status = item.status || 'Pending';
   const isApproved = status.toLowerCase() === 'approved';
@@ -52,6 +52,7 @@ const WFHCard = ({ item, index }: { item: any, index: number }) => {
 
 export default function UpcomingWFH() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => UpcomingWfhStyles(colors), [colors]);
   const [wfhList, setWfhList] = useState(MOCK_WFH);
   const [wfhEnabled, setWfhEnabled] = useState(false);
   const [permissionLevel, setPermissionLevel] = useState<string | null>(null);
@@ -171,7 +172,7 @@ export default function UpcomingWFH() {
         )}
         {wfhList.length > 0 ? (
           wfhList.map((item, index) => (
-            <WFHCard key={item.id} item={item} index={index} />
+            <WFHCard key={item.id} item={item} index={index} styles={styles} />
           ))
         ) : (
           <View style={styles.emptyState}>
@@ -187,17 +188,18 @@ export default function UpcomingWFH() {
   );
 }
 
-const styles = StyleSheet.create({
+function UpcomingWfhStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: 20,
     paddingBottom: 100,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
@@ -207,7 +209,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -221,11 +223,11 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   dayText: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   statusBadge: {
@@ -252,7 +254,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   emptyState: {
@@ -265,7 +267,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
@@ -278,12 +280,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   emptySub: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     textAlign: 'center',
     paddingHorizontal: 40,
     lineHeight: 20,
@@ -297,7 +299,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   disabledState: {
@@ -324,30 +326,29 @@ const styles = StyleSheet.create({
   disabledTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   disabledSub: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     textAlign: 'center',
     paddingHorizontal: 20,
     lineHeight: 20,
     marginBottom: 16,
   },
   permissionTag: {
-    backgroundColor: '#f3e8ff',
+    backgroundColor: colors.textMuted,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#d8b4fe',
+    borderColor: colors.border,
   },
   permissionTagText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#7e22ce',
-    textTransform: 'capitalize',
+    color: colors.textSecondary,
   },
   notesBanner: {
     flexDirection: 'row',
@@ -390,3 +391,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+}

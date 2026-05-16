@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Platform, KeyboardAvoidingView, Modal, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -16,6 +16,7 @@ import Header from '../../components/layout/Header';
 import { useAppTheme } from '@/context/ThemeContext';
 export default function ApplyLeave() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => ApplyLeaveStyles(colors), [colors]);
   const { applyLeave, balances } = useLeave();
   const [leaveType, setLeaveType] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -509,10 +510,11 @@ export default function ApplyLeave() {
   );
 }
 
-const styles = StyleSheet.create({
+function ApplyLeaveStyles(colors: any) {
+  return StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
   },
   scrollContent: {
     padding: 20,
@@ -529,7 +531,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#4f39f6',
@@ -544,11 +546,11 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   bannerSub: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
     marginTop: 2,
   },
   formSection: {
@@ -557,7 +559,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 10,
     marginTop: 16,
   },
@@ -565,19 +567,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 54,
   },
   placeholderText: {
-    color: '#94a3b8',
+    color: colors.textMuted,
     fontSize: 15,
   },
   inputText: {
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontSize: 15,
   },
   row: {
@@ -592,16 +594,16 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   inputWrap: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 54,
     justifyContent: 'center',
   },
   input: {
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontSize: 15,
   },
   textAreaWrap: {
@@ -610,14 +612,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   textArea: {
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontSize: 15,
     minHeight: 100,
   },
   settingsCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
@@ -626,11 +628,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   settingsTextWrap: {
     flex: 1,
@@ -639,11 +641,11 @@ const styles = StyleSheet.create({
   settingsTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   settingsSub: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
     marginTop: 2,
   },
   infoBox: {
@@ -686,7 +688,7 @@ const styles = StyleSheet.create({
   },
   draftBtnText: {
     fontSize: 15,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   submitBtnDisabled: {
@@ -694,7 +696,8 @@ const styles = StyleSheet.create({
   },
   dateModeWrap: {
     flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.background,
+    borderColor: colors.borderLight,
     borderRadius: 14,
     padding: 4,
     marginTop: 14,
@@ -708,12 +711,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dateModeButtonActive: {
-    backgroundColor: '#4f39f6',
+    backgroundColor: colors.primary,
   },
   dateModeText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textMuted,
     marginLeft: 6,
   },
   dateModeTextActive: {
@@ -727,14 +730,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     minHeight: '50%',
     maxHeight: '80%',
   },
   calendarModalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingBottom: 8,
@@ -743,7 +746,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.borderLight,
   },
   modalHandle: {
     width: 40,
@@ -755,7 +758,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   modalList: {
     padding: 16,
@@ -780,12 +783,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   typeOptionLabelActive: {
-    color: '#1e293b',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
   modalSeparator: {
     height: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.borderLight,
   },
 
   // Calendar Styles
@@ -796,7 +799,7 @@ const styles = StyleSheet.create({
   },
   calendarMonthHeader: {
     flexDirection: 'row',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderRadius: 14,
     padding: 4,
     marginBottom: 20,
@@ -813,8 +816,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   monthTabActive: {
-    backgroundColor: '#fff',
-    shadowColor: '#000',
+    backgroundColor: colors.card,
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
@@ -823,7 +826,7 @@ const styles = StyleSheet.create({
   calendarMonthText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textMuted,
     letterSpacing: 0,
   },
   monthTabTextActive: {
@@ -838,7 +841,7 @@ const styles = StyleSheet.create({
   weekDayText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#94a3b8',
+    color: colors.textMuted,
     width: '14.28%',
     textAlign: 'center',
   },
@@ -893,12 +896,12 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   successCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
     width: '100%',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.1,
     shadowRadius: 20,
@@ -920,14 +923,15 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 12,
   },
   successSub: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
 });
+}

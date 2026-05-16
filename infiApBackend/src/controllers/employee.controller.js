@@ -5,6 +5,7 @@ const LeaveApplication = require("../models/leaveApplication.model");
 const EmployeeOfTheMonth = require("../models/employeeOfTheMonth.model");
 const Holiday = require("../models/holiday.model");
 const RequestRoom = require("../models/requestRoom.model");
+const Payroll = require("../models/payroll.model");
 const moment = require("moment");
 const { notifyUser } = require("../utils/notifier");
 
@@ -1533,25 +1534,64 @@ exports.notifyPayrollProcessed = async (req, res) => {
 // 42. Get Current Month Salary (POST for GET)
 exports.getPayrollCurrent = async (req, res) => {
     try {
+        const userId = req.user && req.user._id;
+        if (!userId) {
+            return res.status(401).json({ status: "Error", message: "Unauthorized" });
+        }
+
+        const monthOrder = {
+            January: 1, February: 2, March: 3, April: 4, May: 5, June: 6,
+            July: 7, August: 8, September: 9, October: 10, November: 11, December: 12
+        };
+
+        const payrolls = await Payroll.find({ userId }).lean();
+        const sorted = payrolls.sort((a, b) => {
+            const yearDiff = (b.year || 0) - (a.year || 0);
+            if (yearDiff !== 0) return yearDiff;
+            return (monthOrder[b.month] || 0) - (monthOrder[a.month] || 0);
+        });
+
+        if (sorted.length === 0) {
+            return res.status(200).json({
+                status: "Success",
+                statusCode: 200,
+                data: null,
+                message: "No payroll record found for this user."
+            });
+        }
+
+        const current = sorted[0];
+        const earnings = [
+            { category: "Basic Salary", amount: Number(current.basicSalary || 0) },
+            { category: "Allowances", amount: Number(current.allowances || 0) },
+            { category: "Bonus", amount: Number(current.bonus || 0) }
+        ].filter(row => row.amount > 0 || row.category === "Basic Salary");
+
+        const deductions = Number(current.deductions || 0) > 0
+            ? [{ category: "Deductions", amount: Number(current.deductions || 0) }]
+            : [];
+
         const salaryData = {
-            month: "March 2026",
-            grossSalary: 65000,
-            netSalary: 58500,
-            earnings: [
-                { category: "Basic Pay", amount: 45000 },
-                { category: "HRA", amount: 12000 },
-                { category: "Special Allowance", amount: 8000 }
-            ],
-            deductions: [
-                { category: "PF", amount: 4500 },
-                { category: "Professional Tax", amount: 2000 }
-            ],
+            month: current.month,
+            year: current.year,
+            grossSalary: Number(current.basicSalary || 0) + Number(current.allowances || 0) + Number(current.bonus || 0),
+            netSalary: Number(current.netPay || 0),
+            basicSalary: Number(current.basicSalary || 0),
+            allowances: Number(current.allowances || 0),
+            bonus: Number(current.bonus || 0),
+            deductions: deductions,
+            netPay: Number(current.netPay || 0),
+            status: current.status || "Pending",
+            createdAt: current.createdAt,
+            updatedAt: current.updatedAt,
+            earnings,
             actions: {
-                viewUrl: "/api/v1/payroll/view/2026-03",
-                downloadUrl: "/api/v1/payroll/download/2026-03",
-                shareUrl: "/api/v1/payroll/share/2026-03"
+                viewUrl: `/api/v1/payroll/view/${current.year}-${current.month}`,
+                downloadUrl: `/api/v1/payroll/download/${current.year}-${current.month}`,
+                shareUrl: `/api/v1/payroll/share/${current.year}-${current.month}`
             }
         };
+
         res.status(200).json({ status: "Success", statusCode: 200, data: salaryData });
     } catch (error) {
         res.status(500).json({ message: "Failed to fetch payroll data", error: error.message });
@@ -1561,28 +1601,78 @@ exports.getPayrollCurrent = async (req, res) => {
 // 43. Get Salary History (POST for GET)
 exports.getPayrollHistory = async (req, res) => {
     try {
+        const userId = req.user && req.user._id;
+        if (!userId) {
+            return res.status(401).json({ status: "Error", message: "Unauthorized" });
+        }
+
+        const { limit, month, year } = req.body || {};
+        const monthOrder = {
+            January: 1, February: 2, March: 3, April: 4, May: 5, June: 6,
+            July: 7, August: 8, September: 9, October: 10, November: 11, December: 12
+        };
+
+        // Build query filter
+        const query = { userId };
+        if (month) query.month = month;
+        if (year) query.year = Number(year);
+
+        let payrolls = await Payroll.find(query).lean();
+
+        // Sort by year desc, month desc
+        payrolls.sort((a, b) => {
+            const yearDiff = (b.year || 0) - (a.year || 0);
+            if (yearDiff !== 0) return yearDiff;
+            return (monthOrder[b.month] || 0) - (monthOrder[a.month] || 0);
+        });
+
+        if (limit && !isNaN(Number(limit))) {
+            payrolls = payrolls.slice(0, Number(limit));
+        }
+
+        const paymentHistory = payrolls.map((p, idx) => ({
+            id: p._id || idx + 1,
+            _id: String(p._id || idx + 1),
+            month: p.month,
+            year: p.year,
+            monthYear: `${p.month} ${p.year}`,
+            basicSalary: Number(p.basicSalary || 0),
+            allowances: Number(p.allowances || 0),
+            bonus: Number(p.bonus || 0),
+            deductions: Number(p.deductions || 0),
+            gross: Number(p.basicSalary || 0) + Number(p.allowances || 0) + Number(p.bonus || 0),
+            net: Number(p.netPay || 0),
+            netPay: Number(p.netPay || 0),
+            netSalary: Number(p.netPay || 0),
+            status: p.status || "Pending",
+            paidAt: p.paymentDate ? new Date(p.paymentDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : null,
+            createdAt: p.createdAt,
+            updatedAt: p.updatedAt,
+            downloadUrl: `/api/v1/payroll/download/${p.year}-${p.month}`
+        }));
+
+        // Summary calculations
+        const totalYTD = paymentHistory.reduce((sum, item) => sum + item.net, 0);
+        const avgNet = paymentHistory.length > 0 ? totalYTD / paymentHistory.length : 0;
+
+        // Trend from last up to 6 records (oldest to newest for chart display)
+        const trendSlice = paymentHistory.slice(0, 6).reverse();
+        const trend = trendSlice.map(item => ({
+            month: item.month ? item.month.slice(0, 3) : "—",
+            net: item.net
+        }));
+
         const historyData = {
             summary: {
-                totalYTD: 48250.00,
-                ytdGrowth: "+4.2% vs 2025",
-                avgNet: 6840.50,
-                avgPeriod: "Last 6 months"
+                totalYTD: Math.round(totalYTD * 100) / 100,
+                ytdGrowth: "—",
+                avgNet: Math.round(avgNet * 100) / 100,
+                avgPeriod: paymentHistory.length > 0 ? `Last ${paymentHistory.length} months` : "No data"
             },
-            trend: [
-                { month: "Oct", net: 6500 },
-                { month: "Nov", net: 6550 },
-                { month: "Dec", net: 7150 },
-                { month: "Jan", net: 6700 },
-                { month: "Feb", net: 6920 },
-                { month: "Mar", net: 6920 }
-            ],
-            paymentHistory: [
-                { id: 1, monthYear: "March 2026", gross: 8500.00, net: 6920.40, status: "Paid", paidAt: "Mar 30", downloadUrl: "/api/v1/payroll/download/2026-03" },
-                { id: 2, monthYear: "February 2026", gross: 8500.00, net: 6920.40, status: "Paid", paidAt: "Feb 28", downloadUrl: "/api/v1/payroll/download/2026-02" },
-                { id: 3, monthYear: "January 2026", gross: 8200.00, net: 6700.15, status: "Paid", paidAt: "Jan 30", downloadUrl: "/api/v1/payroll/download/2026-01" },
-                { id: 4, monthYear: "December 2025", gross: 8200.00, net: 7150.00, status: "Paid", paidAt: "Dec 20", downloadUrl: "/api/v1/payroll/download/2025-12" }
-            ]
+            trend,
+            paymentHistory
         };
+
         res.status(200).json({ status: "Success", statusCode: 200, data: historyData });
     } catch (error) {
         res.status(500).json({ message: "Failed to fetch payroll history", error: error.message });

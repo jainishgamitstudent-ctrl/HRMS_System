@@ -120,18 +120,6 @@ async function notifyRoleUsers({ roles, category, headline, details, sentBy, rel
         if (userIds.length === 0) return [];
 
         const docs = await notifyUsers({ recipients: userIds, category, headline, details, sentBy, relatedRoomId });
-
-        roles.forEach((role) => {
-            emitToRoles([role], "notification", {
-                category,
-                headline,
-                details: details || headline,
-                relatedRoomId: relatedRoomId ? String(relatedRoomId) : null,
-                createdAt: new Date().toISOString(),
-                read: false,
-            });
-        });
-
         return docs;
     } catch (err) {
         console.warn("[Notifier] notifyRoleUsers failed:", err && err.message);

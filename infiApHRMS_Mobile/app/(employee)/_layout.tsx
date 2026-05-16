@@ -34,8 +34,6 @@ export default function EmployeeLayout() {
       <Stack.Screen name="edit-profile" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="notification-details/[id]" />
-      <Stack.Screen name="performance" />
-      <Stack.Screen name="performance-history" />
       <Stack.Screen name="work-schedule" />
       <Stack.Screen name="activity-log" />
       <Stack.Screen name="directory" />

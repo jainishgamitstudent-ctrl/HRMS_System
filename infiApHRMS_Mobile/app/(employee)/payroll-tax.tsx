@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -21,6 +21,7 @@ const TAX_BREAKDOWN = [
 
 export default function PayrollTax() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => PayrollTaxStyles(colors), [colors]);
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -86,15 +87,16 @@ export default function PayrollTax() {
   );
 }
 
-const styles = StyleSheet.create({
+function PayrollTaxStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   scrollContent: {
     padding: 20,
@@ -106,11 +108,11 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -118,13 +120,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   tdsCard: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fee2e2',
+    backgroundColor: colors.errorBackground,
+    borderColor: colors.border,
   },
   summaryLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#64748b',
+    color: colors.textMuted,
     marginBottom: 4,
   },
   tdsLabel: {
@@ -133,30 +135,30 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   tdsValue: {
     color: '#ef4444',
   },
   summarySub: {
     fontSize: 10,
-    color: '#94a3b8',
+    color: colors.textMuted,
     fontWeight: '600',
     marginTop: 4,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 16,
   },
   chartCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 24,
     padding: 20,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
   },
   chartBarRow: {
     flexDirection: 'row',
@@ -175,7 +177,7 @@ const styles = StyleSheet.create({
   },
   barMonth: {
     fontSize: 10,
-    color: '#94a3b8',
+    color: colors.textMuted,
     fontWeight: '800',
   },
   listContainer: {
@@ -186,16 +188,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
   },
   taxMonth: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#1e293b',
+    color: colors.textSecondary,
   },
   taxStatus: {
     fontSize: 12,
@@ -225,7 +227,7 @@ const styles = StyleSheet.create({
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     paddingHorizontal: 30,
     paddingVertical: 12,
     borderTopWidth: 1,
@@ -242,6 +244,7 @@ const styles = StyleSheet.create({
   navText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#94a3b8',
+    color: colors.textMuted,
   },
 });
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -23,8 +23,9 @@ const { width } = Dimensions.get('window');
 const TABS = ['All', 'Pending', 'Approved', 'History', 'Drafts'];
 const TAB_WIDTH = width / 5;
 
-export default function MyLeaves() {
+export default function MyLeavesPage() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => MyLeavesStyles(colors), [colors]);
   const { leaves } = useLeave();
   const [activeTab, setActiveTab] = useState('All');
   const indicatorPosition = useSharedValue(0);
@@ -195,7 +196,7 @@ export default function MyLeaves() {
                   ) : (
                     <View style={{ marginRight: 16, flexDirection: 'row', alignItems: 'center', opacity: 0.5 }}>
                       <Ionicons name="pencil" size={14} color={colors.textMuted} />
-                      <Text style={[styles.viewDetailsText, { color: '#94a3b8', marginLeft: 4 }]}>Edit</Text>
+                      <Text style={[styles.viewDetailsText, { color: colors.textMuted, marginLeft: 4 }]}>Edit</Text>
                     </View>
                   )}
 
@@ -218,15 +219,16 @@ export default function MyLeaves() {
   );
 }
 
-const styles = StyleSheet.create({
+function MyLeavesStyles(colors: any) {
+  return StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0f172a',
+    color: colors.textSecondary,
   },
   addBtn: {
     width: 36,
@@ -256,7 +258,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#64748b',
+    color: colors.textMuted,
   },
   tabTextActive: {
     color: '#4f39f6',
@@ -286,14 +288,14 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   emptyText: {
-    color: '#94a3b8',
+    color: colors.textMuted,
     fontSize: 15,
     marginTop: 16,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: '#f1f5f9', // Lighter border
+    borderColor: colors.borderLight, // Lighter border
     borderRadius: 16,
     marginBottom: 16,
     padding: 16,
@@ -317,11 +319,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#eef2ff', // Light purple background
+    backgroundColor: colors.background, // Light purple background
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e0e7ff',
+    borderColor: colors.border,
   },
   infoBox: {
     marginLeft: 14,
@@ -331,12 +333,12 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   cardDates: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   badge: {
@@ -352,7 +354,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.background,
     marginTop: 16,
     marginBottom: 12,
   },
@@ -367,7 +369,7 @@ const styles = StyleSheet.create({
   },
   durationText: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
     marginLeft: 6,
   },
@@ -377,3 +379,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+}
