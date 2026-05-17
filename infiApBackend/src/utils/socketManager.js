@@ -104,6 +104,38 @@ function broadcast(event, payload) {
   io.emit(event, payload);
 }
 
+/**
+ * Emit entity change event to appropriate rooms.
+ * @param {string} entityType - 'employee', 'leave', 'wfh', 'requestRoom'
+ * @param {string} action - 'created', 'updated', 'deleted'
+ * @param {object} data - The entity data
+ * @param {object} options - { userId, role, targetRoles }
+ */
+function emitEntityEvent(entityType, action, data, options = {}) {
+    if (!io) return;
+    const payload = {
+        action,
+        data,
+        timestamp: new Date().toISOString()
+    };
+    const eventName = `${entityType}:${action}`;
+
+    // Emit to specific user
+    if (options.userId) {
+        io.to(`user_${String(options.userId)}`).emit(eventName, payload);
+    }
+    // Emit to role rooms
+    if (options.targetRoles && Array.isArray(options.targetRoles)) {
+        options.targetRoles.forEach(role => {
+            io.to(`role_${role}`).emit(eventName, payload);
+        });
+    }
+    // Broadcast to all
+    if (options.broadcast) {
+        io.emit(eventName, payload);
+    }
+}
+
 function getIO() {
   return io;
 }
@@ -114,4 +146,5 @@ module.exports = {
   emitToRoles,
   broadcast,
   getIO,
+  emitEntityEvent,
 };
