@@ -24,6 +24,7 @@ import {
 } from '../../services/wfh';
 import { getAuthHeaders } from '../../services/auth';
 import { useAppTheme } from '@/context/ThemeContext';
+import { useRealtime } from '../../hooks/useRealtime';
 
 type Level = 'global' | 'employee' | 'team' | 'department';
 
@@ -109,6 +110,16 @@ export default function WFHPermissionsScreen() {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  useRealtime([
+    {
+      entityType: 'wfhPermission',
+      onEvent: (action, payload) => {
+        console.log('[Realtime] WFH Permission event:', action, payload);
+        loadPermissions();
+      },
+    },
+  ]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

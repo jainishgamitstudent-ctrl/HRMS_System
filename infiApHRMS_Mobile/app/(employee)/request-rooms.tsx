@@ -18,6 +18,7 @@ import {
   fetchMyRequestRooms,
   type RequestRoom,
 } from '../../services/requestRooms';
+import { useRealtimeRequestRooms } from '../../hooks/useRealtime';
 
 const StatusBadge = ({ status, styles }: { status: string; styles: any }) => {
   const config: Record<string, { bg: string; text: string; label: string }> = {
@@ -58,6 +59,11 @@ export default function RequestRoomsPage() {
   useEffect(() => {
     loadRooms();
   }, [loadRooms]);
+
+  useRealtimeRequestRooms((action, payload) => {
+    console.log('[Realtime] RequestRoom event:', action, payload);
+    loadRooms();
+  });
 
   const onRefresh = () => {
     setRefreshing(true);

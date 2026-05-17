@@ -102,6 +102,16 @@ router.post("/leave/upcoming", employeeController.getUpcomingLeaves);
 router.post("/leave/history", employeeController.getLeaveHistory);
 router.post("/leave/apply", employeeController.applyLeaveRequest);
 
+// Double Shift Request (Employee)
+router.post("/double-shift/request", employeeController.requestDoubleShift);
+router.get("/double-shift/my-requests", employeeController.getMyDoubleShiftRequests);
+
+// Job Postings (Employee view - open positions only)
+router.get("/jobs", employeeController.getOpenJobs);
+
+// Resignation (Employee view own)
+router.get("/resignation/my", employeeController.getMyResignation);
+
 // Leave Request Management (Approver/Admin View - POST for GET)
 router.post("/leave/requests/all", employeeController.getAllLeaveRequests);
 router.post("/leave/requests/pending", employeeController.getPendingLeaveRequests);

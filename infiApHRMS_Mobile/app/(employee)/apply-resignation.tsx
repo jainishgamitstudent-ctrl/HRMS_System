@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
   View,
   Text,
@@ -8,6 +9,8 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Platform,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -30,6 +33,8 @@ export default function ApplyResignationPage() {
   const [reason, setReason] = useState('');
   const [otherReason, setOtherReason] = useState('');
   const [lastWorkingDate, setLastWorkingDate] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempDate, setTempDate] = useState(new Date());
   const [noticePeriodDays, setNoticePeriodDays] = useState('30');
   const [comments, setComments] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,26 +77,36 @@ export default function ApplyResignationPage() {
     }
   };
 
-  const renderDateInput = (
-    label: string,
-    value: string,
-    onChange: (text: string) => void,
-    placeholder: string
-  ) => (
-    <View style={styles.inputGroup}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <View style={styles.dateInputWrapper}>
-        <Ionicons name="calendar-outline" size={18} color="#94a3b8" style={styles.inputIcon} />
-        <TextInput
-          style={[styles.textInput, styles.dateInput]}
-          value={value}
-          onChangeText={onChange}
-          placeholder={placeholder}
-          placeholderTextColor="#94a3b8"
-        />
-      </View>
-    </View>
-  );
+  const parseDateStr = (dateStr: string): Date => {
+    if (!dateStr) return new Date();
+    const d = new Date(dateStr);
+    if (!Number.isFinite(d.getTime())) return new Date();
+    return d;
+  };
+
+  const formatDate = (date: Date): string => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const onDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (selectedDate) {
+      setTempDate(selectedDate);
+    }
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+      if (selectedDate) {
+        setLastWorkingDate(formatDate(selectedDate));
+      }
+    }
+  };
+
+  const confirmDate = () => {
+    setLastWorkingDate(formatDate(tempDate));
+    setShowDatePicker(false);
+  };
 
   return (
     <View style={styles.root}>
@@ -161,7 +176,63 @@ export default function ApplyResignationPage() {
           )}
 
           {/* Last Working Date */}
-          {renderDateInput('Last Working Date (YYYY-MM-DD)', lastWorkingDate, setLastWorkingDate, 'e.g. 2025-06-30')}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Last Working Date</Text>
+            <TouchableOpacity
+              style={styles.dateInputWrapper}
+              onPress={() => {
+                setTempDate(parseDateStr(lastWorkingDate));
+                setShowDatePicker(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="calendar-outline" size={18} color="#94a3b8" style={styles.inputIcon} />
+              <Text style={lastWorkingDate ? styles.dateText : styles.placeholderText}>
+                {lastWorkingDate || 'Select last working date'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Android inline picker */}
+            {Platform.OS === 'android' && showDatePicker && (
+              <DateTimePicker
+                value={parseDateStr(lastWorkingDate)}
+                mode="date"
+                display="default"
+                onChange={onDateChange}
+                minimumDate={new Date()}
+              />
+            )}
+
+            {/* iOS modal picker */}
+            <Modal
+              visible={Platform.OS === 'ios' && showDatePicker}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setShowDatePicker(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalSheet}>
+                  <View style={styles.modalHeader}>
+                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                      <Text style={styles.modalCancel}>Cancel</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.modalTitle}>Select Date</Text>
+                    <TouchableOpacity onPress={confirmDate}>
+                      <Text style={styles.modalDone}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <DateTimePicker
+                    value={tempDate}
+                    mode="date"
+                    display="spinner"
+                    onChange={onDateChange}
+                    minimumDate={new Date()}
+                    style={{ alignSelf: 'center' }}
+                  />
+                </View>
+              </View>
+            </Modal>
+          </View>
 
           {/* Notice Period */}
           <View style={styles.inputGroup}>
@@ -325,6 +396,55 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
     borderWidth: 0,
+  },
+  dateText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#0f172a',
+    fontWeight: '600',
+    paddingVertical: 12,
+  },
+  placeholderText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#94a3b8',
+    fontWeight: '600',
+    paddingVertical: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  modalCancel: {
+    fontSize: 15,
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+  modalTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  modalDone: {
+    fontSize: 15,
+    color: '#3b82f6',
+    fontWeight: '700',
   },
   reasonList: {
     flexDirection: 'row',

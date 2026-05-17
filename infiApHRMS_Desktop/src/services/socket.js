@@ -1,36 +1,34 @@
-import { io, Socket } from 'socket.io-client';
-import { API_BASE_URL } from '../constants/api';
-import { getStoredAuthSession } from './auth';
+import { io } from 'socket.io-client';
+import { API_CONFIG } from '../config';
+import { tokenStore } from './tokenStore';
 
-let socket: Socket | null = null;
+let socket = null;
 let isConnecting = false;
 
-const entityEventMap = new Map<string, Set<(payload: any) => void>>();
+const entityEventMap = new Map();
 
-function getSocketURL(): string {
-  // Remove /api/v1 suffix to get the base server URL
-  return API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+function getSocketURL() {
+  return API_CONFIG.socketURL;
 }
 
-function ensureSocketConnected(): Socket | null {
+function ensureSocketConnected() {
   if (!socket?.connected) {
     console.warn('[Socket] Not connected; call connectSocket() first');
   }
   return socket;
 }
 
-export async function connectSocket(): Promise<Socket | null> {
+export async function connectSocket() {
   if (socket?.connected) {
     return socket;
   }
   if (isConnecting) {
-    // Wait briefly for the in-progress connection
     await new Promise((resolve) => setTimeout(resolve, 500));
     return socket;
   }
 
-  const session = await getStoredAuthSession();
-  if (!session?.token) {
+  const token = tokenStore.getToken();
+  if (!token) {
     console.log('[Socket] No auth token, skipping connection');
     return null;
   }
@@ -42,7 +40,7 @@ export async function connectSocket(): Promise<Socket | null> {
     console.log('[Socket] Connecting to:', url);
 
     socket = io(url, {
-      auth: { token: session.token },
+      auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 10,
@@ -53,12 +51,10 @@ export async function connectSocket(): Promise<Socket | null> {
 
     socket.on('connect', () => {
       console.log('[Socket] Connected:', socket?.id);
-      // Log room joined
-      console.log('[Socket] Should join room for user');
     });
 
     socket.on('connect_error', (err) => {
-      console.error('[Socket] Connection error:', err.message, err.stack);
+      console.error('[Socket] Connection error:', err.message);
     });
 
     socket.on('disconnect', (reason) => {
@@ -79,13 +75,12 @@ export async function connectSocket(): Promise<Socket | null> {
   }
 }
 
-export function getSocket(): Socket | null {
+export function getSocket() {
   return socket;
 }
 
-export function disconnectSocket(): void {
+export function disconnectSocket() {
   if (socket) {
-    // Clean up all entity listeners before disconnect
     entityEventMap.forEach((callbacks, eventName) => {
       callbacks.forEach((cb) => socket?.off(eventName, cb));
     });
@@ -96,14 +91,14 @@ export function disconnectSocket(): void {
   }
 }
 
-export function isSocketConnected(): boolean {
+export function isSocketConnected() {
   return socket?.connected ?? false;
 }
 
 /**
  * Subscribe to a specific socket event.
  */
-export function subscribeToEvent(eventName: string, callback: (payload: any) => void): void {
+export function subscribeToEvent(eventName, callback) {
   const s = ensureSocketConnected();
   if (!s) return;
   s.on(eventName, callback);
@@ -112,7 +107,7 @@ export function subscribeToEvent(eventName: string, callback: (payload: any) => 
 /**
  * Unsubscribe from a specific socket event.
  */
-export function unsubscribeFromEvent(eventName: string, callback: (payload: any) => void): void {
+export function unsubscribeFromEvent(eventName, callback) {
   const s = ensureSocketConnected();
   if (!s) return;
   s.off(eventName, callback);
@@ -121,22 +116,17 @@ export function unsubscribeFromEvent(eventName: string, callback: (payload: any)
 /**
  * Subscribe to all entity change events (created, updated, deleted) for a given entity type.
  */
-export function subscribeToEntityEvents(
-  entityType: string,
-  callback: (action: string, payload: any) => void
-): void {
+export function subscribeToEntityEvents(entityType, callback) {
   const actions = ['created', 'updated', 'deleted'];
-  const wrapperMap = new Map<string, (payload: any) => void>();
 
   actions.forEach((action) => {
     const eventName = `${entityType}:${action}`;
-    const wrapper = (payload: any) => callback(action, payload);
-    wrapperMap.set(eventName, wrapper);
+    const wrapper = (payload) => callback(action, payload);
 
     if (!entityEventMap.has(eventName)) {
       entityEventMap.set(eventName, new Set());
     }
-    entityEventMap.get(eventName)!.add(wrapper);
+    entityEventMap.get(eventName).add(wrapper);
     subscribeToEvent(eventName, wrapper);
   });
 }
@@ -145,10 +135,7 @@ export function subscribeToEntityEvents(
  * Unsubscribe from all entity change events for a given entity type.
  * If callback is omitted, unsubscribes all listeners for this entity type.
  */
-export function unsubscribeFromEntityEvents(
-  entityType: string,
-  callback?: (action: string, payload: any) => void
-): void {
+export function unsubscribeFromEntityEvents(entityType, callback) {
   const actions = ['created', 'updated', 'deleted'];
   actions.forEach((action) => {
     const eventName = `${entityType}:${action}`;
@@ -156,13 +143,7 @@ export function unsubscribeFromEntityEvents(
     if (!callbacks) return;
 
     if (callback) {
-      // Find and remove the specific wrapper for this callback
-      callbacks.forEach((cb) => {
-        // Since we can't directly compare wrappers, we remove all and re-subscribe remaining
-        // Simpler approach: remove all for this event when unsubscribing a specific callback is tricky
-        // We'll just clear all for this eventName when a specific callback is passed
-        unsubscribeFromEvent(eventName, cb);
-      });
+      callbacks.forEach((cb) => unsubscribeFromEvent(eventName, cb));
       entityEventMap.delete(eventName);
     } else {
       callbacks.forEach((cb) => unsubscribeFromEvent(eventName, cb));

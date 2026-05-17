@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
   View,
   Text,
@@ -11,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -27,10 +29,10 @@ export default function EditProfilePage() {
   const styles = useMemo(() => EditProfileStyles(colors), [colors]);
   const { user, syncUserFromApi } = useUser();
   const [name, setName] = useState(user.name);
-  const [designation, setDesignation] = useState(user.role);
-  const [department, setDepartment] = useState(user.department);
   const [phone, setPhone] = useState(user.phone || '');
   const [address, setAddress] = useState(user.address || '');
+  const [dob, setDob] = useState(user.dob || '');
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(
     typeof user.avatar === 'string' ? user.avatar : null
   );
@@ -40,6 +42,41 @@ export default function EditProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   const { showImagePickerOptions } = useImagePicker();
+
+  const parseDobToDate = (dobStr: string): Date => {
+    if (!dobStr) return new Date(2000, 0, 1);
+    const parts = dobStr.split('-');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        return new Date(year, month, day);
+      }
+    }
+    const d = new Date(dobStr);
+    return isNaN(d.getTime()) ? new Date(2000, 0, 1) : d;
+  };
+
+  const formatDate = (date: Date): string => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setDob(formatDate(selectedDate));
+    }
+  };
+
+  const confirmDate = () => {
+    setShowDatePicker(false);
+  };
 
   const handlePickImage = () => {
     showImagePickerOptions((image) => {
@@ -68,8 +105,7 @@ export default function EditProfilePage() {
         name: name.trim(),
         phone: phone.trim(),
         address: address.trim(),
-        department: department.trim(),
-        designation: designation.trim(),
+        dob: dob.trim(),
         profileImage: profileImagePayload,
       });
 
@@ -115,7 +151,7 @@ export default function EditProfilePage() {
               </TouchableOpacity>
             </View>
             <Text style={styles.heroTitle}>Keep your details current</Text>
-            <Text style={styles.heroSubtitle}>Update your phone, address, role details, and profile picture.</Text>
+            <Text style={styles.heroSubtitle}>Update your phone, address, birthday, and profile picture.</Text>
           </View>
 
           <View style={styles.formCard}>
@@ -160,29 +196,76 @@ export default function EditProfilePage() {
             <View style={styles.twoColumnRow}>
               <View style={[styles.inputGroup, styles.halfWidth]}>
                 <Text style={styles.label}>Department</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    style={styles.input}
-                    value={department}
-                    onChangeText={setDepartment}
-                    placeholder="Enter department"
-                    placeholderTextColor={colors.textMuted}
-                  />
+                <View style={[styles.inputWrapper, styles.readOnlyInputWrapper]}>
+                  <Text style={styles.readOnlyText} numberOfLines={1}>
+                    {user.department}
+                  </Text>
                 </View>
               </View>
 
               <View style={[styles.inputGroup, styles.halfWidth]}>
                 <Text style={styles.label}>Designation</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    style={styles.input}
-                    value={designation}
-                    onChangeText={setDesignation}
-                    placeholder="Enter designation"
-                    placeholderTextColor={colors.textMuted}
-                  />
+                <View style={[styles.inputWrapper, styles.readOnlyInputWrapper]}>
+                  <Text style={styles.readOnlyText} numberOfLines={1}>
+                    {user.role}
+                  </Text>
                 </View>
               </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Birthday</Text>
+              <TouchableOpacity
+                style={[styles.inputWrapper, styles.datePickerRow]}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={dob ? styles.input : styles.placeholderText}>
+                  {dob || 'Select your birthday'}
+                </Text>
+                <Ionicons name="calendar-outline" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+
+              {/* Android inline picker */}
+              {Platform.OS === 'android' && showDatePicker && (
+                <DateTimePicker
+                  value={parseDobToDate(dob)}
+                  mode="date"
+                  display="default"
+                  onChange={onDateChange}
+                  maximumDate={new Date()}
+                />
+              )}
+
+              {/* iOS modal picker */}
+              <Modal
+                visible={Platform.OS === 'ios' && showDatePicker}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setShowDatePicker(false)}
+              >
+                <View style={styles.modalOverlay}>
+                  <View style={styles.modalSheet}>
+                    <View style={styles.modalHeader}>
+                      <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                        <Text style={styles.modalCancel}>Cancel</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.modalTitle}>Select Birthday</Text>
+                      <TouchableOpacity onPress={confirmDate}>
+                        <Text style={styles.modalDone}>Done</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={parseDobToDate(dob)}
+                      mode="date"
+                      display="spinner"
+                      onChange={onDateChange}
+                      maximumDate={new Date()}
+                      style={{ alignSelf: 'center' }}
+                    />
+                  </View>
+                </View>
+              </Modal>
             </View>
 
             <View style={styles.inputGroup}>
@@ -334,6 +417,51 @@ function EditProfileStyles(colors: any) {
       fontSize: 13,
       fontWeight: '500',
       color: colors.textMuted,
+    },
+    datePickerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    placeholderText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.textMuted,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'flex-end',
+    },
+    modalSheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingBottom: 24,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    modalCancel: {
+      fontSize: 15,
+      color: colors.textMuted,
+      fontWeight: '500',
+    },
+    modalTitle: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    modalDone: {
+      fontSize: 15,
+      color: colors.primary,
+      fontWeight: '600',
     },
     textAreaWrapper: {
       minHeight: 88,

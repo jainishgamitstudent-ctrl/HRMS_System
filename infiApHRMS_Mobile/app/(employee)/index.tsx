@@ -192,7 +192,12 @@ const SwipeToCheckIn = ({ styles }: { styles: any }) => {
             Double Shift
           </Text>
           {!user.doubleShiftAllowed && (
-            <Text style={styles.doubleShiftHint}>Contact HR</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/(employee)/request-double-shift')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.doubleShiftHint, { textDecorationLine: 'underline' }]}>Contact HR</Text>
+            </TouchableOpacity>
           )}
         </View>
         <TouchableOpacity
@@ -508,12 +513,21 @@ export default function EmployeeDashboard() {
                 />
              
                 <FeatureCard
+                  icon="briefcase-outline"
+                  title="Job Postings"
+                  sub="Open Roles"
+                  color="#10b981"
+                  route="/(employee)/job-postings"
+                  delay={300}
+                  styles={styles}
+                />
+                <FeatureCard
                   icon="cash-outline"
                   title="Payroll"
                   sub="Salary Slips"
                   color="#4f46e5"
                   route="/(employee)/payroll"
-                  delay={300}
+                  delay={400}
                   styles={styles}
                 />
             

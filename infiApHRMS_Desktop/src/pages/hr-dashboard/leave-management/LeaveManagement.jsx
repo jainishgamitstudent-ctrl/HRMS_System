@@ -16,6 +16,7 @@ import {
   getLeaveStats,
   getTodayLeaves
 } from '../../../services/hrApi';
+import { useRealtimeLeaves } from '../../../hooks/useRealtime';
 
 const getPayloadArray = (response) => {
   const payload = response?.data?.data ?? response?.data ?? [];
@@ -123,6 +124,11 @@ const LeaveManagement = () => {
   useEffect(() => {
     fetchLeaveData();
   }, []);
+
+  useRealtimeLeaves((action, payload) => {
+    console.log('[Realtime] Leave event:', action, payload);
+    fetchLeaveData();
+  });
 
   const filteredRequests = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();

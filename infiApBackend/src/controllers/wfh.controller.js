@@ -5,7 +5,7 @@ const Team = require("../models/team.model");
 const Department = require("../models/department.model");
 const moment = require("moment");
 const { notifyUser, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
-const { emitToRoles } = require("../utils/socketManager");
+const { emitToRoles, emitEntityEvent } = require("../utils/socketManager");
 
 /**
  * Check if a user has WFH permission.
@@ -76,6 +76,11 @@ exports.applyWFH = async (req, res) => {
       duration: duration || "Full Day",
       reason,
       createdBy: employeeId,
+    });
+
+    emitEntityEvent('wfh', 'created', { id: wfh._id, employeeId: wfh.employeeId, date: wfh.date, duration: wfh.duration, reason: wfh.reason, status: wfh.status }, {
+      userId: employeeId,
+      targetRoles: ['hr', 'admin', 'superadmin']
     });
 
     try {
@@ -209,6 +214,11 @@ exports.grantWFHPermission = async (req, res) => {
     });
     console.log("[grantWFHPermission] Created permission:", newPermission._id.toString());
 
+    emitEntityEvent('wfhPermission', 'created', { id: newPermission._id, level, employeeId: newPermission.employeeId, teamId: newPermission.teamId, departmentId: newPermission.departmentId, isActive: true, notes }, {
+      userId: level === "employee" ? employeeId : null,
+      targetRoles: ['hr', 'admin', 'superadmin']
+    });
+
     // Notify affected employee when individual-level permission is granted
     try {
       if (level === "employee" && employeeId) {
@@ -260,6 +270,11 @@ exports.revokeWFHPermission = async (req, res) => {
     permission.revokedAt = new Date();
     await permission.save();
 
+    emitEntityEvent('wfhPermission', 'updated', { id: permission._id, level: permission.level, employeeId: permission.employeeId, isActive: false }, {
+      userId: wasEmployeeLevel ? affectedEmployeeId : null,
+      targetRoles: ['hr', 'admin', 'superadmin']
+    });
+
     // Notify affected employee
     try {
       if (affectedEmployeeId) {
@@ -307,6 +322,11 @@ exports.updateWFHPermission = async (req, res) => {
 
     await permission.save();
 
+    emitEntityEvent('wfhPermission', 'updated', { id: permission._id, level: permission.level, employeeId: permission.employeeId, teamId: permission.teamId, departmentId: permission.departmentId, notes: permission.notes, isActive: permission.isActive }, {
+      userId: permission.level === "employee" ? permission.employeeId : null,
+      targetRoles: ['hr', 'admin', 'superadmin']
+    });
+
     // Notify affected employee if permission targets a specific employee
     try {
       if (permission.level === "employee" && permission.employeeId) {
@@ -340,6 +360,12 @@ exports.deleteWFHPermission = async (req, res) => {
   try {
     const { permissionId } = req.params;
     const permission = await WFHPermission.findByIdAndDelete(permissionId);
+
+    emitEntityEvent('wfhPermission', 'deleted', { id: permission?._id, level: permission?.level, employeeId: permission?.employeeId }, {
+      userId: permission?.level === "employee" ? permission?.employeeId : null,
+      targetRoles: ['hr', 'admin', 'superadmin']
+    });
+
     if (!permission) {
       return res.status(404).json({ status: "Error", message: "Permission not found" });
     }
@@ -378,6 +404,9 @@ exports.getWFHPermissions = async (req, res) => {
     console.log("[getWFHPermissions] Query:", req.query);
     const { level, isActive, employeeId, teamId, departmentId } = req.query;
     const query = {};
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 50);
+    const skip = (page - 1) * limit;
 
     if (level) query.level = level;
     if (isActive !== undefined) query.isActive = isActive === "true";
@@ -385,12 +414,18 @@ exports.getWFHPermissions = async (req, res) => {
     if (teamId) query.teamId = teamId;
     if (departmentId) query.departmentId = departmentId;
 
-    const permissions = await WFHPermission.find(query)
-      .populate("grantedBy", "name email")
-      .populate("employeeId", "name email employeeId department")
-      .populate("teamId", "name")
-      .populate("departmentId", "name")
-      .sort({ createdAt: -1 });
+    const [permissions, total] = await Promise.all([
+      WFHPermission.find(query)
+        .populate("grantedBy", "name email")
+        .populate("employeeId", "name email employeeId department")
+        .populate("teamId", "name")
+        .populate("departmentId", "name")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      WFHPermission.countDocuments(query)
+    ]);
     console.log("[getWFHPermissions] Found:", permissions.length);
 
     const data = permissions.map((p) => ({
@@ -406,7 +441,16 @@ exports.getWFHPermissions = async (req, res) => {
       department: p.departmentId ? { id: p.departmentId._id, name: p.departmentId.name } : null,
     }));
 
-    return res.status(200).json({ status: "Success", data });
+    return res.status(200).json({
+      status: "Success",
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     return res.status(500).json({ status: "Error", message: "Failed to get WFH permissions", error: error.message });
   }
@@ -442,6 +486,11 @@ exports.reviewWFHRequest = async (req, res) => {
 
     wfh.status = status;
     await wfh.save();
+
+    emitEntityEvent('wfh', 'updated', { id: wfh._id, employeeId: wfh.employeeId, date: wfh.date, duration: wfh.duration, reason: wfh.reason, status: wfh.status }, {
+      userId: wfh.employeeId,
+      targetRoles: ['hr', 'admin', 'superadmin']
+    });
 
     // Notify employee
     const formattedDate = moment(wfh.date).format("MMM DD, YYYY");

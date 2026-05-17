@@ -12,4 +12,7 @@ const wfhSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+wfhSchema.index({ employeeId: 1, date: -1 });
+wfhSchema.index({ date: -1 });
+
 module.exports = mongoose.model("WFHRequest", wfhSchema);

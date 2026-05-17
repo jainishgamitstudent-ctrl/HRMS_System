@@ -14,6 +14,9 @@ router.use(verifyJWT);
 router.put("/leaves/approve", verifyRole(["hr", "admin", "superadmin", "manager"]), hrController.approveLeave);
 router.post("/performance/feedback", verifyRole(["hr", "admin", "superadmin", "manager"]), hrController.addFeedback);
 
+// -> Resignation (Employee can submit, HR/Admin can view/process)
+router.post("/resignation", hrController.submitResignation);
+
 // -> Global role protection: remaining routes are HR/Admin/SuperAdmin only
 router.use(verifyRole(["hr", "admin", "superadmin"]));
 
@@ -28,6 +31,10 @@ router.put("/employees/:id/json", verifyDepartmentAccess, hrController.editEmplo
 router.put("/employees/:id", uploadLimiter, uploadSingle, verifyDepartmentAccess, hrController.editEmployee);
 router.get("/employees/:id/profile", hrController.getEmployeeProfile);
 router.put("/employees/:id/double-shift", verifyDepartmentAccess, hrController.updateDoubleShiftPermission);
+
+// -> Double Shift Requests
+router.get("/double-shift/requests", hrController.getDoubleShiftRequests);
+router.put("/double-shift/requests/:requestId/review", hrController.reviewDoubleShiftRequest);
 
 // -> Attendance (Detailed)
 router.get("/attendance/daily-overview", hrController.getAttendanceDailyOverview);
@@ -81,8 +88,7 @@ router.get("/finance/payroll", hrController.getSalaryProcessingList); // keeping
 router.post("/finance/salary/process", hrController.processSalary);
 router.get("/finance/payslip/:id", hrController.getPayslip);
 
-// -> Resignation
-router.post("/resignation", hrController.submitResignation);
+// -> Resignation (HR/Admin view & process)
 router.get("/resignation/register", hrController.getResignations);
 router.put("/resignation/exit-process", hrController.processExit);
 

@@ -11,6 +11,7 @@ export interface UserProfile {
   email: string;
   department: string;
   joiningDate: string;
+  dob?: string;
   phone?: string;
   address?: string;
   doubleShiftAllowed: boolean;
@@ -70,6 +71,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       email: apiUser.email || prev.email,
       employeeId: apiUser.employeeId || prev.employeeId,
       department: apiUser.department || prev.department,
+      dob: apiUser.dob ?? prev.dob,
       joiningDate: (() => {
         if (!apiUser.joiningDate) return prev.joiningDate;
         const parsed = new Date(apiUser.joiningDate);

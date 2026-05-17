@@ -406,7 +406,12 @@ export default function AttendancePage() {
               Double Shift
             </Text>
             {!user.doubleShiftAllowed && (
-              <Text style={styles.doubleShiftHint}>Contact HR</Text>
+              <TouchableOpacity
+                onPress={() => router.push('/(employee)/request-double-shift')}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.doubleShiftHint, { textDecorationLine: 'underline' }]}>Contact HR</Text>
+              </TouchableOpacity>
             )}
           </View>
           <TouchableOpacity

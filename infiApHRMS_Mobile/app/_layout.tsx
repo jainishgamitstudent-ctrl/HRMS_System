@@ -18,6 +18,7 @@ import { ThemeProvider, useAppTheme } from '../context/ThemeContext';
 import Sidebar from '../components/layout/Sidebar';
 import NotificationToast from '../components/NotificationToast';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { connectSocket, disconnectSocket } from '../services/socket';
 
 function RootLayoutContent() {
   const { isDark, colors } = useAppTheme();
@@ -43,6 +44,24 @@ function RootLayoutContent() {
       };
     }
   }, [colors.background]);
+
+  useEffect(() => {
+    connectSocket();
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        connectSocket();
+      }
+      if (nextState === 'background') {
+        disconnectSocket();
+      }
+    });
+
+    return () => {
+      appStateSubscription.remove();
+      disconnectSocket();
+    };
+  }, []);
 
   const navigationTheme = isDark ? NavigationDarkTheme : NavigationDefaultTheme;
 

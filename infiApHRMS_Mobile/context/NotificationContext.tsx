@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { Socket } from 'socket.io-client';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import {
@@ -14,9 +15,9 @@ import {
   setupAndroidNotificationChannel,
 } from '../services/notifications';
 import { useUser } from './UserContext';
-import { connectSocket, disconnectSocket, getSocket } from '../services/socket';
+import { connectSocket, disconnectSocket } from '../services/socket';
 
-export type NotificationType = 'leave' | 'attendance' | 'payroll' | 'system';
+export type NotificationType = 'leave' | 'attendance' | 'payroll' | 'job' | 'system';
 
 export interface NotificationAttachment {
   name: string;
@@ -60,6 +61,7 @@ const getNotificationType = (category?: string): NotificationType => {
   if (normalized.includes('leave')) return 'leave';
   if (normalized.includes('attendance')) return 'attendance';
   if (normalized.includes('payroll')) return 'payroll';
+  if (normalized.includes('job')) return 'job';
   return 'system';
 };
 
@@ -67,6 +69,7 @@ const getNotificationRoute = (type: NotificationType) => {
   if (type === 'leave') return '/(employee)/leave';
   if (type === 'attendance') return '/(employee)/attendance';
   if (type === 'payroll') return '/(employee)/payroll';
+  if (type === 'job') return '/(employee)/job-postings';
   return undefined;
 };
 
@@ -187,54 +190,60 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Socket.IO real-time notification setup
   useEffect(() => {
-    console.log('[Notifications] Socket setup triggered, isAuthenticated:', isAuthenticated);
     if (!isAuthenticated) {
       disconnectSocket();
       return;
     }
 
+    let socketInstance: Socket | null = null;
     let isActive = true;
+
+    const onNotification = (payload: any) => {
+      if (!isActive) return;
+      console.log('[Socket] Notification received:', payload.headline);
+      const notification = buildNotificationFromSocketPayload(payload);
+      seenIdsRef.current.add(notification.id);
+      setToast(notification);
+      refreshNotifications();
+    };
+
+    const onToast = (payload: any) => {
+      if (!isActive) return;
+      console.log('[Socket] Toast received:', payload.message);
+      const notification: Notification = {
+        id: String(payload.id || Date.now()),
+        type: getNotificationType(payload.category) || 'system',
+        title: payload.message || 'Notification',
+        message: (payload.message || '').slice(0, 120),
+        description: payload.message || '',
+        time: 'Just now',
+        timestamp: new Date().toISOString(),
+        isRead: false,
+        sender: 'System',
+        division: 'General',
+        isOnline: true,
+        route: undefined,
+        relatedRoomId: null,
+      };
+      setToast(notification);
+    };
 
     const setupSocket = async () => {
       const socket = await connectSocket();
       if (!socket || !isActive) return;
-
-      socket.on('notification', (payload) => {
-        if (!isActive) return;
-        console.log('[Socket] Notification received:', payload.headline);
-        const notification = buildNotificationFromSocketPayload(payload);
-        seenIdsRef.current.add(notification.id);
-        setToast(notification);
-        refreshNotifications();
-      });
-
-      socket.on('toast', (payload) => {
-        if (!isActive) return;
-        console.log('[Socket] Toast received:', payload.message);
-        const notification: Notification = {
-          id: String(payload.id || Date.now()),
-          type: getNotificationType(payload.category) || 'system',
-          title: payload.message || 'Notification',
-          message: (payload.message || '').slice(0, 120),
-          description: payload.message || '',
-          time: 'Just now',
-          timestamp: new Date().toISOString(),
-          isRead: false,
-          sender: 'System',
-          division: 'General',
-          isOnline: true,
-          route: undefined,
-          relatedRoomId: null,
-        };
-        setToast(notification);
-      });
+      socketInstance = socket;
+      socket.on('notification', onNotification);
+      socket.on('toast', onToast);
     };
 
     setupSocket();
 
     return () => {
       isActive = false;
-      // Keep socket connected for background notifications; only disconnect on auth change
+      if (socketInstance) {
+        socketInstance.off('notification', onNotification);
+        socketInstance.off('toast', onToast);
+      }
     };
   }, [isAuthenticated, refreshNotifications]);
 

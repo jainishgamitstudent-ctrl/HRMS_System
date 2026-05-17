@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { useAppTheme } from '@/context/ThemeContext';
 import { checkMyWFHPermission } from '../../services/wfh';
+import { useRealtimeWFH } from '../../hooks/useRealtime';
 const MOCK_WFH: any[] = [];  // Empty initial data - will be fetched from API
 
 const WFHCard = ({ item, index, styles }: { item: any, index: number, styles: any }) => {
@@ -115,6 +116,11 @@ export default function UpcomingWFH() {
 
     loadWfhData();
   }, []);
+
+  useRealtimeWFH((action, payload) => {
+    console.log('[Realtime] WFH event:', action, payload);
+    loadWfhData();
+  });
 
   if (checkingPermission) {
     return (

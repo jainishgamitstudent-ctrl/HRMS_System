@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Punch = require("../models/punch.model");
 const User = require("../models/user.model");
 const LeaveBalance = require("../models/leaveBalance.model");
@@ -6,9 +7,12 @@ const EmployeeOfTheMonth = require("../models/employeeOfTheMonth.model");
 const Holiday = require("../models/holiday.model");
 const RequestRoom = require("../models/requestRoom.model");
 const Payroll = require("../models/payroll.model");
+const DoubleShiftRequest = require("../models/doubleShiftRequest.model");
+const Resignation = require("../models/resignation.model");
+const Job = require("../models/job.model");
 const moment = require("moment");
 const { notifyUser, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
-const { emitToRoles } = require("../utils/socketManager");
+const { emitToRoles, emitEntityEvent } = require("../utils/socketManager");
 
 const normalizeLeaveDate = (value) => {
     if (typeof value === "string") {
@@ -84,94 +88,101 @@ const mapProfileUser = (user) => ({
 exports.getDashboardHome = async (req, res) => {
     try {
         const userId = req.user._id;
-        const currentUser = await User.findById(userId).select("name department joiningDate");
         const now = new Date();
         const today = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        const startOfMonth = moment().startOf('month').toDate();
+        const endOfMonth = moment().endOf('month').toDate();
+        const todayStr = now.toISOString().split('T')[0];
+        const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+
+        // Run all independent queries in parallel for maximum performance
+        const [
+            currentUser,
+            punches,
+            earlyOutPunches,
+            approvedLeaves,
+            holidays,
+            balance,
+            halfDayCount
+        ] = await Promise.all([
+            User.findById(userId).select("name department joiningDate").lean(),
+            Punch.find({
+                userId,
+                PunchType: 1,
+                PunchTime: { $gte: startOfMonth, $lte: endOfMonth }
+            }).lean(),
+            Punch.find({
+                userId,
+                PunchType: 2,
+                PunchTime: { $gte: startOfMonth, $lte: endOfMonth }
+            }).lean(),
+            LeaveApplication.countDocuments({
+                EmployeeID: userId,
+                ApprovalStatusID: 2,
+                StartDate: { $gte: startOfMonth, $lte: endOfMonth }
+            }),
+            Holiday.countDocuments({
+                date: { $gte: startOfMonth, $lte: endOfMonth }
+            }),
+            LeaveBalance.findOne({ userId }).lean(),
+            LeaveApplication.countDocuments({
+                EmployeeID: userId,
+                ApprovalStatusID: 2,
+                IsHalfDay: true,
+                StartDate: { $gte: startOfMonth, $lte: endOfMonth }
+            })
+        ]);
+
         const joinDate = currentUser?.joiningDate
             ? new Date(currentUser.joiningDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
             : today;
 
-        const startOfMonth = moment().startOf('month').toDate();
-        const endOfMonth = moment().endOf('month').toDate();
-        const punches = await Punch.find({
-            userId,
-            PunchType: 1,
-            PunchTime: { $gte: startOfMonth, $lte: endOfMonth }
-        });
         const presentDays = new Set(punches.map((p) => p.PunchTime.toISOString().split('T')[0])).size;
 
-        const approvedLeaves = await LeaveApplication.countDocuments({
-            EmployeeID: userId,
-            ApprovalStatusID: 2,
-            StartDate: { $gte: startOfMonth, $lte: endOfMonth }
-        });
-
-        const holidays = await Holiday.countDocuments({
-            date: { $gte: startOfMonth, $lte: endOfMonth }
-        });
-
-        let balance = await LeaveBalance.findOne({ userId });
-        if (!balance) {
-            balance = await LeaveBalance.create({ userId, CL: 6, PL: 6, SL: 6 });
-        } else if (balance.CL === 15 || balance.PL === 15) {
-            // Update legacy 15-day defaults to the new 6-day baseline
-            balance.CL = 6;
-            balance.PL = 6;
-            balance.SL = 6;
-            await balance.save();
+        // Handle leave balance initialization inline without blocking
+        let leaveBalance = balance;
+        if (!leaveBalance) {
+            leaveBalance = await LeaveBalance.create({ userId, CL: 6, PL: 6, SL: 6 });
+        } else if (leaveBalance.CL === 15 || leaveBalance.PL === 15) {
+            leaveBalance.CL = 6;
+            leaveBalance.PL = 6;
+            leaveBalance.SL = 6;
+            await leaveBalance.save();
         }
 
         const lateInCount = punches.filter(p => {
-            const time = p.PunchTime.getHours() * 60 + p.PunchTime.getMinutes();
-            return time > 600; // 10:00 AM
+            const time = new Date(p.PunchTime).getHours() * 60 + new Date(p.PunchTime).getMinutes();
+            return time > 600;
         }).length;
 
-        const earlyOutPunches = await Punch.find({
-            userId,
-            PunchType: 2,
-            PunchTime: { $gte: startOfMonth, $lte: endOfMonth }
-        });
         const earlyOutCount = earlyOutPunches.filter(p => {
-            const time = p.PunchTime.getHours() * 60 + p.PunchTime.getMinutes();
-            return time < 1080; // 6:00 PM
+            const time = new Date(p.PunchTime).getHours() * 60 + new Date(p.PunchTime).getMinutes();
+            return time < 1080;
         }).length;
-
-        const halfDayCount = await LeaveApplication.countDocuments({
-            EmployeeID: userId,
-            ApprovalStatusID: 2,
-            IsHalfDay: true,
-            StartDate: { $gte: startOfMonth, $lte: endOfMonth }
-        });
 
         // Dynamic Missed Punches logic
         const missedPunches = [];
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const currentTimeInMinutes = currentHour * 60 + currentMinute;
-
-        // Check if today is a missed punch (No check-in after 10:30 AM)
-        const todayStr = now.toISOString().split('T')[0];
-        const hasTodayPunch = punches.some(p => p.PunchTime.toISOString().split('T')[0] === todayStr);
-        
-        if (!hasTodayPunch && currentTimeInMinutes > 630) { // 10:30 AM
-            missedPunches.push({ 
-                date: now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), 
-                type: "Missed Check-in" 
+        const hasTodayPunch = punches.some(p => new Date(p.PunchTime).toISOString().split('T')[0] === todayStr);
+        if (!hasTodayPunch && currentTimeInMinutes > 630) {
+            missedPunches.push({
+                date: today,
+                type: "Missed Check-in"
             });
         }
 
-        // Birthdays logic
-        const allUsers = await User.find({ dob: { $exists: true } }).select("name dob profileImage department");
+        // Optimized birthdays: only fetch users with dob, limited fields, .lean()
+        const allUsers = await User.find({ dob: { $exists: true, $ne: null } })
+            .select("name dob profileImage department")
+            .limit(500)
+            .lean();
+
         const upcomingBirthdays = allUsers.filter(u => {
             const birthDate = new Date(u.dob);
             const todayDate = new Date();
             birthDate.setFullYear(todayDate.getFullYear());
-            
-            // If birthday already passed this year, check for next year
             if (birthDate < todayDate) {
                 birthDate.setFullYear(todayDate.getFullYear() + 1);
             }
-            
             const diffTime = Math.abs(birthDate.getTime() - todayDate.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             return diffDays <= 7;
@@ -200,10 +211,10 @@ exports.getDashboardHome = async (req, res) => {
                 location: "Office"
             },
             leaveBalance: {
-                privilegeLeave: balance.PL,
-                casualLeave: balance.CL,
-                sickLeave: balance.SL,
-                totalBalance: balance.PL + balance.CL + balance.SL,
+                privilegeLeave: leaveBalance.PL,
+                casualLeave: leaveBalance.CL,
+                sickLeave: leaveBalance.SL,
+                totalBalance: leaveBalance.PL + leaveBalance.CL + leaveBalance.SL,
                 earlyOutRecord: 0,
                 lateIn: `${lateInCount}/5`,
                 earlyOut: `${earlyOutCount}/5`,
@@ -221,8 +232,8 @@ exports.getDashboardHome = async (req, res) => {
             ],
             birthdays: {
                 countThisWeek: upcomingBirthdays.length,
-                message: upcomingBirthdays.length > 0 
-                    ? `Wish your colleagues a very happy birthday!` 
+                message: upcomingBirthdays.length > 0
+                    ? `Wish your colleagues a very happy birthday!`
                     : "No birthdays this week.",
                 list: upcomingBirthdays
             }
@@ -313,7 +324,7 @@ exports.getPunchStatus = async (req, res) => {
         const todayPunches = await Punch.find({
             userId,
             PunchTime: { $gte: todayStart, $lte: todayEnd }
-        }).sort({ PunchTime: 1 });
+        }).sort({ PunchTime: 1 }).lean();
 
         const todayPunchCount = todayPunches.length;
         const latestPunch = todayPunches[todayPunches.length - 1] || null;
@@ -398,7 +409,7 @@ exports.getLateCheckinCount = async (req, res) => {
             userId,
             PunchType: 1,
             PunchTime: { $gte: startOfMonth, $lte: endOfMonth }
-        });
+        }).lean();
 
         // Let's assume late check-in is after 10:00 AM
         let lateCount = 0;
@@ -431,7 +442,7 @@ exports.getEarlyCheckoutCount = async (req, res) => {
             userId,
             PunchType: 2,
             PunchTime: { $gte: startOfMonth, $lte: endOfMonth }
-        });
+        }).lean();
 
         // Assume early checkout is before 6:30 PM (18:30)
         let earlyCount = 0;
@@ -484,23 +495,24 @@ exports.getAttendanceSummary = async (req, res) => {
         const startOfMonth = moment().startOf('month').toDate();
         const endOfMonth = moment().endOf('month').toDate();
 
-        // Unique days present
-        const punches = await Punch.find({
-            userId,
-            PunchType: 1,
-            PunchTime: { $gte: startOfMonth, $lte: endOfMonth }
-        });
+        // Run queries in parallel
+        const [punches, leavesDocs, holidays] = await Promise.all([
+            Punch.find({
+                userId,
+                PunchType: 1,
+                PunchTime: { $gte: startOfMonth, $lte: endOfMonth }
+            }).lean(),
+            LeaveApplication.find({
+                EmployeeID: userId,
+                ApprovalStatusID: 2,
+                StartDate: { $gte: startOfMonth, $lte: endOfMonth }
+            }).lean(),
+            Holiday.countDocuments({
+                date: { $gte: startOfMonth, $lte: endOfMonth }
+            })
+        ]);
         const presentDays = new Set(punches.map(p => p.PunchTime.toISOString().split('T')[0])).size;
-
-        const leavesDocs = await LeaveApplication.find({
-            EmployeeID: userId,
-            ApprovalStatusID: 2, // Assume 2 = Approved
-            StartDate: { $gte: startOfMonth, $lte: endOfMonth }
-        });
         const leavesCount = leavesDocs.length;
-        const holidays = await Holiday.countDocuments({
-            date: { $gte: startOfMonth, $lte: endOfMonth }
-        });
 
         res.status(200).json({
             status: "Success",
@@ -593,7 +605,7 @@ exports.getDOB = async (req, res) => {
         const tMonth = today.getMonth() + 1;
         const tDay = today.getDate();
 
-        const allUsers = await User.find({ dob: { $exists: true } });
+        const allUsers = await User.find({ dob: { $exists: true, $ne: null } }).select("name dob").limit(500).lean();
 
         const todays_birthdays = [];
         const current_month_birthdays = [];
@@ -677,6 +689,11 @@ exports.applyLeave = async (req, res) => {
 
         await leaveApp.save();
 
+        emitEntityEvent('leave', 'created', mapLeaveApplication(leaveApp), {
+            userId: EmployeeID,
+            targetRoles: ['hr', 'admin', 'superadmin']
+        });
+
         try {
             const hrAndAdmins = await User.find({
                 role: { $in: ["hr", "admin", "superadmin"] },
@@ -702,9 +719,6 @@ exports.applyLeave = async (req, res) => {
             // Notify HR/Admin about new leave request
             const employee = await User.findById(EmployeeID).select("name").lean();
             const employeeName = employee?.name || "An employee";
-            const dateRange = normalizedStartDate && normalizedEndDate
-                ? ` (${new Date(normalizedStartDate).toDateString()} - ${new Date(normalizedEndDate).toDateString()})`
-                : "";
             await notifyRoleUsers({
                 roles: ["hr", "admin", "superadmin"],
                 category: "leave",
@@ -744,15 +758,31 @@ exports.applyLeave = async (req, res) => {
 exports.getEmployeeLeaves = async (req, res) => {
     try {
         const EmployeeID = req.user._id;
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, parseInt(req.query.limit) || 20);
+        const skip = (page - 1) * limit;
 
-        const leaves = await LeaveApplication.find({ EmployeeID }).sort({ createdAt: -1 });
+        const [leaves, total] = await Promise.all([
+            LeaveApplication.find({ EmployeeID })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            LeaveApplication.countDocuments({ EmployeeID })
+        ]);
 
         const data = dedupeLeaveApplications(leaves).map(mapLeaveApplication);
 
         res.status(200).json({
             status: "Success",
             statusCode: 200,
-            data: data
+            data: data,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
         });
     } catch (error) {
         res.status(500).json({ status: "Error", message: "Failed to fetch leaves", error: error.message });
@@ -809,6 +839,11 @@ exports.approveActivity = async (req, res) => {
                 { new: true }
             );
 
+            emitEntityEvent('leave', 'updated', mapLeaveApplication(updated), {
+                userId: updated.EmployeeID,
+                targetRoles: ['hr', 'admin', 'superadmin']
+            });
+
             if (updated && updated.EmployeeID) {
                 const dateRange =
                     updated.StartDate && updated.EndDate
@@ -853,7 +888,18 @@ exports.approveActivity = async (req, res) => {
 // 16. Get Directors List (infiApDirectors page)
 exports.getDirectors = async (req, res) => {
     try {
-        const users = await User.find({}).select("name profileImage email phone department designation role");
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, parseInt(req.query.limit) || 50);
+        const skip = (page - 1) * limit;
+
+        const [users, total] = await Promise.all([
+            User.find({})
+                .select("name profileImage email phone department designation role")
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            User.countDocuments({})
+        ]);
 
         const directorsData = users.map(u => ({
             id: u._id,
@@ -870,7 +916,13 @@ exports.getDirectors = async (req, res) => {
         res.status(200).json({
             status: "Success",
             statusCode: 200,
-            data: directorsData
+            data: directorsData,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
         });
     } catch (error) {
         res.status(500).json({ status: "Error", message: "Failed to fetch employees", error: error.message });
@@ -1042,6 +1094,10 @@ exports.editProfile = async (req, res) => {
             return res.status(404).json({ status: "Error", message: "User not found" });
         }
 
+        emitEntityEvent('employee', 'updated', { id: updatedUser._id, name: updatedUser.name, profileImage: updatedUser.profileImage, phone: updatedUser.phone, address: updatedUser.address }, {
+            userId: updatedUser._id
+        });
+
         res.status(200).json({
             status: "Success",
             statusCode: 200,
@@ -1090,6 +1146,10 @@ exports.updateAuthenticatedProfile = async (req, res) => {
         if (!updatedUser) {
             return res.status(404).json({ status: "Error", message: "User not found" });
         }
+
+        emitEntityEvent('employee', 'updated', mapProfileUser(updatedUser), {
+            userId: updatedUser._id
+        });
 
         return res.status(200).json({
             status: "Success",
@@ -1199,11 +1259,11 @@ exports.getAttendanceHistory = async (req, res) => {
         const endDate = toDate ? new Date(toDate) : new Date();
         const startDate = fromDate ? new Date(fromDate) : moment().subtract(30, 'days').toDate();
 
-        // Fetch all punches for the user within the date range
+        // Fetch punches for the user within the date range (limit to prevent excessive data)
         const punches = await Punch.find({
             userId,
             PunchTime: { $gte: startDate, $lte: endDate }
-        }).sort({ PunchTime: 1 });
+        }).sort({ PunchTime: 1 }).limit(1000).lean();
 
         // Group punches by date
         const punchesByDate = {};
@@ -2135,8 +2195,127 @@ exports.getAttendanceHistory = async (req, res) => {
     }
 };
 
+// --- Double Shift Request (Employee) --- //
+exports.requestDoubleShift = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const { requestDate, reason } = req.body;
 
+        if (!userId) {
+            return res.status(401).json({ status: "Error", message: "Unauthorized" });
+        }
+        if (!requestDate) {
+            return res.status(400).json({ status: "Error", message: "requestDate is required" });
+        }
 
+        const normalizedDate = normalizeLeaveDate(requestDate);
+        if (!normalizedDate) {
+            return res.status(400).json({ status: "Error", message: "Invalid requestDate format" });
+        }
 
+        // Prevent duplicate pending request for same date
+        const existing = await DoubleShiftRequest.findOne({
+            employeeId: userId,
+            requestDate: normalizedDate,
+            status: "pending",
+        });
+        if (existing) {
+            return res.status(409).json({ status: "Error", message: "You already have a pending double shift request for this date." });
+        }
 
+        const request = await DoubleShiftRequest.create({
+            employeeId: userId,
+            requestDate: normalizedDate,
+            reason: reason || "",
+            status: "pending",
+        });
 
+        // Notify HR/Admin about new request
+        try {
+            const employee = await User.findById(userId).select("name").lean();
+            const employeeName = employee?.name || "An employee";
+            const formattedDate = normalizedDate.toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+            });
+            await notifyRoleUsers({
+                roles: ["hr", "admin", "superadmin"],
+                category: "attendance",
+                headline: `Double Shift Request: ${employeeName}`,
+                details: `${employeeName} requested double shift on ${formattedDate}.${reason ? " Reason: " + reason : ""}`,
+                sentBy: userId,
+                excludeUserId: userId,
+            });
+        } catch (notifyErr) {
+            console.warn("[DoubleShift] notifyRoleUsers failed (non-blocking):", notifyErr.message);
+        }
+
+        return res.status(201).json({
+            status: "Success",
+            message: "Double shift request submitted successfully",
+            data: request,
+        });
+    } catch (error) {
+        console.error("[requestDoubleShift] Error:", error);
+        return res.status(500).json({ status: "Error", message: "Failed to submit double shift request", error: error.message });
+    }
+};
+
+exports.getMyDoubleShiftRequests = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ status: "Error", message: "Unauthorized" });
+        }
+
+        const requests = await DoubleShiftRequest.find({ employeeId: userId })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        return res.status(200).json({
+            status: "Success",
+            data: requests,
+        });
+    } catch (error) {
+        console.error("[getMyDoubleShiftRequests] Error:", error);
+        return res.status(500).json({ status: "Error", message: "Failed to fetch double shift requests", error: error.message });
+    }
+};
+
+// Get Employee's own resignation(s)
+exports.getMyResignation = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ status: "Error", message: "Unauthorized" });
+        }
+        const objectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+        const list = await Resignation.find({ userId: objectId }).sort({ createdAt: -1 }).lean();
+        return res.status(200).json({
+            status: "Success",
+            data: list,
+        });
+    } catch (error) {
+        console.error("[getMyResignation] Error:", error);
+        return res.status(500).json({ status: "Error", message: "Failed to fetch resignation data", error: error.message });
+    }
+};
+
+// Get Open Jobs for Employee view
+exports.getOpenJobs = async (req, res) => {
+    try {
+        const jobs = await Job.find({ status: "Open" })
+            .sort({ createdAt: -1 })
+            .limit(50)
+            .lean();
+
+        return res.status(200).json({
+            status: "Success",
+            data: jobs,
+        });
+    } catch (error) {
+        console.error("[getOpenJobs] Error:", error);
+        return res.status(500).json({ status: "Error", message: "Failed to fetch job postings", error: error.message });
+    }
+};

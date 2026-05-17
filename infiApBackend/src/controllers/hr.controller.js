@@ -10,8 +10,9 @@ const Payroll = require("../models/payroll.model");
 const Resignation = require("../models/resignation.model");
 const Holiday = require("../models/holiday.model");
 const Job = require("../models/job.model");
+const DoubleShiftRequest = require("../models/doubleShiftRequest.model");
 const logger = require("../utils/logger");
-const { notifyUser } = require("../utils/notifier");
+const { notifyUser, notifyRoleUsers } = require("../utils/notifier");
 const { emitEntityEvent } = require("../utils/socketManager");
 
 // ---> Welcome Page Greeting <---
@@ -255,6 +256,7 @@ exports.updateDoubleShiftPermission = async (req, res) => {
         // Notify employee about double shift permission change
         try {
             const actorName = req.user?.name || "HR";
+            const actorRole = req.user?.role;
             await notifyUser({
                 recipient: id,
                 category: "attendance",
@@ -263,6 +265,19 @@ exports.updateDoubleShiftPermission = async (req, res) => {
                     ? `You have been granted double shift permission by ${actorName}.`
                     : `Your double shift permission has been revoked by ${actorName}.`,
                 sentBy: req.user?._id,
+            });
+
+            // Notify Admin about the change
+            const otherRoles = actorRole === "hr" ? ["admin", "superadmin"] : ["hr", "superadmin"];
+            const employee = await User.findById(id).select("name").lean();
+            const employeeName = employee?.name || "an employee";
+            await notifyRoleUsers({
+                roles: otherRoles,
+                category: "attendance",
+                headline: doubleShiftAllowed ? "Double Shift Permission Granted" : "Double Shift Permission Revoked",
+                details: `${actorName} ${doubleShiftAllowed ? "granted" : "revoked"} double shift permission for ${employeeName}.`,
+                sentBy: req.user?._id,
+                excludeUserId: req.user?._id,
             });
         } catch (notifyErr) {
             console.warn("[DoubleShift] notifyUser failed (non-blocking):", notifyErr.message);
@@ -1490,6 +1505,16 @@ exports.addJob = async (req, res) => {
     try {
         const job = new Job(req.body);
         await job.save();
+
+        // Notify all employees about the new job posting
+        notifyRoleUsers({
+            roles: ["employee", "hr"],
+            category: "job",
+            headline: `New Job Opening: ${job.title}`,
+            details: `A new ${job.type} position in ${job.department} is now open. Apply now!`,
+            sentBy: req.user?._id
+        }).catch(() => {});
+
         res.status(201).json({ success: true, message: "Job posted", data: job });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -2040,5 +2065,113 @@ exports.getPerformanceAnalytics = async (req, res) => {
         res.status(200).json({ success: true, data: result });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// --- Double Shift Request Management (HR/Admin) --- //
+exports.getDoubleShiftRequests = async (req, res) => {
+    try {
+        const { status, employeeId } = req.query;
+        const filter = {};
+        if (status) filter.status = status;
+        if (employeeId) filter.employeeId = employeeId;
+
+        const requests = await DoubleShiftRequest.find(filter)
+            .populate("employeeId", "name employeeId department designation email")
+            .populate("reviewedBy", "name")
+            .sort({ createdAt: -1 })
+            .lean();
+
+        return res.status(200).json({
+            status: "Success",
+            data: requests,
+        });
+    } catch (error) {
+        console.error("[getDoubleShiftRequests] Error:", error);
+        return res.status(500).json({ status: "Error", message: "Failed to fetch double shift requests", error: error.message });
+    }
+};
+
+exports.reviewDoubleShiftRequest = async (req, res) => {
+    try {
+        const { requestId } = req.params;
+        const { status, reviewNotes } = req.body;
+        const reviewerId = req.user?._id;
+        const reviewerRole = req.user?.role;
+
+        if (!reviewerId) {
+            return res.status(401).json({ status: "Error", message: "Unauthorized" });
+        }
+        if (!status || !["approved", "rejected"].includes(status)) {
+            return res.status(400).json({ status: "Error", message: "Valid status (approved/rejected) is required" });
+        }
+
+        const request = await DoubleShiftRequest.findById(requestId);
+        if (!request) {
+            return res.status(404).json({ status: "Error", message: "Double shift request not found" });
+        }
+        if (request.status !== "pending") {
+            return res.status(409).json({ status: "Error", message: "Request has already been reviewed" });
+        }
+
+        request.status = status;
+        request.reviewedBy = reviewerId;
+        request.reviewedAt = new Date();
+        request.reviewNotes = reviewNotes || "";
+        await request.save();
+
+        // If approved, also update the employee's doubleShiftAllowed flag
+        if (status === "approved") {
+            await User.findByIdAndUpdate(request.employeeId, { doubleShiftAllowed: true });
+        }
+
+        const reviewerName = req.user?.name || "HR/Admin";
+        const isReject = status === "rejected";
+        const formattedDate = request.requestDate.toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        });
+
+        // Notify the employee
+        try {
+            await notifyUser({
+                recipient: request.employeeId,
+                category: "attendance",
+                headline: isReject ? "Double Shift Request Rejected" : "Double Shift Request Approved",
+                details: isReject
+                    ? `Your double shift request for ${formattedDate} was rejected by ${reviewerName}.${reviewNotes ? " Reason: " + reviewNotes : ""}`
+                    : `Your double shift request for ${formattedDate} has been approved by ${reviewerName}.`,
+                sentBy: reviewerId,
+            });
+        } catch (notifyErr) {
+            console.warn("[reviewDoubleShift] notifyUser failed (non-blocking):", notifyErr.message);
+        }
+
+        // Notify Admin (and other roles)
+        try {
+            const otherRoles = reviewerRole === "hr" ? ["admin", "superadmin"] : ["hr", "superadmin"];
+            const employee = await User.findById(request.employeeId).select("name").lean();
+            const employeeName = employee?.name || "an employee";
+            await notifyRoleUsers({
+                roles: otherRoles,
+                category: "attendance",
+                headline: isReject ? "Double Shift Request Rejected" : "Double Shift Request Approved",
+                details: `${reviewerName} ${isReject ? "rejected" : "approved"} double shift request for ${employeeName} (${formattedDate}).`,
+                sentBy: reviewerId,
+                excludeUserId: reviewerId,
+            });
+        } catch (notifyErr) {
+            console.warn("[reviewDoubleShift] notifyRoleUsers failed (non-blocking):", notifyErr.message);
+        }
+
+        return res.status(200).json({
+            status: "Success",
+            message: `Double shift request ${status}`,
+            data: request,
+        });
+    } catch (error) {
+        console.error("[reviewDoubleShiftRequest] Error:", error);
+        return res.status(500).json({ status: "Error", message: "Failed to review double shift request", error: error.message });
     }
 };

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getLeaveRequests, approveLeave } from '../../../services/hrApi';
+import { useRealtimeLeaves } from '../../../hooks/useRealtime';
 
 const LeaveRequests = () => {
     const navigate = useNavigate();
@@ -64,6 +65,11 @@ const LeaveRequests = () => {
     useEffect(() => {
         fetchRequests();
     }, []);
+
+    useRealtimeLeaves((action, payload) => {
+        console.log('[Realtime] Leave event:', action, payload);
+        fetchRequests();
+    });
 
     const showNotification = (msg) => {
         setNotification(msg);

@@ -39,4 +39,8 @@ const punchSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+punchSchema.index({ userId: 1, PunchTime: -1 });
+punchSchema.index({ userId: 1, PunchType: 1, PunchTime: -1 });
+punchSchema.index({ PunchTime: -1 });
+
 module.exports = mongoose.model("Punch", punchSchema);
