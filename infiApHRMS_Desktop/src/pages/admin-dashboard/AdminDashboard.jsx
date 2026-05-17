@@ -41,7 +41,8 @@ const formatCurrency = (value) => {
 
 const AdminDashboard = () => {
    const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, role } = useAuth();
+    const isAdmin = role === 'Admin';
    const { summary, insights, departments, teams, jobs, staffDirectory, pendingLeaves, activities, loading } = useAdminDashboard();
 
    // Salary assignment state
@@ -147,7 +148,7 @@ const AdminDashboard = () => {
              color: 'text-indigo-600',
              bg: 'bg-indigo-50',
              accent: 'from-indigo-500 to-indigo-400',
-             onClick: () => navigate('/admin/employees')
+             onClick: () => navigate(isAdmin ? '/admin/employees' : '/employees')
           },
           {
              label: 'New Hires',
@@ -157,7 +158,7 @@ const AdminDashboard = () => {
              color: 'text-violet-600',
              bg: 'bg-violet-50',
              accent: 'from-violet-500 to-violet-400',
-             onClick: () => navigate('/admin/new-hires')
+             onClick: () => navigate(isAdmin ? '/admin/new-hires' : '/new-hires')
           },
           {
              label: 'Active Employees',
@@ -167,7 +168,7 @@ const AdminDashboard = () => {
              color: 'text-emerald-600',
              bg: 'bg-emerald-50',
              accent: 'from-emerald-500 to-emerald-400',
-             onClick: () => navigate('/admin/employees')
+             onClick: () => navigate(isAdmin ? '/admin/employees' : '/employees')
           },
           {
              label: 'Pending Onboarding',
@@ -177,7 +178,7 @@ const AdminDashboard = () => {
              color: 'text-amber-600',
              bg: 'bg-amber-50',
              accent: 'from-amber-500 to-amber-400',
-             onClick: () => navigate('/admin/new-hires')
+             onClick: () => navigate(isAdmin ? '/admin/new-hires' : '/new-hires')
           },
           {
              label: 'Open Positions',
@@ -187,7 +188,7 @@ const AdminDashboard = () => {
              color: 'text-sky-600',
              bg: 'bg-sky-50',
              accent: 'from-sky-500 to-sky-400',
-             onClick: () => navigate('/admin/recruitment-control')
+             onClick: () => navigate(isAdmin ? '/admin/recruitment-control' : '/recruitment')
           },
           {
              label: 'Resignations',
@@ -197,28 +198,28 @@ const AdminDashboard = () => {
              color: 'text-rose-600',
              bg: 'bg-rose-50',
              accent: 'from-rose-500 to-rose-400',
-             onClick: () => navigate('/admin/resignation')
+             onClick: () => navigate(isAdmin ? '/admin/resignation' : '/resignation')
           }
        ];
-    }, [staffDirectory, jobs, summary, insights, navigate]);
+    }, [staffDirectory, jobs, summary, insights, navigate, isAdmin]);
 
    const recentDepartments = departments.slice(0, 4);
    const recentJobs = jobs.slice(0, 4);
    const recentActivity = activities.slice(0, 5);
    const quickActions = [
-      { label: 'Departments', path: '/admin/departments' },
-      { label: 'Payroll', path: '/admin/payroll-management' },
-      { label: 'Settings', path: '/admin/settings' }
+      { label: 'Departments', path: isAdmin ? '/admin/departments' : '/departments' },
+      { label: 'Payroll', path: isAdmin ? '/admin/payroll-management' : '/payroll' },
+      { label: 'Settings', path: isAdmin ? '/admin/settings' : '/settings' }
    ];
 
    const payrollItems = [
-      { id: 1, name: 'Monthly Payroll', sub: 'Salary Processing', icon: Wallet, path: '/admin/payroll-management' },
-      { id: 2, name: 'Salary Slips', sub: 'Generate & Share', icon: CreditCard, path: '/admin/payroll-management' }
+      { id: 1, name: 'Monthly Payroll', sub: 'Salary Processing', icon: Wallet, path: isAdmin ? '/admin/payroll-management' : '/payroll' },
+      { id: 2, name: 'Salary Slips', sub: 'Generate & Share', icon: CreditCard, path: isAdmin ? '/admin/payroll-management' : '/payroll' }
    ];
 
    const settingItems = [
-      { id: 1, name: 'Profile Management', sub: 'User Access Control', icon: Users, path: '/admin/profile-management' },
-      { id: 2, name: 'System Security', sub: 'WFH & Permissions', icon: ShieldCheck, path: '/admin/wfh-permissions' }
+      { id: 1, name: 'Profile Management', sub: 'User Access Control', icon: Users, path: isAdmin ? '/admin/profile-management' : '/profile' },
+      { id: 2, name: 'System Security', sub: 'WFH & Permissions', icon: ShieldCheck, path: isAdmin ? '/admin/wfh-permissions' : '/wfh-access' }
    ];
 
    return (
@@ -338,8 +339,8 @@ const AdminDashboard = () => {
 
          <div className="flex flex-col gap-3 border-b border-slate-100 pb-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-               <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2 uppercase">Admin Dashboard</h1>
-               <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] leading-none">Live operational data from the admin service</p>
+               <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2 uppercase">{isAdmin ? 'Admin Dashboard' : 'Management Hub'}</h1>
+               <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] leading-none">{isAdmin ? 'Live operational data from the admin service' : 'HR operational overview and department insights'}</p>
             </div>
             <div className="flex items-center gap-3">
                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700">
@@ -404,7 +405,7 @@ const AdminDashboard = () => {
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5">
                      <span className="text-xs">Prepared by</span>
-                     <span className="font-black text-slate-900 truncate max-w-[100px]">{user?.name || 'Admin'}</span>
+                     <span className="font-black text-slate-900 truncate max-w-[100px]">{user?.name || (isAdmin ? 'Admin' : 'HR')}</span>
                   </div>
                </div>
             </div>
@@ -414,11 +415,11 @@ const AdminDashboard = () => {
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Departments</h3>
-                  <button onClick={() => navigate('/admin/departments')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
+                  <button onClick={() => navigate(isAdmin ? '/admin/departments' : '/departments')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
                </div>
                <div className="space-y-2">
                   {recentDepartments.length > 0 ? recentDepartments.map((department) => (
-                     <div key={department.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 hover:bg-white transition-colors cursor-pointer" onClick={() => navigate('/admin/departments')}>
+                     <div key={department.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 hover:bg-white transition-colors cursor-pointer" onClick={() => navigate(isAdmin ? '/admin/departments' : '/departments')}>
                         <p className="text-sm font-black text-slate-900">{department.name}</p>
                         <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400">{department.head}</p>
                         <div className="mt-2.5 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-slate-500">
@@ -435,7 +436,7 @@ const AdminDashboard = () => {
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Payroll</h3>
-                  <button onClick={() => navigate('/admin/payroll-management')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
+                  <button onClick={() => navigate(isAdmin ? '/admin/payroll-management' : '/payroll')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
                </div>
                <div className="space-y-2">
                   {payrollItems.map((item) => (
@@ -460,7 +461,7 @@ const AdminDashboard = () => {
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Settings</h3>
-                  <button onClick={() => navigate('/admin/settings')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
+                  <button onClick={() => navigate(isAdmin ? '/admin/settings' : '/settings')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
                </div>
                <div className="space-y-2">
                   {settingItems.map((item) => (

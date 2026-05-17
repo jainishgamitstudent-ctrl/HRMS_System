@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
@@ -12,84 +12,69 @@ import {
   Calendar,
   MessageSquare,
   ChevronLeft,
-  ChevronRight as ChevronRightIcon
+  ChevronRight as ChevronRightIcon,
+  Loader2
 } from 'lucide-react';
+import { getCandidateTracking, updateCandidate } from '../../../services/hrApi';
+
+const formatRelativeDate = (value) => {
+  if (!value) return 'Recently';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays < 1) return 'Today';
+  if (diffDays === 1) return '1 day ago';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) > 1 ? 's' : ''} ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) > 1 ? 's' : ''} ago`;
+  return `${Math.floor(diffDays / 365)} year${Math.floor(diffDays / 365) > 1 ? 's' : ''} ago`;
+};
 
 const CandidateTracking = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('All Candidates');
   const [currentPage, setCurrentPage] = useState(1);
-
-  const [candidateList, setCandidateList] = useState([
-    {
-      id: 1,
-      name: 'Alex Rivera',
-      role: 'Senior Frontend Engineer',
-      status: 'APPLIED',
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=256&h=256',
-      skills: ['React', 'Tailwind CSS', 'TypeScript'],
-      appliedDate: '2 days ago',
-      experience: '5+ years'
-    },
-    {
-      id: 2,
-      name: 'Sarah Jenkins',
-      role: 'Product Designer',
-      status: 'SHORTLISTED',
-      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256',
-      skills: ['Figma', 'UI/UX', 'Prototyping'],
-      appliedDate: '5 days ago',
-      experience: '3+ years'
-    },
-    {
-      id: 3,
-      name: 'Marcus Thorne',
-      role: 'Backend Architect',
-      status: 'INTERVIEW SCHEDULED',
-      image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=256&h=256',
-      skills: ['Go', 'Kubernetes', 'AWS'],
-      appliedDate: '1 week ago',
-      experience: '8+ years'
-    },
-    {
-      id: 4,
-      name: 'Emily Zhang',
-      role: 'Marketing Director',
-      status: 'REJECTED',
-      image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=256&h=256',
-      skills: ['SEO', 'Growth', 'Strategy'],
-      appliedDate: '3 weeks ago',
-      experience: '10+ years'
-    },
-    {
-      id: 5,
-      name: 'Michael Chen',
-      role: 'Mobile Developer',
-      status: 'HIRED',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256',
-      skills: ['Flutter', 'Firebase', 'Native'],
-      appliedDate: '1 month ago',
-      experience: '4+ years'
-    },
-    {
-      id: 6,
-      name: 'Sophia Williams',
-      role: 'iOS Engineer',
-      status: 'APPLIED',
-      image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256',
-      skills: ['Swift', 'Combine', 'SwiftUI'],
-      appliedDate: '2 days ago',
-      experience: '6+ years'
-    }
-  ]);
+  const [candidateList, setCandidateList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const tabs = [
     { label: 'All Candidates', value: 'All Candidates' },
-    { label: 'Shortlisted', value: 'SHORTLISTED' },
-    { label: 'Interviewed', value: 'INTERVIEW SCHEDULED' },
-    { label: 'Rejected', value: 'REJECTED' },
-    { label: 'Hired', value: 'HIRED' }
+    { label: 'Shortlisted', value: 'Shortlisted' },
+    { label: 'Interviewed', value: 'Technical Interview' },
+    { label: 'Rejected', value: 'Rejected' },
+    { label: 'Hired', value: 'Hired' }
   ];
+
+  const fetchCandidates = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await getCandidateTracking({ limit: 1000 });
+      const raw = Array.isArray(res.data?.data) ? res.data.data : [];
+      const mapped = raw.map((c) => ({
+        id: c._id || c.id,
+        name: c.applicantName || c.name || 'Unnamed Candidate',
+        role: c.jobTitle || c.role || 'Role Pending',
+        status: c.status || 'Applied',
+        image: c.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.applicantName || 'U')}&background=random&color=fff`,
+        skills: Array.isArray(c.skills) ? c.skills : [],
+        appliedDate: formatRelativeDate(c.appliedDate || c.createdAt),
+        experience: c.yearsOfExperience ? `${c.yearsOfExperience}+ years` : 'N/A'
+      }));
+      setCandidateList(mapped);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load candidates');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCandidates();
+  }, []);
 
   const getFilteredCandidates = () => {
     if (activeTab === 'All Candidates') return candidateList;
@@ -101,24 +86,53 @@ const CandidateTracking = () => {
     return candidateList.filter(c => c.status === tabValue).length;
   };
 
-  const handleStatusUpdate = (id, newStatus) => {
+  const handleStatusUpdate = async (id, newStatus) => {
     setCandidateList(prev => prev.map(c => 
       c.id === id ? { ...c, status: newStatus } : c
     ));
+    try {
+      await updateCandidate(id, { status: newStatus });
+    } catch (err) {
+      // Rollback on failure by re-fetching
+      fetchCandidates();
+    }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'APPLIED': return 'bg-indigo-50 text-indigo-600 border-indigo-100';
-      case 'SHORTLISTED': return 'bg-amber-50 text-amber-600 border-amber-100';
-      case 'INTERVIEW SCHEDULED': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
-      case 'REJECTED': return 'bg-rose-50 text-rose-600 border-rose-100';
-      case 'HIRED': return 'bg-purple-50 text-purple-600 border-purple-100';
+      case 'Applied': return 'bg-indigo-50 text-indigo-600 border-indigo-100';
+      case 'Shortlisted': return 'bg-amber-50 text-amber-600 border-amber-100';
+      case 'Technical Interview': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
+      case 'Selected': return 'bg-blue-50 text-blue-600 border-blue-100';
+      case 'Hired': return 'bg-purple-50 text-purple-600 border-purple-100';
+      case 'Rejected': return 'bg-rose-50 text-rose-600 border-rose-100';
       default: return 'bg-slate-50 text-slate-600 border-slate-100';
     }
   };
 
   const filteredCandidates = getFilteredCandidates();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 size={32} className="animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+        <p className="text-sm text-rose-600 font-medium">{error}</p>
+        <button
+          onClick={fetchCandidates}
+          className="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-indigo-700 transition-all"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
@@ -212,20 +226,23 @@ const CandidateTracking = () => {
                <div className="flex items-center gap-3">
                   <button 
                     onClick={() => {
-                        if (can.status === 'APPLIED') handleStatusUpdate(can.id, 'SHORTLISTED');
-                        else if (can.status === 'SHORTLISTED') handleStatusUpdate(can.id, 'INTERVIEW SCHEDULED');
-                        else if (can.status === 'INTERVIEW SCHEDULED') handleStatusUpdate(can.id, 'HIRED');
-                        else handleStatusUpdate(can.id, 'APPLIED');
+                        if (can.status === 'Applied') handleStatusUpdate(can.id, 'Shortlisted');
+                        else if (can.status === 'Shortlisted') handleStatusUpdate(can.id, 'Technical Interview');
+                        else if (can.status === 'Technical Interview') handleStatusUpdate(can.id, 'Selected');
+                        else if (can.status === 'Selected') handleStatusUpdate(can.id, 'Hired');
+                        else handleStatusUpdate(can.id, 'Applied');
                     }}
                     className="flex-1 py-4.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-slate-100 hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-3 group/btn"
                   >
-                     {can.status === 'APPLIED' ? 'Shortlist' : 
-                      can.status === 'INTERVIEW SCHEDULED' ? 'Hire Candidate' : 
-                      can.status === 'SHORTLISTED' ? 'Schedule Interview' : 'Re-Apply'}
+                     {can.status === 'Applied' ? 'Shortlist' : 
+                      can.status === 'Shortlisted' ? 'Schedule Interview' : 
+                      can.status === 'Technical Interview' ? 'Select' :
+                      can.status === 'Selected' ? 'Hire Candidate' : 
+                      'Re-Apply'}
                      <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
                   </button>
-                  <button 
-                    onClick={() => handleStatusUpdate(can.id, 'REJECTED')}
+                  <button
+                    onClick={() => handleStatusUpdate(can.id, 'Rejected')}
                     className="p-4.5 bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-100 transition-all active:scale-95 shadow-soft border border-rose-100 border-opacity-40"
                   >
                      <Mail size={18} />

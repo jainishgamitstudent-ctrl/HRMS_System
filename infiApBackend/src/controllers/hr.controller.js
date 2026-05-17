@@ -12,8 +12,8 @@ const Holiday = require("../models/holiday.model");
 const Job = require("../models/job.model");
 const DoubleShiftRequest = require("../models/doubleShiftRequest.model");
 const logger = require("../utils/logger");
-const { notifyUser, notifyRoleUsers } = require("../utils/notifier");
-const { emitEntityEvent } = require("../utils/socketManager");
+const { notifyUser, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
+const { emitToRoles, emitEntityEvent } = require("../utils/socketManager");
 
 // ---> Welcome Page Greeting <---
 exports.getDashboardSummary = async (req, res) => {
@@ -228,6 +228,42 @@ exports.editEmployee = async (req, res) => {
         }
     } catch (error) {
         logger.error('Edit Employee Error', { error: error.message });
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.deleteEmployee = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const requesterRole = String(req.user?.role || "").toLowerCase();
+
+        const employee = await User.findById(id);
+        if (!employee) {
+            return res.status(404).json({ success: false, message: "Employee not found" });
+        }
+
+        const targetRole = String(employee.role || "").toLowerCase();
+
+        // Prevent deletion of protected roles
+        if (["admin", "superadmin", "main_admin"].includes(targetRole)) {
+            return res.status(403).json({ success: false, message: "Cannot delete admin accounts via employee endpoint" });
+        }
+
+        // HR can only delete employees and managers
+        if (requesterRole === "hr" && !["employee", "manager"].includes(targetRole)) {
+            return res.status(403).json({ success: false, message: "HR can only delete employees and managers" });
+        }
+
+        await User.findByIdAndDelete(id);
+
+        // Emit real-time event
+        emitEntityEvent('employee', 'deleted', { _id: id }, {
+            targetRoles: ['HR', 'Admin', 'Employee']
+        });
+
+        return res.status(200).json({ success: true, message: "Employee deleted successfully" });
+    } catch (error) {
+        logger.error('Delete Employee Error', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -1064,7 +1100,8 @@ exports.getPendingLeavesDetailed = async (req, res) => {
                 startDate: leave.StartDate,
                 endDate: leave.EndDate,
                 appliedAt: leave.createdAt,
-                reason: leave.Reason
+                reason: leave.Reason,
+                redirectedToAdmin: leave.redirectedToAdmin || false
             };
         });
 
@@ -1236,6 +1273,69 @@ exports.approveLeave = async (req, res) => {
         });
 
         res.status(200).json({ success: true, message: `Leave ${status}`, data: leave });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.redirectLeaveToAdmin = async (req, res) => {
+    try {
+        const { leaveId } = req.body;
+        const hrUserId = req.user?._id;
+        const hrName = req.user?.name || "HR";
+
+        if (!leaveId) {
+            return res.status(400).json({ success: false, message: "leaveId is required" });
+        }
+
+        const leave = await LeaveApplication.findById(leaveId).populate("EmployeeID", "name");
+        if (!leave) {
+            return res.status(404).json({ success: false, message: "Leave application not found" });
+        }
+
+        if (leave.redirectedToAdmin) {
+            return res.status(400).json({ success: false, message: "Leave already redirected to admin" });
+        }
+
+        leave.redirectedToAdmin = true;
+        leave.redirectedBy = hrUserId;
+        await leave.save();
+
+        const employeeName = leave.EmployeeID?.name || "An employee";
+        const dateRange = leave.StartDate && leave.EndDate
+            ? ` (${new Date(leave.StartDate).toDateString()} - ${new Date(leave.EndDate).toDateString()})`
+            : "";
+
+        let room = null;
+        try {
+            room = await RequestRoom.findOneAndUpdate(
+                { relatedLeaveId: leave._id },
+                { status: "redirected_to_admin" }
+            );
+        } catch (roomErr) {
+            console.warn("[HR] RequestRoom update failed (non-blocking):", roomErr.message);
+        }
+
+        // Notify admin users
+        await notifyRoleUsers({
+            roles: ["admin", "superadmin"],
+            category: "leave",
+            headline: `Leave Redirected by ${hrName}`,
+            details: `${hrName} redirected ${employeeName}'s ${leave.LeaveType} leave${dateRange} to admin for review. Reason: ${leave.Reason}`,
+            sentBy: hrUserId,
+            relatedRoomId: room?._id || null,
+        });
+
+        // Send real-time toast popup to admin users
+        const { emitToRoles } = require("../utils/socketManager");
+        emitToRoles(["admin", "superadmin"], "toast", {
+            type: "info",
+            message: `Leave redirected by ${hrName}: ${employeeName} - ${leave.LeaveType}`,
+            category: "leave",
+            relatedRoomId: room ? String(room._id) : null,
+        });
+
+        res.status(200).json({ success: true, message: "Leave redirected to admin successfully", data: leave });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -1478,8 +1578,47 @@ exports.getReviewApplications = async (req, res) => {
         res.status(200).json({
             success: true,
             data: applications,
-            pagination: { total, page, limit, totalPages: Math.ceil(total / limit) }
+            pagination: { total, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(total / parseInt(limit)) }
         });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// 8b. Create a new candidate
+exports.createCandidate = async (req, res) => {
+    try {
+        const { applicantName, jobTitle, email, phone, location, status, technicalInterview } = req.body;
+
+        if (!applicantName || !jobTitle) {
+            return res.status(400).json({ success: false, message: "applicantName and jobTitle are required" });
+        }
+
+        const candidateData = {
+            applicantName,
+            jobTitle,
+            email: email || `${applicantName.replace(/\s+/g, '.').toLowerCase()}@placeholder.com`,
+            status: status || "Applied"
+        };
+
+        if (phone) candidateData.phone = phone;
+        if (location) candidateData.location = location;
+
+        if (technicalInterview) {
+            candidateData.technicalInterview = {
+                date: technicalInterview.date ? new Date(technicalInterview.date) : undefined,
+                interviewer: technicalInterview.interviewer
+            };
+            // If an interview is scheduled, update status accordingly
+            if (technicalInterview.date && technicalInterview.interviewer) {
+                candidateData.status = "Technical Interview";
+            }
+        }
+
+        const candidate = new Candidate(candidateData);
+        await candidate.save();
+
+        res.status(201).json({ success: true, message: "Candidate created successfully", data: candidate });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -1933,6 +2072,46 @@ exports.submitResignation = async (req, res) => {
             managerRemarks: comments || undefined
         });
         await reqData.save();
+
+        // Notify HR/Admin about new resignation
+        try {
+            const nameForNotify = employeeName || "An employee";
+            await notifyRoleUsers({
+                roles: ["hr", "admin", "superadmin"],
+                category: "alert",
+                headline: `New Resignation: ${nameForNotify}`,
+                details: `${nameForNotify} submitted a resignation request.${lastWorkingDate ? " Last working date: " + lastWorkingDate : ""}${reason ? " Reason: " + reason : ""}`,
+                sentBy: effectiveUserId,
+                excludeUserId: effectiveUserId,
+            });
+
+            // Send real-time toast popup to HR/Admin
+            try {
+                emitToRoles(["hr", "admin", "superadmin"], "toast", {
+                    type: "info",
+                    message: `New Resignation from ${nameForNotify}`,
+                    category: "alert",
+                });
+            } catch (toastErr) {
+                console.warn("[Resignation] Toast emission failed (non-blocking):", toastErr.message);
+            }
+
+            // Emit entity event for real-time dashboard refresh
+            emitEntityEvent("resignation", "created", {
+                id: reqData._id,
+                userId: effectiveUserId,
+                employeeName: nameForNotify,
+                reason,
+                lastWorkingDate,
+                status: "pending",
+            }, {
+                userId: effectiveUserId,
+                targetRoles: ["hr", "admin", "superadmin"],
+            });
+        } catch (notifyErr) {
+            console.warn("[Resignation] notifyRoleUsers failed (non-blocking):", notifyErr.message);
+        }
+
         res.status(201).json({ success: true, message: "Resignation submitted", data: reqData });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -1941,7 +2120,10 @@ exports.submitResignation = async (req, res) => {
 
 exports.getResignations = async (req, res) => {
     try {
-        const list = await Resignation.find().populate("userId", "name department");
+        const list = await Resignation.find()
+            .populate("userId", "name department profileImage")
+            .populate("redirectedBy", "name")
+            .sort({ createdAt: -1 });
         res.status(200).json({ success: true, data: list });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -1957,6 +2139,56 @@ exports.processExit = async (req, res) => {
         }
         const exitData = await Resignation.findByIdAndUpdate(resignationId, update, { new: true });
         res.status(200).json({ success: true, message: "Exit Processed", data: exitData });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.redirectResignationToAdmin = async (req, res) => {
+    try {
+        const { resignationId } = req.body;
+        const hrUserId = req.user?._id;
+        const hrName = req.user?.name || "HR";
+
+        if (!resignationId) {
+            return res.status(400).json({ success: false, message: "resignationId is required" });
+        }
+
+        const resignation = await Resignation.findById(resignationId);
+        if (!resignation) {
+            return res.status(404).json({ success: false, message: "Resignation not found" });
+        }
+
+        if (resignation.redirectedToAdmin) {
+            return res.status(400).json({ success: false, message: "Resignation already redirected to admin" });
+        }
+
+        resignation.redirectedToAdmin = true;
+        resignation.redirectedBy = hrUserId;
+        await resignation.save();
+
+        const employeeName = resignation.employeeName || "An employee";
+        const lastWorkingDate = resignation.lastWorkingDate
+            ? new Date(resignation.lastWorkingDate).toDateString()
+            : "";
+
+        // Notify admin users
+        await notifyRoleUsers({
+            roles: ["admin", "superadmin"],
+            category: "alert",
+            headline: `Resignation Redirected by ${hrName}`,
+            details: `${hrName} redirected ${employeeName}'s resignation to admin for review.${lastWorkingDate ? " Last working date: " + lastWorkingDate : ""} Reason: ${resignation.reason}`,
+            sentBy: hrUserId,
+        });
+
+        // Send real-time toast popup to admin users
+        emitToRoles(["admin", "superadmin"], "toast", {
+            type: "info",
+            message: `Resignation redirected by ${hrName}: ${employeeName}`,
+            category: "alert",
+        });
+
+        res.status(200).json({ success: true, message: "Resignation redirected to admin successfully", data: resignation });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

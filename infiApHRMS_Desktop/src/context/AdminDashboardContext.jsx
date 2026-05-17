@@ -5,51 +5,15 @@ import { useNotifications } from './NotificationContext';
 
 const AdminDashboardContext = createContext();
 
-const defaultDepartments = [
-  {
-    id: 'dept_fallback_1',
-    name: 'Engineering',
-    sub: 'TECH',
-    head: 'Rahul Sharma',
-    teams: 2,
-    employees: 42,
-    color: 'indigo'
-  }
-];
-
-const defaultTeams = [
-  {
-    id: 'team_fallback_1',
-    name: 'Frontend Team',
-    lead: 'Sneha Desai',
-    members: 12,
-    type: 'Development',
-    keyMembers: []
-  }
-];
-
-const defaultJobs = [
-  {
-    id: 'job_fallback_1',
-    title: 'Frontend Developer',
-    department: 'Engineering',
-    type: 'Full-time',
-    experience: 'Mid (3-5 years)',
-    location: 'Remote',
-    status: 'Active',
-    applicants: 0,
-    postedDate: '2026-04-01'
-  }
-];
-
 const normalizeSummary = (data = {}, fallbacks = {}) => ({
   totalDepartments: Number(data.totalDepartments ?? data.departments ?? fallbacks.departments ?? 0),
   departments: Number(data.departments ?? data.totalDepartments ?? fallbacks.departments ?? 0),
   totalEmployees: Number(data.totalEmployees ?? data.employees ?? fallbacks.employees ?? 0),
   employees: Number(data.employees ?? data.totalEmployees ?? fallbacks.employees ?? 0),
+  activeEmployees: Number(data.activeEmployees ?? data.activeStaff ?? fallbacks.activeEmployees ?? fallbacks.activeStaff ?? 0),
+  activeStaff: Number(data.activeStaff ?? data.activeEmployees ?? fallbacks.activeStaff ?? fallbacks.activeEmployees ?? 0),
   activeJobs: Number(data.activeJobs ?? data.openJobs ?? fallbacks.activeJobs ?? 0),
   openJobs: Number(data.openJobs ?? data.activeJobs ?? fallbacks.activeJobs ?? 0),
-  activeStaff: Number(data.activeStaff ?? fallbacks.activeStaff ?? 0),
   teams: Number(data.teams ?? fallbacks.teams ?? 0),
   pendingLeaves: Number(data.pendingLeaves ?? fallbacks.pendingLeaves ?? 0),
   monthlyPayroll: Number(data.monthlyPayroll ?? 0),
@@ -137,14 +101,18 @@ const normalizeJob = (job) => {
 };
 
 export const AdminDashboardProvider = ({ children }) => {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const { addToast } = useNotifications();
+
+  const isAdmin = role === 'Admin';
+  const hrDepartmentId = user?.department?._id || user?.department?.id || user?.departmentId || user?.department || null;
+  const hrDepartmentName = user?.department?.name || user?.departmentName || user?.department || null;
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState(normalizeSummary({}, {
-    departments: defaultDepartments.length,
-    teams: defaultTeams.length,
+    departments: 0,
+    teams: 0,
     activeStaff: 0,
-    activeJobs: defaultJobs.length,
+    activeJobs: 0,
     pendingLeaves: 0,
     announcements: 0,
     resignations: 0
@@ -162,11 +130,12 @@ export const AdminDashboardProvider = ({ children }) => {
 
   const fetchSummary = async () => {
     const fallback = {
-      departments: departments.length || defaultDepartments.length,
-      teams: teams.length || defaultTeams.length,
+      departments: departments.length,
+      teams: teams.length,
       employees: staffDirectory.length,
-      activeStaff: staffDirectory.length,
-      activeJobs: jobs.filter((job) => job.status === 'Active').length || defaultJobs.length,
+      activeStaff: staffDirectory.filter(e => e.status === 'Active').length,
+      activeEmployees: staffDirectory.filter(e => e.status === 'Active').length,
+      activeJobs: jobs.filter((job) => job.status === 'Active').length,
       pendingLeaves: pendingLeaves.length,
       resignations: resignations.length
     };
@@ -197,10 +166,30 @@ export const AdminDashboardProvider = ({ children }) => {
   const fetchDepartments = async () => {
     try {
       const res = await api.get('/admin-dashboard/departments');
-      const mapped = (res.data?.data || []).map(normalizeDepartment);
+      let mapped = (res.data?.data || []).map(normalizeDepartment);
+      console.log('[fetchDepartments] raw count:', mapped.length, '| hrDepartmentId:', hrDepartmentId, '| hrDepartmentName:', hrDepartmentName, '| isAdmin:', isAdmin);
+
+      if (!isAdmin && hrDepartmentId) {
+        const filtered = mapped.filter(d =>
+          String(d.id) === String(hrDepartmentId) ||
+          String(d.name).toLowerCase() === String(hrDepartmentName).toLowerCase()
+        );
+        console.log('[fetchDepartments] filtered count:', filtered.length);
+
+        // Safety fallback: if filtering wipes everything, show all departments
+        // so the page isn't blank (likely a data mismatch)
+        if (filtered.length === 0 && mapped.length > 0) {
+          console.warn('[fetchDepartments] HR filter returned 0 departments. Falling back to all.');
+          mapped = mapped;
+        } else {
+          mapped = filtered;
+        }
+      }
+
       setDepartments(mapped);
       return mapped;
     } catch (error) {
+      console.error('[fetchDepartments] error:', error);
       return departments;
     }
   };
@@ -229,7 +218,13 @@ export const AdminDashboardProvider = ({ children }) => {
          allTeams = res.data;
       }
       
-      const mapped = allTeams.map(normalizeTeam);
+      let mapped = allTeams.map(normalizeTeam);
+      if (!isAdmin && hrDepartmentId) {
+        mapped = mapped.filter(t =>
+          String(t.departmentId) === String(hrDepartmentId) ||
+          String(t.departmentName).toLowerCase() === String(hrDepartmentName).toLowerCase()
+        );
+      }
       setTeams(mapped);
       return mapped;
     } catch (error) {
@@ -242,7 +237,7 @@ export const AdminDashboardProvider = ({ children }) => {
     try {
       const res = await api.get('/admin-dashboard/jobs');
       const mapped = (res.data?.data || []).map(normalizeJob);
-      setJobs(mapped.length ? mapped : defaultJobs);
+      setJobs(mapped);
       return mapped;
     } catch (error) {
       return jobs;
@@ -252,7 +247,15 @@ export const AdminDashboardProvider = ({ children }) => {
   const fetchStaffDirectory = async () => {
     try {
       const res = await api.get('/admin-dashboard/staff-directory');
-      const data = res.data?.data || [];
+      let data = res.data?.data || [];
+      if (!isAdmin && hrDepartmentId) {
+        data = data.filter(emp => {
+          const empDept = emp.department?.name || emp.department || emp.departmentName || '';
+          const empDeptId = emp.department?._id || emp.department?.id || emp.departmentId || '';
+          return String(empDeptId) === String(hrDepartmentId) ||
+                 String(empDept).toLowerCase() === String(hrDepartmentName).toLowerCase();
+        });
+      }
       setStaffDirectory(data);
       return data;
     } catch (error) {

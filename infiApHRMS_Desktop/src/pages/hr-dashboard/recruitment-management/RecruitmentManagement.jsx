@@ -21,7 +21,7 @@ import {
   Cell
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
-import { getCandidateTracking, getRecruitmentJobs, seedRecruitmentData } from '../../../services/hrApi';
+import { getCandidateTracking, getRecruitmentJobs, createCandidate } from '../../../services/hrApi';
 
 const formatDate = (value, fallback = 'Pending') => {
   if (!value) return fallback;
@@ -92,6 +92,17 @@ const RecruitmentManagement = () => {
   const [interviewTotal, setInterviewTotal] = useState(0);
   const [selectedTotal, setSelectedTotal] = useState(0);
   const [unscheduledTotal, setUnscheduledTotal] = useState(0);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({
+    name: '',
+    email: '',
+    role: '',
+    department: '',
+    interviewer: '',
+    status: 'Applied',
+    interviewDate: '',
+  });
+  const [adding, setAdding] = useState(false);
 
   const showNotification = (msg) => {
     setNotification(msg);
@@ -139,6 +150,61 @@ const RecruitmentManagement = () => {
     loadPipeline();
     return () => { isMounted = false; };
   }, []);
+
+  const handleAddCandidate = async (e) => {
+    e.preventDefault();
+    if (!addForm.name.trim()) {
+      showNotification('Candidate name is required.');
+      return;
+    }
+    try {
+      setAdding(true);
+      const payload = {
+        applicantName: addForm.name,
+        email: addForm.email || undefined,
+        jobTitle: addForm.role,
+        location: addForm.department || undefined,
+        status: addForm.status,
+        technicalInterview: addForm.interviewDate || addForm.interviewer
+          ? {
+              date: addForm.interviewDate || undefined,
+              interviewer: addForm.interviewer || undefined,
+            }
+          : undefined,
+      };
+      await createCandidate(payload);
+      showNotification('Candidate added successfully.');
+      setAddForm({ name: '', email: '', role: '', department: '', interviewer: '', status: 'Applied', interviewDate: '' });
+      setShowAddModal(false);
+      // refresh list
+      const [candidateRes, jobRes] = await Promise.all([
+        getCandidateTracking(),
+        getRecruitmentJobs()
+      ]);
+      const candidates = Array.isArray(candidateRes.data?.data) ? candidateRes.data.data : [];
+      const jobsData = Array.isArray(jobRes.data?.data) ? jobRes.data.data : [];
+      setJobs(jobsData);
+      const stageCounts = candidates.reduce((acc, item) => {
+        const stage = getCandidateStatus(item);
+        acc[stage] = (acc[stage] || 0) + 1;
+        return acc;
+      }, {});
+      const mapped = Object.entries(stageCounts).map(([name, value]) => ({ name, value }));
+      const actions = candidates.map(normalizeCandidateAction);
+      const scheduledCount = actions.filter((c) => c.scheduled).length;
+      const selectedCount = actions.filter((c) => c.selected).length;
+      if (mapped.length) setPipelineData(mapped);
+      setApplicantTotal(candidates.length);
+      setInterviewTotal(scheduledCount);
+      setSelectedTotal(selectedCount);
+      setUnscheduledTotal(Math.max(candidates.length - scheduledCount - selectedCount, 0));
+      setCurrentActions(actions);
+    } catch (err) {
+      showNotification(err?.response?.data?.message || 'Failed to add candidate.');
+    } finally {
+      setAdding(false);
+    }
+  };
 
   const handleExportCandidate = (act) => {
     const headers = ["Candidate Name", "Role", "Department", "Interviewer", "Status", "Date"];
@@ -240,22 +306,6 @@ const RecruitmentManagement = () => {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={async () => {
-              showNotification("Initiating Recruitment Data Seeding...");
-              try {
-                await seedRecruitmentData();
-                showNotification("Recruitment Pipeline Seeded successfully.");
-                setTimeout(() => window.location.reload(), 1000);
-              } catch (err) {
-                showNotification("Seed protocol failed. Please check backend connection.");
-              }
-            }}
-            className="px-4 py-2.5 border border-amber-200 text-amber-600 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-50 transition-all flex items-center gap-2 active:scale-95"
-          >
-            <TrendingUp size={16} />
-            Seed Demo
-          </button>
-          <button
             onClick={handleExportAll}
             className="px-4 py-2.5 border border-slate-200 text-slate-600 text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2 active:scale-95"
           >
@@ -263,7 +313,7 @@ const RecruitmentManagement = () => {
             Export CSV
           </button>
           <button
-            onClick={() => navigate('/recruitment/candidates')}
+            onClick={() => setShowAddModal(true)}
             className="px-6 py-2.5 bg-white border border-slate-200 text-slate-800 text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center gap-2 shadow-sm active:scale-95"
           >
             <UserPlus size={16} className="text-indigo-600" />
@@ -278,6 +328,117 @@ const RecruitmentManagement = () => {
           </button>
         </div>
       </div>
+
+      {/* Add Candidate Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 m-4">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-slate-800">Add Candidate</h2>
+              <button onClick={() => setShowAddModal(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleAddCandidate} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Full Name</label>
+                <input
+                  required
+                  type="text"
+                  value={addForm.name}
+                  onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 focus:border-primary-300 outline-none rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors"
+                  placeholder="e.g. Jane Doe"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 focus:border-primary-300 outline-none rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors"
+                  placeholder="e.g. jane@example.com"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Role</label>
+                  <input
+                    type="text"
+                    value={addForm.role}
+                    onChange={(e) => setAddForm((f) => ({ ...f, role: e.target.value }))}
+                    className="w-full bg-white border border-slate-200 focus:border-primary-300 outline-none rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors"
+                    placeholder="e.g. Frontend Dev"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Department</label>
+                  <input
+                    type="text"
+                    value={addForm.department}
+                    onChange={(e) => setAddForm((f) => ({ ...f, department: e.target.value }))}
+                    className="w-full bg-white border border-slate-200 focus:border-primary-300 outline-none rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors"
+                    placeholder="e.g. Engineering"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Interviewer</label>
+                  <input
+                    type="text"
+                    value={addForm.interviewer}
+                    onChange={(e) => setAddForm((f) => ({ ...f, interviewer: e.target.value }))}
+                    className="w-full bg-white border border-slate-200 focus:border-primary-300 outline-none rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors"
+                    placeholder="e.g. John Smith"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+                  <select
+                    value={addForm.status}
+                    onChange={(e) => setAddForm((f) => ({ ...f, status: e.target.value }))}
+                    className="w-full bg-white border border-slate-200 focus:border-primary-300 outline-none rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors"
+                  >
+                    <option>Applied</option>
+                    <option>Shortlisted</option>
+                    <option>Technical Interview</option>
+                    <option>Selected</option>
+                    <option>Hired</option>
+                    <option>Rejected</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Interview Date</label>
+                <input
+                  type="datetime-local"
+                  value={addForm.interviewDate}
+                  onChange={(e) => setAddForm((f) => ({ ...f, interviewDate: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 focus:border-primary-300 outline-none rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={adding}
+                  className="px-5 py-2 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-lg hover:bg-indigo-700 transition-all disabled:opacity-60 flex items-center gap-2"
+                >
+                  {adding ? 'Saving...' : 'Save Candidate'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Main Grid */}
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-4 gap-6 overflow-hidden min-h-0">

@@ -12,8 +12,14 @@ router.get("/departments", verifyRole(["admin", "superadmin", "hr"]), adminDashb
 router.get("/departments/create/form", verifyRole(["admin", "superadmin", "hr"]), adminDashboardController.getCreateDepartmentForm);
 router.post("/departments", verifyRole(["admin", "superadmin", "hr"]), adminDashboardController.createDepartment);
 
-// --- Admin-only role gate for remaining routes ---
-router.use(verifyRole(["admin", "superadmin"]));
+// --- Department Management (scoped access) ---
+router.get("/departments/add-employee/form", verifyRole(["admin", "superadmin", "hr"]), adminDashboardController.getDepartmentAddEmployeeForm);
+router.post("/departments/add-employee", verifyRole(["admin", "superadmin", "hr"]), adminDashboardController.addDepartmentEmployee);
+router.patch("/departments/:id", verifyRole(["admin", "superadmin", "hr"]), adminDashboardController.updateDepartment);
+router.delete("/departments/:id", verifyRole(["admin", "superadmin"]), adminDashboardController.deleteDepartment);
+
+// --- Admin + HR role gate for remaining routes ---
+router.use(verifyRole(["admin", "superadmin", "hr"]));
 
 // --- Summary & Insights ---
 router.get("/summary", adminDashboardController.getSummaryStats);
@@ -28,12 +34,6 @@ router.patch("/account-settings/personal-information", adminDashboardController.
 router.patch("/account-settings/security", adminDashboardController.updateAdminSecuritySettings);
 router.patch("/account-settings/password", adminDashboardController.updateAdminPassword);
 router.patch("/account-settings/notifications", adminDashboardController.updateAdminNotificationPreferences);
-
-// --- Department Management (Admin-only edit/delete) ---
-router.get("/departments/add-employee/form", adminDashboardController.getDepartmentAddEmployeeForm);
-router.post("/departments/add-employee", adminDashboardController.addDepartmentEmployee);
-router.patch("/departments/:id", adminDashboardController.updateDepartment);
-router.delete("/departments/:id", adminDashboardController.deleteDepartment);
 
 // --- Team Management ---
 router.get("/teams", adminDashboardController.getTeams);

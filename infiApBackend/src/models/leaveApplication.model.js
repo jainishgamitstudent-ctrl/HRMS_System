@@ -20,6 +20,11 @@ const leaveApplicationSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
         },
+        redirectedToAdmin: { type: Boolean, default: false },
+        redirectedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+        },
         CreatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         UpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
     },

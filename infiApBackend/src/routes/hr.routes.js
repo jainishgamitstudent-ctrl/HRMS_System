@@ -12,6 +12,7 @@ router.use(verifyJWT);
 
 // -> Routes accessible to Manager, HR, Admin, and SuperAdmin
 router.put("/leaves/approve", verifyRole(["hr", "admin", "superadmin", "manager"]), hrController.approveLeave);
+router.put("/leaves/redirect-to-admin", verifyRole(["hr", "admin", "superadmin", "manager"]), hrController.redirectLeaveToAdmin);
 router.post("/performance/feedback", verifyRole(["hr", "admin", "superadmin", "manager"]), hrController.addFeedback);
 
 // -> Resignation (Employee can submit, HR/Admin can view/process)
@@ -30,6 +31,7 @@ router.post("/employees", hrController.addEmployee);
 router.put("/employees/:id/json", verifyDepartmentAccess, hrController.editEmployee);
 router.put("/employees/:id", uploadLimiter, uploadSingle, verifyDepartmentAccess, hrController.editEmployee);
 router.get("/employees/:id/profile", hrController.getEmployeeProfile);
+router.delete("/employees/:id", verifyDepartmentAccess, hrController.deleteEmployee);
 router.put("/employees/:id/double-shift", verifyDepartmentAccess, hrController.updateDoubleShiftPermission);
 
 // -> Double Shift Requests
@@ -62,6 +64,7 @@ router.get("/recruitment/dashboard", hrController.getRecruitmentDashboard);
 router.get("/recruitment/candidates/tracking", hrController.getCandidateTrackingList);
 router.get("/recruitment/candidates/review", hrController.getReviewApplications);
 router.get("/recruitment/candidates/recent", hrController.getRecentCandidatesDetail);
+router.post("/recruitment/candidates", hrController.createCandidate);
 router.get("/recruitment/candidates/:id/profile", hrController.getCandidateProfile);
 router.put("/recruitment/candidates/:id/schedule-interview", hrController.scheduleTechnicalInterview);
 router.put("/recruitment/candidates/:id/shortlist", hrController.shortlistCandidate);
@@ -91,6 +94,7 @@ router.get("/finance/payslip/:id", hrController.getPayslip);
 // -> Resignation (HR/Admin view & process)
 router.get("/resignation/register", hrController.getResignations);
 router.put("/resignation/exit-process", hrController.processExit);
+router.put("/resignation/redirect-to-admin", hrController.redirectResignationToAdmin);
 
 // -> Analytics
 router.get("/analytics/report", hrController.getAnalyticsReport);

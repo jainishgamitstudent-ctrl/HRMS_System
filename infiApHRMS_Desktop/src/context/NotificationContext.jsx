@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { io } from 'socket.io-client';
+import Swal from 'sweetalert2';
 import { useAuth } from './AuthContext';
 import { API_CONFIG } from '../config';
 
@@ -12,6 +13,10 @@ export const NotificationProvider = ({ children }) => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [connected, setConnected] = useState(false);
     const [toasts, setToasts] = useState([]);
+    const lastPolledUnreadRef = useRef(0);
+    const fallbackIntervalRef = useRef(null);
+    const swalQueueRef = useRef([]);
+    const swalShowingRef = useRef(false);
 
     // Fetch initial notifications and unread count
     const fetchNotifications = useCallback(async () => {
@@ -64,6 +69,40 @@ export const NotificationProvider = ({ children }) => {
         setToasts(prev => prev.filter(t => t.id !== id));
     }, []);
 
+    // Minimal queued SweetAlert2 toast to prevent overlapping popups
+    const processSwalQueue = useCallback(() => {
+        if (swalShowingRef.current || swalQueueRef.current.length === 0) return;
+        swalShowingRef.current = true;
+        const { title, text, type } = swalQueueRef.current.shift();
+        const iconMap = { info: 'info', success: 'success', error: 'error', warning: 'warning' };
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: iconMap[type] || 'info',
+            title: title || 'Notification',
+            text: text || '',
+            showConfirmButton: false,
+            timer: 3500,
+            timerProgressBar: true,
+            width: '380px',
+            padding: '0.75rem',
+            customClass: { popup: 'swal-minimal-toast' },
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer);
+                toast.addEventListener('mouseleave', Swal.resumeTimer);
+            },
+            willClose: () => {
+                swalShowingRef.current = false;
+                setTimeout(() => processSwalQueue(), 300);
+            }
+        });
+    }, []);
+
+    const showSwalNotification = useCallback((title, text, type = 'info') => {
+        swalQueueRef.current.push({ title, text, type });
+        processSwalQueue();
+    }, [processSwalQueue]);
+
     useEffect(() => {
         if (!token || !user) return;
         fetchNotifications();
@@ -99,18 +138,36 @@ export const NotificationProvider = ({ children }) => {
                 return [normalized, ...prev];
             });
             setUnreadCount(prev => prev + 1);
-            // Show a toast for incoming real-time notification
+            // Show SweetAlert2 popup for incoming real-time notification
+            showSwalNotification(
+                normalized.headline || normalized.message || 'New notification',
+                normalized.details || normalized.message || '',
+                'info'
+            );
+            // Also show internal toast
             addToast('info', normalized.headline || normalized.message || 'New notification', 5000);
         });
 
         newSocket.on('toast', (data) => {
+            // Show SweetAlert2 popup for socket toast
+            showSwalNotification(
+                data.message || 'Notification',
+                data.details || '',
+                data.type || 'info'
+            );
             addToast(data.type || 'info', data.message, data.duration || 4000);
         });
 
         setSocket(newSocket);
 
-        return () => newSocket.close();
-    }, [token, user, addToast]);
+        return () => {
+            newSocket.close();
+            if (fallbackIntervalRef.current) {
+                clearInterval(fallbackIntervalRef.current);
+                fallbackIntervalRef.current = null;
+            }
+        };
+    }, [token, user, addToast, showSwalNotification]);
 
     const addNotification = useCallback((notification) => {
         const newNotification = {
@@ -163,6 +220,54 @@ export const NotificationProvider = ({ children }) => {
             socket.emit(event, data);
         }
     }, [socket]);
+
+    // Fallback polling: if socket disconnects, poll every 10 seconds
+    useEffect(() => {
+        if (!token || !user) return;
+
+        const startFallbackPolling = () => {
+            if (fallbackIntervalRef.current) return;
+            fallbackIntervalRef.current = setInterval(async () => {
+                try {
+                    const res = await fetch(`${API_CONFIG.baseURL}/api/notifications/me/unread-count`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    const json = await res.json();
+                    if (json.status === 'Success' && json.data) {
+                        const serverUnread = json.data.unreadCount || 0;
+                        setUnreadCount(serverUnread);
+                        // If unread count increased while socket was down, show SweetAlert
+                        if (serverUnread > lastPolledUnreadRef.current) {
+                            showSwalNotification(
+                                'New Notification',
+                                'You have new unread notifications.',
+                                'info'
+                            );
+                        }
+                        lastPolledUnreadRef.current = serverUnread;
+                    }
+                } catch (err) {
+                    console.warn('[NotificationContext] Fallback poll failed:', err.message);
+                }
+            }, 10000); // every 10 seconds
+        };
+
+        const stopFallbackPolling = () => {
+            if (fallbackIntervalRef.current) {
+                clearInterval(fallbackIntervalRef.current);
+                fallbackIntervalRef.current = null;
+            }
+        };
+
+        if (connected) {
+            stopFallbackPolling();
+            lastPolledUnreadRef.current = 0;
+        } else {
+            startFallbackPolling();
+        }
+
+        return () => stopFallbackPolling();
+    }, [token, user, connected, showSwalNotification]);
 
     return (
         <NotificationContext.Provider value={{

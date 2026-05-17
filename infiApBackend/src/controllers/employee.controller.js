@@ -2247,6 +2247,30 @@ exports.requestDoubleShift = async (req, res) => {
                 sentBy: userId,
                 excludeUserId: userId,
             });
+
+            // Send real-time toast popup to HR/Admin
+            try {
+                emitToRoles(["hr", "admin", "superadmin"], "toast", {
+                    type: "info",
+                    message: `New Double Shift Request from ${employeeName}`,
+                    category: "attendance",
+                });
+            } catch (toastErr) {
+                console.warn("[DoubleShift] Toast emission failed (non-blocking):", toastErr.message);
+            }
+
+            // Emit entity event for real-time dashboard refresh
+            emitEntityEvent("doubleShift", "created", {
+                id: request._id,
+                employeeId: userId,
+                employeeName,
+                requestDate: normalizedDate,
+                reason,
+                status: "pending",
+            }, {
+                userId,
+                targetRoles: ["hr", "admin", "superadmin"],
+            });
         } catch (notifyErr) {
             console.warn("[DoubleShift] notifyRoleUsers failed (non-blocking):", notifyErr.message);
         }

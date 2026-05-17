@@ -737,8 +737,29 @@ exports.getAnalyticsReport = async (req, res) => {
 // --- 3. Department Management ---
 exports.getCreateDepartmentForm = async (req, res) => {
     try {
+        const normalizedRole = String(req.user?.role || "").toLowerCase().trim();
+        const isAdmin = ["admin", "main_admin", "superadmin"].includes(normalizedRole);
+
+        let headsQuery = { role: { $nin: ["main_admin", "superadmin"] } };
+        if (!isAdmin && normalizedRole === "hr") {
+            const hrDepartment = String(req.user?.department || "").trim();
+            if (hrDepartment) {
+                headsQuery.department = { $regex: `^${escapeRegex(hrDepartment)}$`, $options: "i" };
+            } else {
+                // HR without a department assigned — no eligible heads
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        title: "Create Department",
+                        summary: { totalDepartments: 0, totalTeams: 0, totalStaff: 0 },
+                        fields: []
+                    }
+                });
+            }
+        }
+
         const [potentialHeads, totalDepartments, totalTeams, totalStaff] = await Promise.all([
-            User.find({ role: { $nin: ["main_admin", "superadmin"] } })
+            User.find(headsQuery)
                 .select("name email designation role")
                 .sort({ name: 1 })
                 .lean(),
@@ -859,7 +880,26 @@ exports.createDepartment = async (req, res) => {
 
 exports.getDepartmentAddEmployeeForm = async (req, res) => {
     try {
-        const departments = await Department.find({ isActive: true }).select("name").sort({ name: 1 }).lean();
+        const normalizedRole = String(req.user?.role || "").toLowerCase().trim();
+        const isAdmin = ["admin", "main_admin", "superadmin"].includes(normalizedRole);
+
+        let deptQuery = { isActive: true };
+        if (!isAdmin && normalizedRole === "hr") {
+            const hrDepartment = String(req.user?.department || "").trim();
+            if (hrDepartment) {
+                deptQuery.name = { $regex: `^${escapeRegex(hrDepartment)}$`, $options: "i" };
+            } else {
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        title: "Add Employee",
+                        fields: []
+                    }
+                });
+            }
+        }
+
+        const departments = await Department.find(deptQuery).select("name").sort({ name: 1 }).lean();
 
         res.status(200).json({
             success: true,
@@ -913,6 +953,18 @@ exports.addDepartmentEmployee = async (req, res) => {
         const existingUser = await User.findOne({ email: normalizedEmail });
         if (existingUser) {
             return res.status(409).json({ success: false, message: "Email already exists" });
+        }
+
+        const normalizedRole = String(req.user?.role || "").toLowerCase().trim();
+        const isAdmin = ["admin", "main_admin", "superadmin"].includes(normalizedRole);
+        if (!isAdmin && normalizedRole === "hr") {
+            const hrDepartment = String(req.user?.department || "").trim();
+            if (!hrDepartment) {
+                return res.status(403).json({ success: false, message: "Access denied: No department assigned to your account" });
+            }
+            if (hrDepartment.toLowerCase() !== normalizedDepartment.toLowerCase()) {
+                return res.status(403).json({ success: false, message: "Access denied: Can only add employees to your own department" });
+            }
         }
 
         const departmentDoc = await Department.findOne({
@@ -984,6 +1036,23 @@ exports.getDepartments = async (req, res) => {
 exports.updateDepartment = async (req, res) => {
     try {
         const { id } = req.params;
+        const normalizedRole = String(req.user?.role || "").toLowerCase().trim();
+        const isAdmin = ["admin", "main_admin", "superadmin"].includes(normalizedRole);
+
+        if (!isAdmin && normalizedRole === "hr") {
+            const targetDept = await Department.findById(id).select("name").lean();
+            if (!targetDept) {
+                return res.status(404).json({ success: false, message: "Department not found" });
+            }
+            const hrDepartment = String(req.user?.department || "").trim();
+            if (!hrDepartment) {
+                return res.status(403).json({ success: false, message: "Access denied: No department assigned to your account" });
+            }
+            if (hrDepartment.toLowerCase() !== String(targetDept.name || "").trim().toLowerCase()) {
+                return res.status(403).json({ success: false, message: "Access denied: Can only edit your own department" });
+            }
+        }
+
         const updateData = { ...req.body };
 
         // Map frontend fields to schema fields
@@ -1010,6 +1079,12 @@ exports.updateDepartment = async (req, res) => {
 exports.deleteDepartment = async (req, res) => {
     try {
         const { id } = req.params;
+        const normalizedRole = String(req.user?.role || "").toLowerCase().trim();
+
+        if (!["admin", "main_admin", "superadmin"].includes(normalizedRole)) {
+            return res.status(403).json({ success: false, message: "Access denied: Only Admin can delete departments" });
+        }
+
         await Department.findByIdAndDelete(id);
         res.status(200).json({ success: true, message: "Department deleted successfully" });
     } catch (error) {
@@ -2286,6 +2361,7 @@ exports.getPendingLeaves = async (req, res) => {
     try {
         const leaves = await LeaveApplication.find({ ApprovalStatus: "Awaiting Approve" })
             .populate("EmployeeID", "name email profileImage department designation")
+            .populate("redirectedBy", "name")
             .sort({ createdAt: -1 });
 
         const formatted = leaves.map(l => ({
@@ -2300,7 +2376,9 @@ exports.getPendingLeaves = async (req, res) => {
                     1,
                     Math.ceil((new Date(l.EndDate) - new Date(l.StartDate)) / (1000 * 60 * 60 * 24)) + 1
                 ),
-            status: l.ApprovalStatus,
+            status: l.redirectedToAdmin ? "Redirected to Admin" : l.ApprovalStatus,
+            redirectedToAdmin: l.redirectedToAdmin || false,
+            redirectedBy: l.redirectedBy?.name || null,
             actionOptions: ["Approved", "Rejected"]
         }));
 

@@ -9,7 +9,8 @@ import {
   X,
   Eye,
   Home,
-  RefreshCw
+  RefreshCw,
+  ArrowRightCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../utils/axios';
@@ -54,9 +55,10 @@ const PendingApproval = () => {
         endDate: leave.toDate,
         days: leave.days || 1,
         reason: leave.reason || leave.Reason || '',
-        status: leave.status || 'Pending',
+        status: leave.redirectedToAdmin ? 'Redirected to Admin' : (leave.status || 'Pending'),
         remarks: leave.remarks || leave.AdminRemarks || '',
         requestedAt: leave.requestedAt,
+        redirectedToAdmin: leave.redirectedToAdmin || false,
       }));
 
       const attendanceRequests = (attendanceRes.data?.data || []).map(attendance => ({
@@ -104,6 +106,22 @@ const PendingApproval = () => {
       setShowModal(false);
       setApproval({ approved: null, remarks: '' });
       navigate('/leave');
+    } catch (err) {
+      // debug error removed
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRedirectToAdmin = async (request) => {
+    try {
+      setActionLoading(true);
+      if (request.type === 'leave' || request.type === 'wfh') {
+        await api.put('/hr/leaves/redirect-to-admin', { leaveId: request.id });
+      }
+      setRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: 'Redirected to Admin', redirectedToAdmin: true } : r));
+      setShowModal(false);
+      setApproval({ approved: null, remarks: '' });
     } catch (err) {
       // debug error removed
     } finally {
@@ -281,30 +299,44 @@ const PendingApproval = () => {
                 </div>
 
                 <div className="flex gap-2 ml-4">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedRequest(request);
-                      setApproval({ approved: true, remarks: '' });
-                      setShowModal(true);
-                    }}
-                    className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"
-                    title="Approve"
-                  >
-                    <Check className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedRequest(request);
-                      setApproval({ approved: false, remarks: '' });
-                      setShowModal(true);
-                    }}
-                    className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
-                    title="Reject"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  {!request.redirectedToAdmin && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRequest(request);
+                          setApproval({ approved: true, remarks: '' });
+                          setShowModal(true);
+                        }}
+                        className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"
+                        title="Approve"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRequest(request);
+                          setApproval({ approved: false, remarks: '' });
+                          setShowModal(true);
+                        }}
+                        className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
+                        title="Reject"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRedirectToAdmin(request);
+                        }}
+                        className="p-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition"
+                        title="Redirect to Admin"
+                      >
+                        <ArrowRightCircle className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -426,22 +458,39 @@ const PendingApproval = () => {
               >
                 Close
               </button>
-              <button
-                onClick={() => handleApprove(selectedRequest, false)}
-                disabled={actionLoading}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
-                Reject
-              </button>
-              <button
-                onClick={() => handleApprove(selectedRequest, true)}
-                disabled={actionLoading}
-                className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                Approve
-              </button>
+              {!selectedRequest.redirectedToAdmin && (
+                <>
+                  <button
+                    onClick={() => handleRedirectToAdmin(selectedRequest)}
+                    disabled={actionLoading}
+                    className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightCircle className="w-4 h-4" />}
+                    Redirect to Admin
+                  </button>
+                  <button
+                    onClick={() => handleApprove(selectedRequest, false)}
+                    disabled={actionLoading}
+                    className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => handleApprove(selectedRequest, true)}
+                    disabled={actionLoading}
+                    className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Approve
+                  </button>
+                </>
+              )}
+              {selectedRequest.redirectedToAdmin && (
+                <span className="flex-1 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg font-medium text-center border border-amber-200">
+                  Redirected to Admin
+                </span>
+              )}
             </div>
           </div>
         </div>

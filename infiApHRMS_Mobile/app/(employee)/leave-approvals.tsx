@@ -68,6 +68,7 @@ export default function LeaveApprovals() {
     switch(status) {
       case 'APPROVED': return { text: '#22c55e', bg: '#dcfce7' };
       case 'REJECTED': return { text: '#ef4444', bg: '#fee2e2' };
+      case 'REDIRECTED': return { text: '#b45309', bg: '#fffbeb' };
       default: return { text: '#64748b', bg: '#f1f5f9' };
     }
   };

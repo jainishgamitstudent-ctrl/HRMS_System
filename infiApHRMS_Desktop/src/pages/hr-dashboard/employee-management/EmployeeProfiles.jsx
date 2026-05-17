@@ -163,7 +163,7 @@ const EmployeeProfiles = () => {
           </div>
         </div>
         <button 
-          onClick={() => navigate(`${basePath}/employees/edit/${employee.id}`)}
+          onClick={() => navigate(`${basePath}/employees/edit/${id}`)}
           className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200"
         >
           Edit Profile

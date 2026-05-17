@@ -16,7 +16,7 @@ import { AdminBottomNav } from '../../components/AdminBottomNav';
 import Header from '../../components/layout/Header';
 import { fetchResignations, updateResignationStatus } from '../../services/auth';
 
-const statusFilters = ['All', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Withdrawn'];
+const statusFilters = ['All', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Withdrawn', 'Redirected to Admin'];
 
 const statusColors: Record<string, { bg: string; text: string; border: string }> = {
   Submitted: { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
@@ -25,6 +25,7 @@ const statusColors: Record<string, { bg: string; text: string; border: string }>
   Rejected: { bg: '#fef2f2', text: '#b91c1c', border: '#fecaca' },
   Withdrawn: { bg: '#f8fafc', text: '#475569', border: '#e2e8f0' },
   Pending: { bg: '#fffbeb', text: '#b45309', border: '#fde68a' },
+  'Redirected to Admin': { bg: '#fffbeb', text: '#b45309', border: '#fde68a' },
 };
 
 export default function ResignationManagement() {

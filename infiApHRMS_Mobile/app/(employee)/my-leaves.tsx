@@ -21,7 +21,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 const { width } = Dimensions.get('window');
 
 const TABS = ['All', 'Pending', 'Approved', 'History', 'Drafts'];
-const TAB_WIDTH = width / 5;
+const TAB_WIDTH = width / TABS.length;
 
 export default function MyLeavesPage() {
   const { colors } = useAppTheme();
@@ -47,8 +47,8 @@ export default function MyLeavesPage() {
 
   // Filter leaves based on active tab
   const filteredLeaves = leaves.filter((leave) => {
-    if (activeTab === 'All') return leave.status !== 'DRAFT'; // Don't show drafts in 'All' to keep it clean, or show everything
-    if (activeTab === 'Pending') return leave.status === 'PENDING';
+    if (activeTab === 'All') return leave.status !== 'DRAFT';
+    if (activeTab === 'Pending') return leave.status === 'PENDING' || leave.status === 'REDIRECTED';
     if (activeTab === 'Approved') return leave.status === 'APPROVED';
     if (activeTab === 'History') return leave.status === 'REJECTED' || leave.status === 'CANCELLED';
     if (activeTab === 'Drafts') return leave.status === 'DRAFT';
@@ -80,6 +80,7 @@ export default function MyLeavesPage() {
     switch(status) {
       case 'APPROVED': return { text: '#22c55e', bg: '#dcfce7' };
       case 'PENDING': return { text: '#ea580c', bg: '#ffedd5' };
+      case 'REDIRECTED': return { text: '#b45309', bg: '#fffbeb' };
       case 'REJECTED': return { text: '#ef4444', bg: '#fee2e2' };
       case 'DRAFT': return { text: '#64748b', bg: '#f1f5f9' };
       default: return { text: '#64748b', bg: '#f1f5f9' };

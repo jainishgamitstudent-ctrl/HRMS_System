@@ -63,6 +63,9 @@ export const hrService = {
   approveLeave: (leaveId, status) =>
     apiClient.put("/hr/leaves/approve", { leaveId, status }).then(r => r.data),
 
+  redirectLeaveToAdmin: (leaveId) =>
+    apiClient.put("/hr/leaves/redirect-to-admin", { leaveId }).then(r => r.data),
+
   // --- Recruitment ---
   getRecruitmentDashboard: () =>
     apiClient.get("/hr/recruitment/dashboard").then(r => r.data),
@@ -122,6 +125,9 @@ export const hrService = {
 
   updateExitProcess: (data) =>
     apiClient.put("/hr/resignation/exit-process", data).then(r => r.data),
+
+  redirectResignationToAdmin: (resignationId) =>
+    apiClient.put("/hr/resignation/redirect-to-admin", { resignationId }).then(r => r.data),
 
   // --- Attendance Extras ---
   getAttendanceNotifications: () =>

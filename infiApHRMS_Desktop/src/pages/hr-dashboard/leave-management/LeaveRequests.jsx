@@ -20,7 +20,7 @@ import {
   List
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getLeaveRequests, approveLeave } from '../../../services/hrApi';
+import { getLeaveRequests, approveLeave, redirectLeaveToAdmin } from '../../../services/hrApi';
 import { useRealtimeLeaves } from '../../../hooks/useRealtime';
 
 const LeaveRequests = () => {
@@ -45,8 +45,9 @@ const LeaveRequests = () => {
                 type: req.type || 'Leave',
                 range: `${req.startDate?.slice(0,10) || 'N/A'} - ${req.endDate?.slice(0,10) || 'N/A'}`,
                 days: req.days || 1,
-                status: req.status || 'Pending',
+                status: req.redirectedToAdmin ? 'Redirected to Admin' : (req.status || 'Pending'),
                 reason: req.reason || 'No reason provided',
+                redirectedToAdmin: req.redirectedToAdmin || false,
                 avatar: req.employee?.avatar || req.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.employee?.name || req.name || 'U')}`
             }));
             setRequests(formatted);
@@ -87,6 +88,16 @@ const LeaveRequests = () => {
         }
     };
 
+    const handleRedirect = async (id) => {
+        try {
+            await redirectLeaveToAdmin({ leaveId: id });
+            setRequests(prev => prev.map(req => req.id === id ? { ...req, status: 'Redirected to Admin', redirectedToAdmin: true } : req));
+            showNotification(`Request ${id} redirected to admin successfully.`);
+        } catch (error) {
+            showNotification(`Failed to redirect request ${id}.`);
+        }
+    };
+
     const handleBulkAction = async (status) => {
         try {
             await Promise.all(selectedRequests.map(id => approveLeave({ id, status })));
@@ -119,6 +130,7 @@ const LeaveRequests = () => {
             case 'Pending': return 'bg-orange-50 text-orange-600 border-orange-100';
             case 'Approved': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
             case 'Rejected': return 'bg-rose-50 text-rose-600 border-rose-100';
+            case 'Redirected to Admin': return 'bg-amber-50 text-amber-600 border-amber-100';
             default: return 'bg-slate-50 text-slate-500 border-slate-100';
         }
     };
@@ -185,7 +197,7 @@ const LeaveRequests = () => {
                 {/* Toolbar */}
                 <div className="px-10 py-6 border-b border-slate-50 flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-50/20">
                     <div className="flex items-center gap-8">
-                        {['All Requests', 'Pending', 'Approved', 'Rejected'].map(tab => (
+                        {['All Requests', 'Pending', 'Approved', 'Rejected', 'Redirected to Admin'].map(tab => (
                             <button 
                                 key={tab} 
                                 onClick={() => setActiveTab(tab)}
@@ -301,6 +313,12 @@ const LeaveRequests = () => {
                                                     >
                                                         Reject
                                                     </button>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleRedirect(req.id); }}
+                                                        className="px-4 py-2 bg-amber-50 text-amber-600 border border-amber-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-100 transition-all active:scale-95"
+                                                    >
+                                                        Redirect
+                                                    </button>
                                                 </>
                                             )}
                                             <button 
@@ -360,6 +378,7 @@ const LeaveRequests = () => {
                     </div>
                     <div className="flex items-center gap-8">
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none">Total Unresolved Requests: {requests.filter(r => r.status === 'Pending').length}</p>
+                        <p className="text-[10px] text-amber-500 font-bold uppercase tracking-widest leading-none">Redirected: {requests.filter(r => r.status === 'Redirected to Admin').length}</p>
                         <button 
                             onClick={() => showNotification("Running batch compliance verification...")}
                             className="px-10 py-3 bg-primary-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-primary-700 transition-all shadow-2xl shadow-primary-500/20 active:scale-95"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
+  ArrowRight,
   Calendar,
   Clock,
   CheckCircle2,
@@ -15,6 +16,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import { getLeaveRequests, approveLeave } from '../../../services/hrApi';
 import { API_CONFIG } from '../../../config.js';
 
@@ -25,6 +27,7 @@ const LeaveApproval = () => {
     const [leaveRequest, setLeaveRequest] = useState(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
 
     useEffect(() => {
       const fetchLeaveRequest = async () => {
@@ -346,9 +349,81 @@ const LeaveApproval = () => {
                             {submitting ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} className="text-rose-400" />}
                             {submitting ? 'Processing...' : 'Reject'}
                         </button>
-                        <button className="p-3.5 bg-white/10 text-white hover:bg-white/20 rounded-xl transition-all shadow-xl active:scale-95">
-                            <MoreHorizontal size={18} />
-                        </button>
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowMoreMenu(v => !v)}
+                                className="p-3.5 bg-white/10 text-white hover:bg-white/20 rounded-xl transition-all shadow-xl active:scale-95"
+                            >
+                                <MoreHorizontal size={18} />
+                            </button>
+                            {showMoreMenu && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
+                                    <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                                        <div className="px-4 py-3 border-b border-slate-50 bg-slate-50/50">
+                                            <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">More Actions</span>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setShowMoreMenu(false);
+                                                Swal.fire({
+                                                    title: 'Request More Information',
+                                                    input: 'textarea',
+                                                    inputLabel: 'Message to employee',
+                                                    inputPlaceholder: 'What additional information do you need?',
+                                                    showCancelButton: true,
+                                                    confirmButtonText: 'Send Request',
+                                                    confirmButtonColor: '#4E63F0',
+                                                    cancelButtonText: 'Cancel',
+                                                }).then((result) => {
+                                                    if (result.isConfirmed) {
+                                                        // TODO: wire to backend API for requesting more info
+                                                        Swal.fire('Sent!', 'Your request has been sent to the employee.', 'success');
+                                                    }
+                                                });
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors text-left"
+                                        >
+                                            <MessageSquare size={16} className="text-indigo-600" />
+                                            <span className="text-xs font-bold text-slate-700">Request More Info</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowMoreMenu(false);
+                                                Swal.fire({
+                                                    title: 'Forward to Manager',
+                                                    input: 'text',
+                                                    inputLabel: 'Manager email or name',
+                                                    inputPlaceholder: 'manager@company.com',
+                                                    showCancelButton: true,
+                                                    confirmButtonText: 'Forward',
+                                                    confirmButtonColor: '#4E63F0',
+                                                    cancelButtonText: 'Cancel',
+                                                }).then((result) => {
+                                                    if (result.isConfirmed) {
+                                                        Swal.fire('Forwarded!', 'Request forwarded successfully.', 'success');
+                                                    }
+                                                });
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors text-left border-t border-slate-50"
+                                        >
+                                            <ArrowRight size={16} className="text-indigo-600" />
+                                            <span className="text-xs font-bold text-slate-700">Forward to Manager</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowMoreMenu(false);
+                                                window.print();
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors text-left border-t border-slate-50"
+                                        >
+                                            <FileText size={16} className="text-indigo-600" />
+                                            <span className="text-xs font-bold text-slate-700">Print / Export PDF</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

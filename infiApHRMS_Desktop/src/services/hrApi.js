@@ -95,6 +95,7 @@ export const getLeaveApplications = (params) => get('/leaves/applications', para
 export const getTodayLeaves = (params) => get('/leaves/today', params);
 export const getLeaveRequests = (params) => get('/leaves/requests', params);
 export const approveLeave = (data) => put('/leaves/approve', data);
+export const redirectLeaveToAdmin = (data) => put('/leaves/redirect-to-admin', data);
 export const getLeaveHistory = (params) => get('/leaves/history', params);
 export const generateLeaveReport = (data) => post('/leaves/generate-report', data);
 
@@ -138,6 +139,7 @@ export const getPayslip = (id) => get(`/finance/payslip/${id}`);
 export const createResignation = (data) => post('/resignation', data);
 export const getResignationRegister = (params) => get('/resignation/register', params);
 export const updateExitProcess = (data) => put('/resignation/exit-process', data);
+export const redirectResignationToAdmin = (data) => put('/resignation/redirect-to-admin', data);
 
 // ─── 9. Analytics ────────────────────────────────────────────────────────────
 export const getAnalyticsReport = (params) => get('/analytics/report', params);

@@ -16,7 +16,7 @@ import { useAuth } from '../../../context/AuthContext';
 
 const CreateTeam = () => {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const { addTeam, departments, fetchDepartments } = useAdminDashboard();
   const { employees, fetchEmployees } = useEmployeeContext();
   const location = useLocation();
@@ -135,11 +135,22 @@ const CreateTeam = () => {
                       required
                     >
                       <option value="" disabled>Select Team Lead</option>
-                      {employees.map(emp => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name} ({emp.employeeId || emp.id}) - {emp.role}
-                        </option>
-                      ))}
+                      {(() => {
+                        const getDeptName = (dept) => {
+                          if (!dept) return '';
+                          if (typeof dept === 'string') return dept.trim();
+                          return (dept.name || '').trim();
+                        };
+                        const userDept = getDeptName(user?.department);
+                        const list = role === 'HR'
+                          ? (employees || []).filter(emp => getDeptName(emp.department) === userDept)
+                          : (employees || []);
+                        return list.map(emp => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.name} ({emp.employeeId || emp.id}) - {emp.role}
+                          </option>
+                        ));
+                      })()}
                     </select>
                     <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={20} />
                   </div>

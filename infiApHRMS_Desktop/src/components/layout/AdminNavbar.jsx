@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, Bell, Check, X, Clock, Users, Building2, Briefcase, ChevronRight, User, Shield, Key, Settings, LogOut, Mail, Menu } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useAdminDashboard } from '../../context/AdminDashboardContext';
@@ -207,7 +208,30 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
                   notifications.slice(0, 10).map((notification) => (
                     <div
                       key={notification.id || notification._id}
-                      onClick={() => markAsRead(notification.id || notification._id)}
+                      onClick={() => {
+                        const id = notification.id || notification._id;
+                        markAsRead(id);
+                        setShowNotificationDropdown(false);
+                        Swal.fire({
+                          title: notification.headline || notification.title || 'Notification',
+                          html: `<div class="text-left"><p class="text-sm text-slate-600 mb-2">${notification.details || notification.message || ''}</p><p class="text-xs text-slate-400">Category: ${notification.category || 'general'} &bull; ${formatTime(notification.timestamp || notification.createdAt)}</p></div>`,
+                          icon: 'info',
+                          showCancelButton: true,
+                          confirmButtonText: 'Go to Request',
+                          cancelButtonText: 'Close',
+                          confirmButtonColor: '#4E63F0',
+                        }).then((result) => {
+                          if (result.isConfirmed) {
+                            const cat = notification.category;
+                            if (cat === 'leave') navigate('/admin/leave-management');
+                            else if (cat === 'attendance') navigate('/admin/wfh-access');
+                            else if (cat === 'alert') navigate('/admin/resignation');
+                            else if (cat === 'job') navigate('/admin/recruitment-control/hub');
+                            else if (cat === 'payroll') navigate('/admin/payroll-management');
+                            else navigate('/admin/dashboard');
+                          }
+                        });
+                      }}
                       className={`px-4 py-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors ${
                         !notification.read ? 'bg-indigo-50/50' : ''
                       }`}

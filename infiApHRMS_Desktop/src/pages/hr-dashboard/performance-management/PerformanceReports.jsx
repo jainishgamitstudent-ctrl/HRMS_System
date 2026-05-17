@@ -282,7 +282,7 @@ const PerformanceReports = () => {
                         onClick={handleExportData}
                         className="w-full lg:w-auto px-12 py-6 bg-slate-900 text-white font-black rounded-[24px] hover:bg-slate-800 transition-all uppercase tracking-[0.3em] text-[11px] shadow-2xl shadow-slate-200 active:scale-95 flex items-center justify-center gap-3"
                     >
-                        <FileText size={20} /> Generate PDF Report
+                        <FileText size={20} /> Generate Report
                     </button>
                 </div>
 

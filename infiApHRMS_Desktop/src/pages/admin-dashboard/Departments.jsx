@@ -16,7 +16,11 @@ import { useAuth } from '../../context/AuthContext';
 const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, openMenuId, setOpenMenuId, navigate }) => {
   const isMenuOpen = openMenuId === dept.id;
   const menuRef = useRef(null);
-  const isAdmin = ['admin', 'superadmin'].includes((role || '').toString().toLowerCase());
+  const normalizedRole = (role || '').toString().toLowerCase();
+  const isAdmin = ['admin', 'superadmin'].includes(normalizedRole);
+  const canEdit = isAdmin || normalizedRole === 'hr';
+  const canDelete = isAdmin;
+  const canViewTeams = isAdmin || normalizedRole === 'hr';
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -59,7 +63,7 @@ const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, openMe
           {dept.departmentCode || dept.sub || 'DEP-NEW'}
         </div>
         
-        {isAdmin && (
+        {canEdit && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate(editRoute)}
@@ -68,13 +72,15 @@ const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, openMe
             >
               <Edit2 size={14} className="group-hover/edit:scale-110 transition-transform" />
             </button>
-            <button
-              onClick={handleDelete}
-              className="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 border border-slate-100 hover:border-red-100 transition-all duration-300 group/del"
-              title="Delete Department"
-            >
-              <Trash2 size={14} className="group-hover/del:scale-110 transition-transform" />
-            </button>
+            {canDelete && (
+              <button
+                onClick={handleDelete}
+                className="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 border border-slate-100 hover:border-red-100 transition-all duration-300 group/del"
+                title="Delete Department"
+              >
+                <Trash2 size={14} className="group-hover/del:scale-110 transition-transform" />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -98,7 +104,7 @@ const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, openMe
         </div>
       </div>
 
-      {isAdmin && (
+      {canViewTeams && (
         <button
           onClick={() => navigate(specificTeamRoute)}
           className="relative z-10 w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl shadow-slate-100 group-hover:shadow-indigo-200 group-hover:bg-indigo-600 transition-all duration-500 text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 active:scale-95"

@@ -20,7 +20,6 @@ import SplashScreen from './pages/auth/SplashScreen';
 import Login from './pages/auth/Login';
 
 // Lazy load all HR Dashboard Pages
-const Dashboard = lazy(() => import('./pages/hr-dashboard/Dashboard'));
 const EmployeeDirectory = lazy(() => import('./pages/hr-dashboard/employee-management/EmployeeDirectory'));
 const AddEmployee = lazy(() => import('./pages/hr-dashboard/employee-management/AddEmployee'));
 const EditEmployee = lazy(() => import('./pages/hr-dashboard/employee-management/EditEmployee'));
@@ -32,7 +31,7 @@ const EditProfile = lazy(() => import('./pages/hr-dashboard/profile-management/E
 const AttendanceDashboard = lazy(() => import('./pages/hr-dashboard/attendance-management/AttendanceDashboard'));
 const CheckInRecords = lazy(() => import('./pages/hr-dashboard/attendance-management/CheckInRecords'));
 const MonthlyAttendance = lazy(() => import('./pages/hr-dashboard/attendance-management/MonthlyAttendance'));
-const AttendanceReports = lazy(() => import('./pages/hr-dashboard/attendance-management/AttendanceReports'));
+
 const DailyAttendanceAudit = lazy(() => import('./pages/hr-dashboard/attendance-management/reports/DailyAttendanceAudit'));
 const LateArrivalDiagnostic = lazy(() => import('./pages/hr-dashboard/attendance-management/reports/LateArrivalDiagnostic'));
 const CorrectionWorkflow = lazy(() => import('./pages/hr-dashboard/attendance-management/CorrectionWorkflow'));
@@ -370,8 +369,8 @@ function AppContent() {
                   <DashboardLayout>
                     <Suspense fallback={<PageLoader />}>
                     <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/" element={<AdminDashboard />} />
+                      <Route path="/dashboard" element={<AdminDashboard />} />
                       <Route path="/employees" element={<EmployeeDirectory />} />
                       <Route path="/employees/add" element={<AddEmployee />} />
                       <Route path="/employees/profiles" element={<EmployeeProfilesHub />} />
@@ -395,7 +394,7 @@ function AppContent() {
                       <Route path="/attendance" element={<AttendanceDashboard />} />
                       <Route path="/attendance/records" element={<CheckInRecords />} />
                       <Route path="/attendance/monthly" element={<MonthlyAttendance />} />
-                      <Route path="/attendance-reports" element={<AttendanceReports />} />
+
                       <Route path="/attendance-reports/daily" element={<DailyAttendanceAudit />} />
                       <Route path="/attendance-reports/late" element={<LateArrivalDiagnostic />} />
                       <Route path="/attendance-correction" element={<CorrectionWorkflow />} />

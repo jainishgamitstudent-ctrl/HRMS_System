@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -87,6 +87,10 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
 
   const activeSubmenu = getActiveSubmenu();
 
+  useEffect(() => {
+    setOpenSubmenu(getActiveSubmenu());
+  }, [location.pathname]);
+
   const toggleSubmenu = (key) => {
     setOpenSubmenu(prev => prev === key ? null : key);
   };
@@ -170,7 +174,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
       roles: ['HR', 'Admin']
     },
     {
-      name: role === 'HR' ? 'Departments' : 'Department ',
+      name: role === 'HR' ? 'Departments' : 'Department',
       icon: Building2,
       path: role === 'HR' ? '/departments' : '/admin/department-management',
       key: 'departments',
@@ -179,7 +183,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
       subItems: [
         { name: 'View Departments', icon: Building2, path: role === 'HR' ? '/departments' : '/admin/department-management', roles: ['HR', 'Admin'] },
         { name: 'Create Department', icon: PlusCircle, path: role === 'HR' ? '/departments/create' : '/admin/department-management/create', roles: ['HR', 'Admin'] },
-        { name: 'Manage Teams', icon: LayoutGrid, path: role === 'HR' ? '/departments/teams' : '/admin/department-management/teams', roles: ['Admin'] },
+        { name: 'Manage Teams', icon: LayoutGrid, path: role === 'HR' ? '/departments/teams' : '/admin/department-management/teams', roles: ['HR', 'Admin'] },
       ]
     },
     {
@@ -193,7 +197,6 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
         { name: 'Hub', icon: LayoutDashboard, path: '/attendance' },
         { name: 'Check-in Records', icon: History, path: '/attendance/records' },
         { name: 'Monthly Attendance', icon: Calendar, path: '/attendance/monthly' },
-        { name: 'Attendance Reports', icon: FileText, path: '/attendance-reports' },
       ]
     },
     {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Search, Bell, User, Check, X, Clock, Shield, Key, Settings, LogOut, Menu, Mail, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import { getHrProfile } from '../../services/hrApi';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -8,14 +9,12 @@ import { useNotifications } from '../../context/NotificationContext';
 const Navbar = ({ setMobileMenuOpen }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { notifications, markAsRead } = useNotifications();
+  const { notifications, unreadCount, markAsRead } = useNotifications();
   const [profile, setProfile] = useState(null);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const notificationDropdownRef = useRef(null);
   const profileDropdownRef = useRef(null);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -147,7 +146,30 @@ const Navbar = ({ setMobileMenuOpen }) => {
                   notifications.slice(0, 10).map((notification) => (
                     <div
                       key={notification.id || notification._id}
-                      onClick={() => markAsRead(notification.id || notification._id)}
+                      onClick={() => {
+                        const id = notification.id || notification._id;
+                        markAsRead(id);
+                        setShowNotificationDropdown(false);
+                        Swal.fire({
+                          title: notification.headline || notification.title || 'Notification',
+                          html: `<div class="text-left"><p class="text-sm text-slate-600 mb-2">${notification.details || notification.message || ''}</p><p class="text-xs text-slate-400">Category: ${notification.category || 'general'} &bull; ${formatTime(notification.timestamp || notification.createdAt)}</p></div>`,
+                          icon: 'info',
+                          showCancelButton: true,
+                          confirmButtonText: 'Go to Request',
+                          cancelButtonText: 'Close',
+                          confirmButtonColor: '#4E63F0',
+                        }).then((result) => {
+                          if (result.isConfirmed) {
+                            const cat = notification.category;
+                            if (cat === 'leave') navigate('/leave');
+                            else if (cat === 'attendance') navigate('/attendance');
+                            else if (cat === 'alert') navigate('/resignation');
+                            else if (cat === 'job') navigate('/recruitment');
+                            else if (cat === 'payroll') navigate('/payroll');
+                            else navigate('/');
+                          }
+                        });
+                      }}
                       className={`px-4 py-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors ${
                         !notification.read ? 'bg-indigo-50/50' : ''
                       }`}

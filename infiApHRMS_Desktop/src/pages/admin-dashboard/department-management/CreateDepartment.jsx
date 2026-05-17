@@ -32,7 +32,10 @@ const CreateDepartment = () => {
     manager: ''
   });
 
-  const hasEmployees = (employees || []).length > 0;
+  const eligibleEmployees = role === 'HR'
+    ? (employees || []).filter(emp => String(emp.department || '').trim() === String(user?.department || '').trim())
+    : (employees || []);
+  const hasEmployees = eligibleEmployees.length > 0;
 
   useEffect(() => {
     if (isEditMode && departments.length > 0) {
@@ -181,7 +184,7 @@ const CreateDepartment = () => {
                     disabled={assignSelf}
                   >
                     <option value="">{hasEmployees ? 'Select a manager...' : 'No employees available'}</option>
-                    {(employees || []).map(emp => (
+                    {eligibleEmployees.map(emp => (
                       <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>
                     ))}
                   </select>

@@ -12,7 +12,9 @@ const resignationSchema = new mongoose.Schema({
     lastWorkingDate: { type: Date },
     status: { type: String, enum: ["Submitted", "Under Review", "Approved", "Rejected", "Withdrawn"], default: "Submitted" },
     actionedBy: { type: String },
-    managerRemarks: { type: String }
+    managerRemarks: { type: String },
+    redirectedToAdmin: { type: Boolean, default: false },
+    redirectedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
 }, { timestamps: true });
 
 module.exports = mongoose.model("Resignation", resignationSchema);

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode, useCa
 import { applyEmployeeLeave, fetchEmployeeLeaves, type EmployeeLeaveApiRecord } from '../services/auth';
 import { useRealtimeLeaves } from '../hooks/useRealtime';
 
-export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'DRAFT';
+export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'DRAFT' | 'REDIRECTED';
 
 export interface LeaveRequest {
   id: string;
@@ -48,6 +48,7 @@ export const LeaveProvider = ({ children }: { children: ReactNode }) => {
 
   const mapApiStatus = (value?: string): LeaveStatus => {
     const normalized = (value || '').toLowerCase();
+    if (normalized.includes('redirect')) return 'REDIRECTED';
     if (normalized.includes('await') || normalized.includes('pending')) return 'PENDING';
     if (normalized.includes('approve')) return 'APPROVED';
     if (normalized.includes('reject')) return 'REJECTED';
