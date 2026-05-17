@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -90,7 +90,139 @@ export default function DoubleShiftPermissionsScreen() {
     );
   });
 
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => DoubleShiftPermissionsStyles(colors), [colors]);
+
+  const allowedCount = employees.filter((e) => e.doubleShiftAllowed).length;
+
+  return (
+    <View style={styles.container}>
+      <Header title="Double Shift Permissions" showBack={true} />
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryVal}>{employees.length}</Text>
+            <Text style={styles.summaryLab}>Total</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryVal, { color: '#4f46e5' }]}>{allowedCount}</Text>
+            <Text style={styles.summaryLab}>Allowed</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryVal, { color: '#94a3b8' }]}>
+              {employees.length - allowedCount}
+            </Text>
+            <Text style={styles.summaryLab}>Not Allowed</Text>
+          </View>
+        </View>
+
+        <View style={styles.searchContainer}>
+          <Ionicons
+            name="search-outline"
+            size={18}
+            color={colors.textMuted}
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name, email, ID or department..."
+            placeholderTextColor="#94a3b8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+
+        <Text style={styles.sectionTitle}>Employees</Text>
+
+        {loading && !refreshing ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+        ) : filteredEmployees.length === 0 ? (
+          <View style={styles.empty}>
+            <Ionicons name="people-outline" size={64} color="#e2e8f0" />
+            <Text style={styles.emptyText}>
+              {searchQuery ? 'No employees match your search.' : 'No employees found.'}
+            </Text>
+          </View>
+        ) : (
+          filteredEmployees.map((emp, idx) => (
+            <Animated.View
+              key={emp._id}
+              entering={FadeInDown.delay(idx * 40).springify()}
+              style={styles.employeeCard}
+            >
+              <View style={styles.employeeHeader}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{emp.name.charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={styles.info}>
+                  <Text style={styles.name}>{emp.name}</Text>
+                  <Text style={styles.role}>
+                    {emp.designation || 'Employee'}
+                    {emp.department ? ` · ${emp.department}` : ''}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.detailsRow}>
+                <View style={styles.detail}>
+                  <Ionicons name="mail-outline" size={12} color={colors.textMuted} />
+                  <Text style={styles.detailText}>{emp.email}</Text>
+                </View>
+                {emp.employeeId && (
+                  <View style={styles.detail}>
+                    <Ionicons name="id-card-outline" size={12} color={colors.textMuted} />
+                    <Text style={styles.detailText}>{emp.employeeId}</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleLabelWrap}>
+                  <Ionicons
+                    name={emp.doubleShiftAllowed ? 'moon' : 'moon-outline'}
+                    size={16}
+                    color={emp.doubleShiftAllowed ? '#4f46e5' : colors.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.toggleLabel,
+                      emp.doubleShiftAllowed && styles.toggleLabelActive,
+                    ]}
+                  >
+                    {emp.doubleShiftAllowed ? 'Double Shift Enabled' : 'Double Shift Disabled'}
+                  </Text>
+                </View>
+                {togglingIds.has(emp._id) ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.toggle, emp.doubleShiftAllowed && styles.toggleActive]}
+                    onPress={() => handleToggle(emp)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.knob, emp.doubleShiftAllowed && styles.knobActive]} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </Animated.View>
+          ))
+        )}
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+
+      <BottomNav />
+    </View>
+  );
+}
+
+function DoubleShiftPermissionsStyles(colors: any) {
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: colors.background,
@@ -272,132 +404,4 @@ export default function DoubleShiftPermissionsScreen() {
       marginTop: 12,
     },
   });
-
-  const allowedCount = employees.filter((e) => e.doubleShiftAllowed).length;
-
-  return (
-    <View style={styles.container}>
-      <Header title="Double Shift Permissions" showBack={true} />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryVal}>{employees.length}</Text>
-            <Text style={styles.summaryLab}>Total</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryVal, { color: '#4f46e5' }]}>{allowedCount}</Text>
-            <Text style={styles.summaryLab}>Allowed</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryVal, { color: '#94a3b8' }]}>
-              {employees.length - allowedCount}
-            </Text>
-            <Text style={styles.summaryLab}>Not Allowed</Text>
-          </View>
-        </View>
-
-        <View style={styles.searchContainer}>
-          <Ionicons
-            name="search-outline"
-            size={18}
-            color={colors.textMuted}
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by name, email, ID or department..."
-            placeholderTextColor="#94a3b8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
-        <Text style={styles.sectionTitle}>Employees</Text>
-
-        {loading && !refreshing ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
-        ) : filteredEmployees.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="people-outline" size={64} color="#e2e8f0" />
-            <Text style={styles.emptyText}>
-              {searchQuery ? 'No employees match your search.' : 'No employees found.'}
-            </Text>
-          </View>
-        ) : (
-          filteredEmployees.map((emp, idx) => (
-            <Animated.View
-              key={emp._id}
-              entering={FadeInDown.delay(idx * 40).springify()}
-              style={styles.employeeCard}
-            >
-              <View style={styles.employeeHeader}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{emp.name.charAt(0).toUpperCase()}</Text>
-                </View>
-                <View style={styles.info}>
-                  <Text style={styles.name}>{emp.name}</Text>
-                  <Text style={styles.role}>
-                    {emp.designation || 'Employee'}
-                    {emp.department ? ` · ${emp.department}` : ''}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.detailsRow}>
-                <View style={styles.detail}>
-                  <Ionicons name="mail-outline" size={12} color={colors.textMuted} />
-                  <Text style={styles.detailText}>{emp.email}</Text>
-                </View>
-                {emp.employeeId && (
-                  <View style={styles.detail}>
-                    <Ionicons name="id-card-outline" size={12} color={colors.textMuted} />
-                    <Text style={styles.detailText}>{emp.employeeId}</Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleLabelWrap}>
-                  <Ionicons
-                    name={emp.doubleShiftAllowed ? 'moon' : 'moon-outline'}
-                    size={16}
-                    color={emp.doubleShiftAllowed ? '#4f46e5' : colors.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.toggleLabel,
-                      emp.doubleShiftAllowed && styles.toggleLabelActive,
-                    ]}
-                  >
-                    {emp.doubleShiftAllowed ? 'Double Shift Enabled' : 'Double Shift Disabled'}
-                  </Text>
-                </View>
-                {togglingIds.has(emp._id) ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.toggle, emp.doubleShiftAllowed && styles.toggleActive]}
-                    onPress={() => handleToggle(emp)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.knob, emp.doubleShiftAllowed && styles.knobActive]} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </Animated.View>
-          ))
-        )}
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
-
-      <BottomNav />
-    </View>
-  );
 }

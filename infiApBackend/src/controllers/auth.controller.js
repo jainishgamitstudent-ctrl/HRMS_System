@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const { sendVerificationEmail, sendLoginOTPEmail, sendPasswordResetEmail } = require("../services/email.service");
 const logger = require("../utils/logger");
+const { emitEntityEvent } = require("../utils/socketManager");
 
 // ===== Token Generation =====
 
@@ -534,6 +535,12 @@ exports.deleteUser = async (req, res) => {
         }
 
         await User.findByIdAndDelete(id);
+
+        // Emit real-time event
+        emitEntityEvent('employee', 'deleted', { _id: id }, {
+            targetRoles: ['HR', 'Admin', 'Employee']
+        });
+
         return res.status(200).json({ message: "User deleted successfully" });
     } catch (error) {
         logger.error("Delete User Error", { error: error.message });

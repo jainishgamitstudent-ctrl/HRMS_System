@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { Socket } from 'socket.io-client';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import {
@@ -14,8 +15,9 @@ import {
   setupAndroidNotificationChannel,
 } from '../services/notifications';
 import { useUser } from './UserContext';
+import { connectSocket, disconnectSocket } from '../services/socket';
 
-export type NotificationType = 'leave' | 'attendance' | 'payroll' | 'system';
+export type NotificationType = 'leave' | 'attendance' | 'payroll' | 'job' | 'system';
 
 export interface NotificationAttachment {
   name: string;
@@ -59,6 +61,7 @@ const getNotificationType = (category?: string): NotificationType => {
   if (normalized.includes('leave')) return 'leave';
   if (normalized.includes('attendance')) return 'attendance';
   if (normalized.includes('payroll')) return 'payroll';
+  if (normalized.includes('job')) return 'job';
   return 'system';
 };
 
@@ -66,6 +69,7 @@ const getNotificationRoute = (type: NotificationType) => {
   if (type === 'leave') return '/(employee)/leave';
   if (type === 'attendance') return '/(employee)/attendance';
   if (type === 'payroll') return '/(employee)/payroll';
+  if (type === 'job') return '/(employee)/job-postings';
   return undefined;
 };
 
@@ -105,6 +109,26 @@ const mapNotification = (record: ApiNotification, index: number): Notification =
 };
 
 const POLL_INTERVAL_MS = 30000;
+
+const buildNotificationFromSocketPayload = (payload: any): Notification => {
+  const type = getNotificationType(payload.category);
+  const createdIso = payload.createdAt || new Date().toISOString();
+  return {
+    id: String(payload.id || Date.now()),
+    type,
+    title: payload.headline || 'Notification',
+    message: (payload.details || '').slice(0, 120),
+    description: payload.details || '',
+    time: 'Just now',
+    timestamp: createdIso,
+    isRead: false,
+    sender: 'System',
+    division: 'General',
+    isOnline: true,
+    route: getNotificationRoute(type),
+    relatedRoomId: payload.relatedRoomId ? String(payload.relatedRoomId) : null,
+  };
+};
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -164,6 +188,65 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => clearInterval(id);
   }, [refreshNotifications, isAuthenticated]);
 
+  // Socket.IO real-time notification setup
+  useEffect(() => {
+    if (!isAuthenticated) {
+      disconnectSocket();
+      return;
+    }
+
+    let socketInstance: Socket | null = null;
+    let isActive = true;
+
+    const onNotification = (payload: any) => {
+      if (!isActive) return;
+      console.log('[Socket] Notification received:', payload.headline);
+      const notification = buildNotificationFromSocketPayload(payload);
+      seenIdsRef.current.add(notification.id);
+      setToast(notification);
+      refreshNotifications();
+    };
+
+    const onToast = (payload: any) => {
+      if (!isActive) return;
+      console.log('[Socket] Toast received:', payload.message);
+      const notification: Notification = {
+        id: String(payload.id || Date.now()),
+        type: getNotificationType(payload.category) || 'system',
+        title: payload.message || 'Notification',
+        message: (payload.message || '').slice(0, 120),
+        description: payload.message || '',
+        time: 'Just now',
+        timestamp: new Date().toISOString(),
+        isRead: false,
+        sender: 'System',
+        division: 'General',
+        isOnline: true,
+        route: undefined,
+        relatedRoomId: null,
+      };
+      setToast(notification);
+    };
+
+    const setupSocket = async () => {
+      const socket = await connectSocket();
+      if (!socket || !isActive) return;
+      socketInstance = socket;
+      socket.on('notification', onNotification);
+      socket.on('toast', onToast);
+    };
+
+    setupSocket();
+
+    return () => {
+      isActive = false;
+      if (socketInstance) {
+        socketInstance.off('notification', onNotification);
+        socketInstance.off('toast', onToast);
+      }
+    };
+  }, [isAuthenticated, refreshNotifications]);
+
   // Push notification setup
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -174,13 +257,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await setupAndroidNotificationChannel();
 
       const token = await registerForPushNotificationsAsync();
-      console.log('[Push] Expo token:', token);
+      console.log('[Push] Expo token received:', token ? 'Yes' : 'No');
       if (token) {
         try {
           await registerPushToken(token);
-          console.log('[Push] Token registered with backend');
+          console.log('[Push] Token registered with backend - SUCCESS');
         } catch (e) {
-          console.warn('[Push] Failed to register token:', e);
+          console.error('[Push] Token registration FAILED:', e);
         }
       }
 

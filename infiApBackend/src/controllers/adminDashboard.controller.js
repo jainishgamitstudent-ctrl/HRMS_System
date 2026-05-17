@@ -13,7 +13,8 @@ const Notification = require("../models/notification.model");
 const Performance = require("../models/performance.model");
 const Resignation = require("../models/resignation.model");
 const RequestRoom = require("../models/requestRoom.model");
-const { notifyUser } = require("../utils/notifier");
+const { notifyUser, notifyRoleUsers } = require("../utils/notifier");
+const { emitEntityEvent } = require("../utils/socketManager");
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const DEPARTMENT_CATEGORIES = ["tech", "ui/ux", "social media", "developers", "rnd"];
@@ -1656,6 +1657,16 @@ exports.createJob = async (req, res) => {
         }
 
         const job = await Job.create(payload);
+
+        // Notify all employees about the new job posting
+        notifyRoleUsers({
+            roles: ["employee", "hr"],
+            category: "job",
+            headline: `New Job Opening: ${job.title}`,
+            details: `A new ${job.type} position in ${job.department} is now open. Apply now!`,
+            sentBy: req.user?._id
+        }).catch(() => {});
+
         res.status(201).json({ success: true, data: job });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -2431,6 +2442,12 @@ exports.createEmployee = async (req, res) => {
         });
         const userObj = user.toObject();
         delete userObj.password;
+
+        // Emit real-time event
+        emitEntityEvent('employee', 'created', userObj, {
+            targetRoles: ['HR', 'Admin', 'Employee']
+        });
+
         res.status(201).json({ success: true, message: "Employee created successfully", user: userObj });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

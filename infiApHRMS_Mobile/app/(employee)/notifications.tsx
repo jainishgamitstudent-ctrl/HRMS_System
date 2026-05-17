@@ -22,6 +22,8 @@ const NotificationIcon = ({ type }: { type: NotificationType }) => {
       return <View style={[iconBoxBase, { backgroundColor: '#fef2f2' }]}><Ionicons name="time" size={20} color="#ef4444" /></View>;
     case 'payroll':
       return <View style={[iconBoxBase, { backgroundColor: '#f5f3ff' }]}><Ionicons name="cash" size={20} color="#8b5cf6" /></View>;
+    case 'job':
+      return <View style={[iconBoxBase, { backgroundColor: '#ecfdf5' }]}><Ionicons name="briefcase" size={20} color="#10b981" /></View>;
     case 'system':
       return <View style={[iconBoxBase, { backgroundColor: '#fff7ed' }]}><Ionicons name="megaphone" size={20} color="#f59e0b" /></View>;
     default:

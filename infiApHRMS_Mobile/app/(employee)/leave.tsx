@@ -111,14 +111,6 @@ export default function LeaveManagement() {
       route: '/(employee)/my-leaves',
     },
     {
-      id: 'request-rooms',
-      title: 'Request Rooms',
-      subtitle: 'Track request conversations',
-      icon: 'chatbubbles-outline',
-      color: colors.primary,
-      route: '/(employee)/request-rooms',
-    },
-    {
       id: 'approvals',
       title: 'Leaves Tracking',
       subtitle: 'Approve/reject leaves',

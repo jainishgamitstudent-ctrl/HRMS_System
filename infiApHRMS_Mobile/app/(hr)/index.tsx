@@ -1,16 +1,20 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useUser } from '@/context/UserContext';
+import { useAppTheme } from '@/context/ThemeContext';
 
 export default function HRDashboard() {
   const { user } = useUser();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => HRDashboardStyles(colors), [colors]);
 
   const menuItems = [
     { label: 'Employee Directory', icon: 'people-outline', route: '/(employee)/directory' },
     { label: 'Double Shift Permissions', icon: 'moon-outline', route: '/(hr)/double-shift-permissions' },
+    { label: 'Double Shift Requests', icon: 'mail-unread-outline', route: '/(hr)/double-shift-requests' },
     { label: 'Leave Approvals', icon: 'checkmark-circle-outline', route: '/(employee)/leave-approvals' },
     { label: 'Attendance Records', icon: 'time-outline', route: '/(employee)/attendance-history' },
     { label: 'My Profile', icon: 'person-outline', route: '/(employee)/profile' },
@@ -30,9 +34,9 @@ export default function HRDashboard() {
             onPress={() => router.push(item.route as any)}
             activeOpacity={0.8}
           >
-            <Ionicons name={item.icon as any} size={24} color="#007AFF" />
+            <Ionicons name={item.icon as any} size={24} color={colors.primary} />
             <Text style={styles.cardLabel}>{item.label}</Text>
-            <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -40,10 +44,11 @@ export default function HRDashboard() {
   );
 }
 
-const styles = StyleSheet.create({
+function HRDashboardStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: colors.background,
   },
   header: {
     paddingHorizontal: 24,
@@ -53,11 +58,11 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textSecondary,
   },
   subtitle: {
     fontSize: 15,
-    color: '#6b7280',
+    color: colors.textMuted,
     marginTop: 4,
   },
   menu: {
@@ -68,7 +73,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 18,
     gap: 14,
@@ -82,6 +87,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: colors.textSecondary,
   },
 });
+}

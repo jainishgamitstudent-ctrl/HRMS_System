@@ -192,7 +192,12 @@ const SwipeToCheckIn = ({ styles }: { styles: any }) => {
             Double Shift
           </Text>
           {!user.doubleShiftAllowed && (
-            <Text style={styles.doubleShiftHint}>Contact HR</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/(employee)/request-double-shift')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.doubleShiftHint, { textDecorationLine: 'underline' }]}>Contact HR</Text>
+            </TouchableOpacity>
           )}
         </View>
         <TouchableOpacity
@@ -226,8 +231,9 @@ const SwipeToCheckIn = ({ styles }: { styles: any }) => {
 };
 
 
-const FeatureCard = ({ icon, title, sub, color, bgColor, route, delay, unreadCount, disabled, styles }: { icon: any, title: string, sub: string, color: string, bgColor: string, route: string, delay: number, unreadCount?: number, disabled?: boolean, styles: any }) => {
+const FeatureCard = ({ icon, title, sub, color, route, delay, unreadCount, disabled, styles }: { icon: any, title: string, sub: string, color: string, route: string, delay: number, unreadCount?: number, disabled?: boolean, styles: any }) => {
   const scale = useSharedValue(1);
+  const { colors } = useAppTheme();
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -244,14 +250,14 @@ const FeatureCard = ({ icon, title, sub, color, bgColor, route, delay, unreadCou
   return (
     <Animated.View entering={FadeInDown.duration(300).springify()} style={animatedStyle}>
       <TouchableOpacity
-        style={[styles.featureCard, { backgroundColor: disabled ? '#f1f5f9' : bgColor }, disabled && styles.featureCardDisabled]}
+        style={[styles.featureCard, disabled && styles.featureCardDisabled]}
         onPress={() => { if (!disabled) router.push(route as any); }}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         activeOpacity={disabled ? 1 : 0.9}
         disabled={disabled}
       >
-        <View style={[styles.featureIconWrap, { backgroundColor: disabled ? '#cbd5e1' : color }]}>
+        <View style={[styles.featureIconWrap, { backgroundColor: disabled ? colors.iconMuted : color }]}>
           <Ionicons name={icon} size={24} color="#fff" />
           {title === 'Notifications' && unreadCount !== undefined && unreadCount > 0 && (
             <View style={styles.notiBadge}>
@@ -491,7 +497,6 @@ export default function EmployeeDashboard() {
                   title="Leave Requests"
                   sub="Manage"
                   color="#3b82f6"
-                  bgColor="#eff6ff"
                   route="/(employee)/leave"
                   delay={100}
                   styles={styles}
@@ -501,7 +506,6 @@ export default function EmployeeDashboard() {
                   title="Upcoming WFH"
                   sub="Schedule"
                   color="#8b5cf6"
-                  bgColor="#f5f3ff"
                   route="/(employee)/upcoming-wfh"
                   delay={200}
                   disabled={!wfhEnabled}
@@ -509,13 +513,21 @@ export default function EmployeeDashboard() {
                 />
              
                 <FeatureCard
+                  icon="briefcase-outline"
+                  title="Job Postings"
+                  sub="Open Roles"
+                  color="#10b981"
+                  route="/(employee)/job-postings"
+                  delay={300}
+                  styles={styles}
+                />
+                <FeatureCard
                   icon="cash-outline"
                   title="Payroll"
                   sub="Salary Slips"
                   color="#4f46e5"
-                  bgColor="#f5f3ff"
                   route="/(employee)/payroll"
-                  delay={300}
+                  delay={400}
                   styles={styles}
                 />
             
@@ -524,7 +536,6 @@ export default function EmployeeDashboard() {
                   title="Notifications"
                   sub="Alerts"
                   color="#ef4444"
-                  bgColor="#fef2f2"
                   route="/(employee)/notifications"
                   delay={500}
                   unreadCount={unreadCount}
@@ -1212,6 +1223,7 @@ function DashboardStyles(colors: any) {
       borderRadius: 20,
       padding: 16,
       alignItems: 'center',
+      backgroundColor: colors.card,
       shadowColor: colors.shadow,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.05,
@@ -1250,12 +1262,13 @@ function DashboardStyles(colors: any) {
     featureCardDisabled: {
       borderWidth: 1,
       borderColor: colors.border,
+      opacity: 0.65,
     },
     featureTitleDisabled: {
       color: colors.textMuted,
     },
     featureSubDisabled: {
-      color: colors.border,
+      color: colors.textMuted,
     },
     lockOverlay: {
       position: 'absolute',

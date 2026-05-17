@@ -29,6 +29,7 @@ export default function AdminLayout() {
       <Stack.Screen name="manage-hr" />
       <Stack.Screen name="resignation-management" />
       <Stack.Screen name="wfh-permissions" />
+      <Stack.Screen name="double-shift-requests" />
     </Stack>
   );
 }

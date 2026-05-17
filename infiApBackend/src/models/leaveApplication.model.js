@@ -26,4 +26,8 @@ const leaveApplicationSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+leaveApplicationSchema.index({ EmployeeID: 1, createdAt: -1 });
+leaveApplicationSchema.index({ ApprovalStatusID: 1, StartDate: -1 });
+leaveApplicationSchema.index({ EmployeeID: 1, ApprovalStatusID: 1, StartDate: -1 });
+
 module.exports = mongoose.model("LeaveApplication", leaveApplicationSchema);

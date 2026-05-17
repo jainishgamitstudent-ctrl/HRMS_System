@@ -3,6 +3,7 @@ const LeaveBalance = require("../models/leaveBalance.model");
 const User = require("../models/user.model");
 const RequestRoom = require("../models/requestRoom.model");
 const { notifyUser, notifyRoleUsers, notifyUsers, emitToastToUser } = require("../utils/notifier");
+const { emitToRoles, emitEntityEvent } = require("../utils/socketManager");
 
 const normalizeLeaveDate = (value) => {
     if (typeof value === "string") {
@@ -142,6 +143,18 @@ exports.applyLeave = async (req, res) => {
                 relatedRoomId: room._id,
                 excludeUserId: userId,
             });
+
+            // Send real-time toast popup to HR/Admin
+            try {
+                emitToRoles(["hr", "admin", "superadmin"], "toast", {
+                    type: "info",
+                    message: `New Leave Request from ${employeeName}`,
+                    category: "leave",
+                    relatedRoomId: String(room._id),
+                });
+            } catch (toastErr) {
+                console.warn("[Leave] Toast emission failed (non-blocking):", toastErr.message);
+            }
         } catch (roomErr) {
             console.warn("[Leave] RequestRoom creation failed (non-blocking):", roomErr.message);
         }
@@ -159,22 +172,30 @@ exports.applyLeave = async (req, res) => {
 // 2. Get Leave Application (GET /leaveapplications/)
 exports.getLeaveApplications = async (req, res) => {
     try {
-        const userId = req.user._id; 
+        const userId = req.user._id;
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, parseInt(req.query.limit) || 20);
+        const skip = (page - 1) * limit;
 
-        const leaves = await LeaveApplication.find({ EmployeeID: userId }).sort({ createdAt: -1 });
-
-        if (!leaves.length) {
-            return res.status(200).json({
-                status: "Success",
-                statusCode: 200,
-                data: []
-            });
-        }
+        const [leaves, total] = await Promise.all([
+            LeaveApplication.find({ EmployeeID: userId })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            LeaveApplication.countDocuments({ EmployeeID: userId })
+        ]);
 
         res.status(200).json({
             status: "Success",
             statusCode: 200,
-            data: dedupeLeaveApplications(leaves).map(mapLeaveApplication)
+            data: dedupeLeaveApplications(leaves).map(mapLeaveApplication),
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
         });
 
     } catch (error) {
@@ -232,6 +253,11 @@ exports.approveLeave = async (req, res) => {
         leave.ApproverID = approverID;
         leave.ApprovalUsername = approverName;
         await leave.save();
+
+        emitEntityEvent('leave', 'updated', mapLeaveApplication(leave), {
+            userId: leave.EmployeeID,
+            targetRoles: ['hr', 'admin', 'superadmin']
+        });
 
         // Calculate leave days
         let days = 0.5;

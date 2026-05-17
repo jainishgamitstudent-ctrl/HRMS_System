@@ -43,6 +43,19 @@ const MENU_CONFIG = {
     { icon: 'notifications-outline', label: 'Notifications', route: '/(employee)/notifications' },
     { icon: 'settings-outline', label: 'Settings', route: '/(employee)/profile-settings' },
   ],
+  hr: [
+    { icon: 'moon-outline', label: 'Double Shift Permissions', route: '/(hr)/double-shift-permissions' },
+    { icon: 'mail-unread-outline', label: 'Double Shift Requests', route: '/(hr)/double-shift-requests' },
+    { icon: 'people-outline', label: 'Employee Directory', route: '/(employee)/directory' },
+    { icon: 'checkmark-circle-outline', label: 'Leave Approvals', route: '/(employee)/leave-approvals' },
+    { icon: 'time-outline', label: 'Attendance Records', route: '/(employee)/attendance-history' },
+  ],
+  admin: [
+    { icon: 'people-outline', label: 'Manage HR', route: '/(admin)/manage-hr' },
+    { icon: 'document-text-outline', label: 'Resignation Mgmt', route: '/(admin)/resignation-management' },
+    { icon: 'home-outline', label: 'WFH Permissions', route: '/(admin)/wfh-permissions' },
+    { icon: 'mail-unread-outline', label: 'Double Shift Requests', route: '/(admin)/double-shift-requests' },
+  ],
 };
 
 const Sidebar = () => {
@@ -56,7 +69,15 @@ const Sidebar = () => {
   const { colors } = useAppTheme();
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const menuItems = MENU_CONFIG.employee;
+  const normalizedRole = (user?.role || '').toString().trim().toLowerCase();
+  const isAdmin = normalizedRole === 'admin' || normalizedRole === 'main_admin' || normalizedRole === 'superadmin';
+  const isHR = normalizedRole === 'hr' || isAdmin;
+
+  const menuItems = [
+    ...MENU_CONFIG.employee,
+    ...(isHR ? MENU_CONFIG.hr : []),
+    ...(isAdmin ? MENU_CONFIG.admin : []),
+  ];
 
   useEffect(() => {
     if (isOpen) {

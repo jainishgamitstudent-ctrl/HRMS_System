@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { authService } from '../services/auth.service';
 import apiClient from '../services/apiClient';
 import { tokenStore } from '../services/tokenStore';
+import { connectSocket, disconnectSocket } from '../services/socket';
 
 const AuthContext = createContext();
 
@@ -37,11 +38,13 @@ export const AuthProvider = ({ children }) => {
     setToken(authToken);
     setRole(normalizedRole);
     setUser({ ...normalizedUser, role: normalizedRole });
+    connectSocket();
   };
 
   const clearAuth = () => {
     // Clear token store and state
     tokenStore.clearToken();
+    disconnectSocket();
     setToken(null);
     setRole(null);
     setUser(null);
@@ -73,6 +76,7 @@ export const AuthProvider = ({ children }) => {
         const normalizedRole = normalizeRole(userData.role);
         setUser({ ...userData, role: normalizedRole });
         setRole(normalizedRole);
+        connectSocket();
       }
     } catch (err) {
       // Only clear auth on 401 if there's NO stored token
@@ -261,6 +265,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       // Silent logout error - user is clearing anyway
     } finally {
+      disconnectSocket();
       clearAuth();
     }
   };

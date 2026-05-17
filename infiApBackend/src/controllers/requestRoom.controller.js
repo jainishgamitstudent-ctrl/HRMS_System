@@ -1,6 +1,7 @@
 const RequestRoom = require("../models/requestRoom.model");
 const User = require("../models/user.model");
 const { notifyUser, notifyUsers, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
+const { emitToRoles, emitEntityEvent } = require("../utils/socketManager");
 
 exports.createRoom = async (req, res) => {
     try {
@@ -33,6 +34,11 @@ exports.createRoom = async (req, res) => {
             relatedLeaveId: relatedLeaveId || null,
         });
 
+        emitEntityEvent('requestRoom', 'created', { id: room._id, title: room.title, status: room.status, requestType: room.requestType, createdBy: room.createdBy }, {
+            userId: room.createdBy,
+            targetRoles: ['hr', 'admin', 'superadmin']
+        });
+
         // Notify HR/Admin about new request room (help center / general query)
         try {
             const creator = await User.findById(userId).select("name").lean();
@@ -45,6 +51,14 @@ exports.createRoom = async (req, res) => {
                 sentBy: userId,
                 relatedRoomId: room._id,
                 excludeUserId: userId,
+            });
+
+            // Send real-time toast popup to HR/Admin
+            emitToRoles(["hr", "admin", "superadmin"], "toast", {
+                type: "info",
+                message: `New Query from ${creatorName}`,
+                category: "alert",
+                relatedRoomId: String(room._id),
             });
         } catch (notifyErr) {
             console.warn("[RequestRoom] notifyRoleUsers failed (non-blocking):", notifyErr.message);
@@ -140,6 +154,11 @@ exports.updateRoomStatus = async (req, res) => {
         }
         await room.save();
 
+        emitEntityEvent('requestRoom', 'updated', { id: room._id, title: room.title, status: room.status, requestType: room.requestType, createdBy: room.createdBy }, {
+            userId: room.createdBy,
+            targetRoles: ['hr', 'admin', 'superadmin']
+        });
+
         const approverName = req.user?.name || "HR/Admin";
         const isReject = status === "rejected";
         await notifyUser({
@@ -203,6 +222,11 @@ exports.addMessage = async (req, res) => {
             text: text.trim(),
         });
         await room.save();
+
+        emitEntityEvent('requestRoom', 'updated', { id: room._id, title: room.title, status: room.status, requestType: room.requestType, messageCount: room.messages.length, lastMessage: room.messages[room.messages.length - 1] }, {
+            userId: room.createdBy,
+            targetRoles: ['hr', 'admin', 'superadmin']
+        });
 
         // Notify other participants about new message
         const otherParticipantIds = room.participants

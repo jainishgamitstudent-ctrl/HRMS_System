@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,11 @@ import { Link, router } from 'expo-router';
 import { Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { forgotPassword } from '../../services/auth';
+import { useAppTheme } from '@/context/ThemeContext';
 
 export default function ForgotPassword() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => ForgotPasswordStyles(colors), [colors]);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -44,7 +47,7 @@ export default function ForgotPassword() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f7fa' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -64,11 +67,11 @@ export default function ForgotPassword() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>EMAIL ADDRESS</Text>
               <View style={styles.inputContainer}>
-                <Ionicons name="at-outline" size={20} color="#9ca3af" style={styles.inputIcon} />
+                <Ionicons name="at-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="name@company.com"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={colors.inputPlaceholder}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -78,7 +81,7 @@ export default function ForgotPassword() {
             </View>
 
             {sent ? (
-              <View style={[styles.button, { backgroundColor: '#10b981' }]}>
+              <View style={[styles.button, { backgroundColor: colors.success }]}>
                 <Ionicons name="checkmark-circle" size={20} color="#fff" style={{ marginRight: 6 }} />
                 <Text style={styles.buttonText}>Reset link sent!</Text>
               </View>
@@ -90,11 +93,11 @@ export default function ForgotPassword() {
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={colors.card} />
                 ) : (
                   <>
                     <Text style={styles.buttonText}>Send Reset Link</Text>
-                    <Ionicons name="arrow-forward" size={18} color="#fff" style={{ marginLeft: 6 }} />
+                    <Ionicons name="arrow-forward" size={18} color={colors.card} style={{ marginLeft: 6 }} />
                   </>
                 )}
               </TouchableOpacity>
@@ -104,7 +107,7 @@ export default function ForgotPassword() {
             <View style={styles.backContainer}>
               <Link href="/(auth)/sign-in" asChild>
                 <TouchableOpacity style={styles.backButton}>
-                  <Ionicons name="arrow-back" size={16} color="#007AFF" style={{ marginRight: 6 }} />
+                  <Ionicons name="arrow-back" size={16} color={colors.primary} style={{ marginRight: 6 }} />
                   <Text style={styles.backText}>Back to Sign In</Text>
                 </TouchableOpacity>
               </Link>
@@ -133,16 +136,17 @@ export default function ForgotPassword() {
   );
 }
 
-const styles = StyleSheet.create({
+function ForgotPasswordStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: colors.background,
     padding: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     paddingHorizontal: 24,
     paddingVertical: 32,
@@ -157,12 +161,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.textSecondary,
     marginBottom: 12,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: colors.textMuted,
     lineHeight: 22,
     marginBottom: 28,
   },
@@ -172,7 +176,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#6b7280',
+    color: colors.textMuted,
     marginBottom: 8,
     letterSpacing: 0.5,
   },
@@ -180,9 +184,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.border,
     borderRadius: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.card,
     height: 50,
     paddingHorizontal: 16,
   },
@@ -192,17 +196,17 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: '#111827',
+    color: colors.textSecondary,
     height: '100%',
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.primary,
     borderRadius: 8,
     height: 50,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#007AFF',
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -210,7 +214,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   buttonText: {
-    color: '#ffffff',
+    color: colors.card,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -223,7 +227,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   backText: {
-    color: '#007AFF',
+    color: colors.primary,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -233,33 +237,34 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: colors.textMuted,
     marginBottom: 16,
   },
   footerLink: {
-    color: '#007AFF',
+    color: colors.primary,
     fontWeight: '500',
   },
   successBox: {
     marginTop: 16,
-    backgroundColor: '#ecfdf5',
+    backgroundColor: colors.primaryBg,
     borderRadius: 10,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#a7f3d0',
+    borderColor: colors.success,
   },
   successText: {
     fontSize: 13,
-    color: '#065f46',
+    color: colors.success,
     lineHeight: 20,
     textAlign: 'center',
   },
   enterTokenLink: {
     marginTop: 10,
     fontSize: 13,
-    color: '#007AFF',
+    color: colors.primary,
     fontWeight: '600',
     textAlign: 'center',
     textDecorationLine: 'underline',
   },
 });
+}

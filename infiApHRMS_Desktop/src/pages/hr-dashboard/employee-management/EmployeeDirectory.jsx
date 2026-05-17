@@ -323,6 +323,20 @@ const EmployeeDirectory = () => {
                           <td className="px-6 py-4 text-right"><div className="h-8 w-8 bg-slate-200 rounded-lg animate-pulse ml-auto" /></td>
                         </tr>
                       ))
+                    ) : filteredEmployees.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-16 text-center">
+                          <div className="flex flex-col items-center justify-center">
+                            <User size={40} className="text-slate-200 mb-4" />
+                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">No employees found</p>
+                            <p className="text-xs text-slate-400 max-w-xs">
+                              {searchQuery || filters.department !== 'All Departments' || filters.status !== 'All Status'
+                                ? 'Try adjusting your search or filters.'
+                                : 'Employee directory is currently empty.'}
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
                     ) : (
                       filteredEmployees.map((emp) => (
                          <tr key={emp.id} className="group hover:bg-slate-50 transition-colors">

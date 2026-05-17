@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { applyEmployeeLeave, fetchEmployeeLeaves, type EmployeeLeaveApiRecord } from '../services/auth';
+import { useRealtimeLeaves } from '../hooks/useRealtime';
 
 export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'DRAFT';
 
@@ -118,6 +119,13 @@ export const LeaveProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     refreshLeaves();
   }, []);
+
+  const handleRealtimeLeave = useCallback((action: string, payload: any) => {
+    console.log('[Realtime] Leave event:', action, payload);
+    refreshLeaves();
+  }, []);
+
+  useRealtimeLeaves(handleRealtimeLeave);
 
   const applyLeave = async (leave: Omit<LeaveRequest, 'id' | 'status' | 'appliedDate' | 'days'>, status: LeaveStatus = 'PENDING') => {
     // Calculate days (simple difference for mock)

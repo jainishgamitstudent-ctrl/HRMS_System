@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema(
     {
         category: {
             type: String,
-            enum: ["announcement", "policy", "alert", "leave", "payroll", "attendance", "performance", "system"],
+            enum: ["announcement", "policy", "alert", "leave", "payroll", "attendance", "performance", "job", "system"],
             required: true
         },
         recipient: {

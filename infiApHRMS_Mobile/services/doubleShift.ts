@@ -105,3 +105,82 @@ export const updateEmployeeDoubleShiftPermission = async (employeeId: string, do
     body: { doubleShiftAllowed },
   });
 };
+
+// --- Employee Double Shift Request --- //
+export type DoubleShiftRequest = {
+  _id: string;
+  employeeId: string;
+  requestDate: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  reviewNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const createDoubleShiftRequest = async (requestDate: string, reason: string) => {
+  const headers = await getAuthHeaders();
+  return request<{
+    status: string;
+    message: string;
+    data: DoubleShiftRequest;
+  }>('/employee/double-shift/request', {
+    method: 'POST',
+    headers,
+    body: { requestDate, reason },
+  });
+};
+
+export const fetchMyDoubleShiftRequests = async () => {
+  const headers = await getAuthHeaders();
+  return request<{
+    status: string;
+    data: DoubleShiftRequest[];
+  }>('/employee/double-shift/my-requests', {
+    method: 'GET',
+    headers,
+  });
+};
+
+// --- HR/Admin Double Shift Request Management --- //
+export type DoubleShiftRequestWithEmployee = DoubleShiftRequest & {
+  employeeId?: {
+    _id: string;
+    name: string;
+    employeeId?: string;
+    department?: string;
+    designation?: string;
+    email?: string;
+  };
+  reviewedBy?: {
+    _id: string;
+    name: string;
+  } | null;
+};
+
+export const fetchAllDoubleShiftRequests = async (status?: string) => {
+  const headers = await getAuthHeaders();
+  const query = status ? `?status=${encodeURIComponent(status)}` : '';
+  return request<{
+    status: string;
+    data: DoubleShiftRequestWithEmployee[];
+  }>(`/hr/double-shift/requests${query}`, {
+    method: 'GET',
+    headers,
+  });
+};
+
+export const reviewDoubleShiftRequest = async (requestId: string, status: 'approved' | 'rejected', reviewNotes?: string) => {
+  const headers = await getAuthHeaders();
+  return request<{
+    status: string;
+    message: string;
+    data: DoubleShiftRequest;
+  }>(`/hr/double-shift/requests/${requestId}/review`, {
+    method: 'PUT',
+    headers,
+    body: { status, reviewNotes },
+  });
+};

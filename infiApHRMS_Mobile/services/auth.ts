@@ -27,6 +27,7 @@ export type AuthApiUser = {
   designation?: string;
   department?: string;
   joiningDate?: string;
+  dob?: string;
   phone?: string;
   address?: string;
   employeeId?: string;
@@ -290,8 +291,7 @@ export const updateEmployeeProfile = async (payload: {
   name?: string;
   phone?: string;
   address?: string;
-  department?: string;
-  designation?: string;
+  dob?: string;
   profileImage?: string;
 }) => {
   const headers = await getAuthHeaders();
@@ -570,7 +570,7 @@ export type PayrollHistoryData = {
 
 export type ApiNotification = {
   id: string;
-  category: 'announcement' | 'policy' | 'alert' | 'leave' | 'payroll' | 'attendance' | 'system';
+  category: 'announcement' | 'policy' | 'alert' | 'leave' | 'payroll' | 'attendance' | 'job' | 'system';
   headline: string;
   details: string;
   scheduleAt?: string | null;
@@ -580,6 +580,21 @@ export type ApiNotification = {
   isRead?: boolean;
   createdAt?: string;
   relatedRoomId?: string | null;
+};
+
+export type JobItem = {
+  _id: string;
+  title: string;
+  department: string;
+  location?: string;
+  type: 'Full-time' | 'Part-time' | 'Contract' | 'Internship' | 'Remote';
+  description?: string;
+  experienceYears?: number;
+  requirements?: string[];
+  salaryRange?: { min?: number; max?: number };
+  status: 'Open' | 'Filled' | 'Closed' | 'On Hold';
+  closingDate?: string;
+  createdAt?: string;
 };
 
 export const fetchMyNotifications = async () => {
@@ -594,6 +609,22 @@ export const markNotificationRead = async (id: string) => {
   const headers = await getAuthHeaders();
   return request<{ status: string; data: ApiNotification }>(`/notifications/${id}/read`, {
     method: 'PATCH',
+    headers,
+  });
+};
+
+export const fetchMyResignation = async () => {
+  const headers = await getAuthHeaders();
+  return request<{ status: string; data: ResignationRecord[] }>('/resignation/my', {
+    method: 'GET',
+    headers,
+  });
+};
+
+export const fetchJobs = async () => {
+  const headers = await getAuthHeaders();
+  return request<{ status: string; data: JobItem[] }>('/jobs', {
+    method: 'GET',
     headers,
   });
 };

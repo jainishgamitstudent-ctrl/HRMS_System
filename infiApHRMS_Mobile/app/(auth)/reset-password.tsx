@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { resetPassword } from '../../services/auth';
+import { useAppTheme } from '@/context/ThemeContext';
 
 export default function ResetPasswordScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => ResetPasswordStyles(colors), [colors]);
   const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -54,7 +57,7 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f7fa' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -73,11 +76,11 @@ export default function ResetPasswordScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>RESET TOKEN</Text>
               <View style={styles.inputContainer}>
-                <Ionicons name="key-outline" size={20} color="#9ca3af" style={styles.inputIcon} />
+                <Ionicons name="key-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Paste your reset token here"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={colors.inputPlaceholder}
                   value={token}
                   onChangeText={setToken}
                   autoCapitalize="none"
@@ -89,11 +92,11 @@ export default function ResetPasswordScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>NEW PASSWORD</Text>
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color="#9ca3af" style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter new password"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={colors.inputPlaceholder}
                   value={newPassword}
                   onChangeText={setNewPassword}
                   secureTextEntry={!showPassword}
@@ -103,7 +106,7 @@ export default function ResetPasswordScreen() {
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
-                    color="#9ca3af"
+                    color={colors.textMuted}
                   />
                 </TouchableOpacity>
               </View>
@@ -113,11 +116,11 @@ export default function ResetPasswordScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>CONFIRM PASSWORD</Text>
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color="#9ca3af" style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Confirm new password"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={colors.inputPlaceholder}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showPassword}
@@ -127,7 +130,7 @@ export default function ResetPasswordScreen() {
             </View>
 
             {success ? (
-              <View style={[styles.button, { backgroundColor: '#10b981' }]}>
+              <View style={[styles.button, { backgroundColor: colors.success }]}>
                 <Ionicons name="checkmark-circle" size={20} color="#fff" style={{ marginRight: 6 }} />
                 <Text style={styles.buttonText}>Password reset!</Text>
               </View>
@@ -139,7 +142,7 @@ export default function ResetPasswordScreen() {
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={colors.card} />
                 ) : (
                   <Text style={styles.buttonText}>Reset Password</Text>
                 )}
@@ -161,7 +164,7 @@ export default function ResetPasswordScreen() {
             <View style={styles.backContainer}>
               <Link href="/(auth)/sign-in" asChild>
                 <TouchableOpacity style={styles.backButton}>
-                  <Ionicons name="arrow-back" size={16} color="#007AFF" style={{ marginRight: 6 }} />
+                  <Ionicons name="arrow-back" size={16} color={colors.primary} style={{ marginRight: 6 }} />
                   <Text style={styles.backText}>Back to Sign In</Text>
                 </TouchableOpacity>
               </Link>
@@ -173,7 +176,8 @@ export default function ResetPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function ResetPasswordStyles(colors: any) {
+  return StyleSheet.create({
   container: {
     flexGrow: 1,
     backgroundColor: '#f5f7fa',
@@ -291,3 +295,4 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
 });
+}

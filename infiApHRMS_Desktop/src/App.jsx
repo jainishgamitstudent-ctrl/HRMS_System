@@ -1,3 +1,4 @@
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './components/layout/DashboardLayout';
 import AdminLayout from './components/layout/AdminLayout';
@@ -6,111 +7,114 @@ import { useNotifications } from './context/NotificationContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ToastContainer from './components/common/Toast';
 
-// HR Dashboard Pages
-import Dashboard from './pages/hr-dashboard/Dashboard';
-import EmployeeDirectory from './pages/hr-dashboard/employee-management/EmployeeDirectory';
-import AddEmployee from './pages/hr-dashboard/employee-management/AddEmployee';
-import EditEmployee from './pages/hr-dashboard/employee-management/EditEmployee';
-import EmployeeProfiles from './pages/hr-dashboard/employee-management/EmployeeProfiles';
-import EmployeeProfilesHub from './pages/hr-dashboard/employee-management/EmployeeProfilesHub';
-import NewHiresManagement from './pages/hr-dashboard/employee-management/NewHiresManagement';
-import MyProfile from './pages/hr-dashboard/profile-management/MyProfile';
-import EditProfile from './pages/hr-dashboard/profile-management/EditProfile';
-import AttendanceDashboard from './pages/hr-dashboard/attendance-management/AttendanceDashboard';
-import CheckInRecords from './pages/hr-dashboard/attendance-management/CheckInRecords';
-import MonthlyAttendance from './pages/hr-dashboard/attendance-management/MonthlyAttendance';
-import AttendanceReports from './pages/hr-dashboard/attendance-management/AttendanceReports';
-import DailyAttendanceAudit from './pages/hr-dashboard/attendance-management/reports/DailyAttendanceAudit';
-import LateArrivalDiagnostic from './pages/hr-dashboard/attendance-management/reports/LateArrivalDiagnostic';
-import CorrectionWorkflow from './pages/hr-dashboard/attendance-management/CorrectionWorkflow';
-import LeaveManagement from './pages/hr-dashboard/leave-management/LeaveManagement';
-import LeaveRequests from './pages/hr-dashboard/leave-management/LeaveRequests';
-import LeaveApproval from './pages/hr-dashboard/leave-management/LeaveApproval';
-import LeaveHistory from './pages/hr-dashboard/leave-management/LeaveHistory';
-import EmployeeLeaveProfile from './pages/hr-dashboard/leave-management/EmployeeLeaveProfile';
-import PendingApproval from './pages/hr-dashboard/leave-management/PendingApproval';
 import { DepartmentProvider } from './context/DepartmentContext';
-import PayrollManagement from './pages/hr-dashboard/payroll-management/PayrollManagement';
-import PayrollOverview from './pages/hr-dashboard/payroll-management/PayrollOverview';
-import SalaryProcessing from './pages/hr-dashboard/payroll-management/SalaryProcessing';
-import PayslipManagement from './pages/hr-dashboard/payroll-management/PayslipManagement';
-import RecruitmentManagement from './pages/hr-dashboard/recruitment-management/RecruitmentManagement';
-import PostJob from './pages/hr-dashboard/recruitment-management/PostJob';
-import ActiveJobs from './pages/hr-dashboard/recruitment-management/ActiveJobs';
-import InternalJobs from './pages/hr-dashboard/recruitment-management/InternalJobs';
 import { JobProvider } from './context/JobContext';
-import Candidates from './pages/hr-dashboard/recruitment/Candidates';
-import Applications from './pages/hr-dashboard/recruitment/Applications';
-import Interviews from './pages/hr-dashboard/recruitment/Interviews';
-import InterviewFeedback from './pages/hr-dashboard/recruitment/InterviewFeedback';
-import ScheduleInterview from './pages/hr-dashboard/recruitment/ScheduleInterview';
-import CandidateProfile from './pages/hr-dashboard/recruitment/CandidateProfile';
-import PerformanceManagement from './pages/hr-dashboard/performance-management/PerformanceManagement';
-import MonthlyPerformance from './pages/hr-dashboard/performance-management/MonthlyPerformance';
-import ManagerFeedback from './pages/hr-dashboard/performance-management/ManagerFeedback';
-import PerformanceReports from './pages/hr-dashboard/performance-management/PerformanceReports';
-import AnalyticsManagement from './pages/hr-dashboard/analytics-management/AnalyticsManagement';
-import EmployeeReports from './pages/hr-dashboard/analytics-management/EmployeeReports';
-import AttendanceAnalytics from './pages/hr-dashboard/analytics-management/AttendanceAnalytics';
-import PerformanceInsights from './pages/hr-dashboard/analytics-management/PerformanceInsights';
-import ResignationHub from './pages/hr-dashboard/resignation-management/ResignationHub';
-import SubmitResignation from './pages/hr-dashboard/resignation-management/SubmitResignation';
-import ResignationRequests from './pages/hr-dashboard/resignation-management/ResignationRequests';
-import ExitProcess from './pages/hr-dashboard/resignation-management/ExitProcess';
-
-// Company Admin Pages
-import AdminDashboard from './pages/admin-dashboard/AdminDashboard';
-import AdminDepartments from './pages/admin-dashboard/Departments';
-import CreateDepartment from './pages/admin-dashboard/department-management/CreateDepartment';
-import ManageTeams from './pages/admin-dashboard/department-management/ManageTeams';
-import CreateTeam from './pages/admin-dashboard/department-management/CreateTeam';
-import EditTeam from './pages/admin-dashboard/department-management/EditTeam';
-import ViewTeams from './pages/admin-dashboard/department-management/ViewTeams';
-import AdminProfileView from './pages/admin-dashboard/profile-management/AdminProfileView';
-import AdminProfileEdit from './pages/admin-dashboard/profile-management/AdminProfileEdit';
-import ProfileSettings from './pages/admin-dashboard/profile-management/ProfileSettings';
-import AccountDetails from './pages/admin-dashboard/profile-management/AccountDetails';
-import ChangePassword from './pages/admin-dashboard/profile-management/ChangePassword';
-import SalaryStructure from './pages/admin-dashboard/payroll-management/SalaryStructure';
-import PayslipGeneration from './pages/admin-dashboard/payroll-management/PayslipGeneration';
-import FinanceReports from './pages/admin-dashboard/payroll-management/FinanceReports';
-import RecruitmentHub from './pages/admin-dashboard/recruitment-control/RecruitmentHub';
-import RecruitmentAnalytics from './pages/admin-dashboard/recruitment-control/RecruitmentAnalytics';
-import SecureDocument from './pages/admin-dashboard/payroll-management/SecureDocument';
-import LinkExpired from './pages/admin-dashboard/payroll-management/LinkExpired';
-import SharingSecurity from './pages/admin-dashboard/payroll-management/SharingSecurity';
-import CandidateTracking from './pages/admin-dashboard/recruitment-control/CandidateTracking';
-import InterviewManagement from './pages/admin-dashboard/recruitment-control/InterviewManagement';
-import CreateJob from './pages/admin-dashboard/recruitment-control/CreateJob';
-import EditJob from './pages/admin-dashboard/recruitment-control/EditJob';
-import CompanyPolicies from './pages/admin-dashboard/policies/CompanyPolicies';
-import SystemSettings from './pages/admin-dashboard/settings/SystemSettings';
-import AdminPreferences from './pages/admin-dashboard/settings/AdminPreferences';
-import WFHPermissions from './pages/admin-dashboard/WFHPermissions';
-
-// Main Admin (Super Admin) Pages
-import MainDashboard from './pages/main-admin/MainDashboard';
-import CompanySetup from './pages/main-admin/CompanySetup';
-import CompanyDetails from './pages/main-admin/CompanyDetails';
-import CompanySuccess from './pages/main-admin/CompanySuccess';
-import UserManagement from './pages/main-admin/UserManagement';
-import PlatformConfig from './pages/main-admin/PlatformConfig';
-import SystemIntegrations from './pages/main-admin/SystemIntegrations';
-import GlobalReports from './pages/main-admin/GlobalReports';
-import SystemMonitoring from './pages/main-admin/SystemMonitoring';
-
-// Auth
-import SplashScreen from './pages/auth/SplashScreen';
-import Login from './pages/auth/Login';
-import TwoFactor from './pages/auth/TwoFactor';
-import ResetPassword from './pages/auth/ResetPassword';
-import ConfirmResetPassword from './pages/auth/ConfirmResetPassword';
-import Success from './pages/auth/Success';
-import { AlertCircle, ShieldAlert } from 'lucide-react';
-
 import { EmployeeProvider } from './context/EmployeeContext';
 import { PolicyProvider } from './context/PolicyContext';
 import { AdminDashboardProvider } from './context/AdminDashboardContext';
+
+import { AlertCircle, ShieldAlert } from 'lucide-react';
+
+// Eagerly load only critical auth + layout components
+import SplashScreen from './pages/auth/SplashScreen';
+import Login from './pages/auth/Login';
+
+// Lazy load all HR Dashboard Pages
+const Dashboard = lazy(() => import('./pages/hr-dashboard/Dashboard'));
+const EmployeeDirectory = lazy(() => import('./pages/hr-dashboard/employee-management/EmployeeDirectory'));
+const AddEmployee = lazy(() => import('./pages/hr-dashboard/employee-management/AddEmployee'));
+const EditEmployee = lazy(() => import('./pages/hr-dashboard/employee-management/EditEmployee'));
+const EmployeeProfiles = lazy(() => import('./pages/hr-dashboard/employee-management/EmployeeProfiles'));
+const EmployeeProfilesHub = lazy(() => import('./pages/hr-dashboard/employee-management/EmployeeProfilesHub'));
+const NewHiresManagement = lazy(() => import('./pages/hr-dashboard/employee-management/NewHiresManagement'));
+const MyProfile = lazy(() => import('./pages/hr-dashboard/profile-management/MyProfile'));
+const EditProfile = lazy(() => import('./pages/hr-dashboard/profile-management/EditProfile'));
+const AttendanceDashboard = lazy(() => import('./pages/hr-dashboard/attendance-management/AttendanceDashboard'));
+const CheckInRecords = lazy(() => import('./pages/hr-dashboard/attendance-management/CheckInRecords'));
+const MonthlyAttendance = lazy(() => import('./pages/hr-dashboard/attendance-management/MonthlyAttendance'));
+const AttendanceReports = lazy(() => import('./pages/hr-dashboard/attendance-management/AttendanceReports'));
+const DailyAttendanceAudit = lazy(() => import('./pages/hr-dashboard/attendance-management/reports/DailyAttendanceAudit'));
+const LateArrivalDiagnostic = lazy(() => import('./pages/hr-dashboard/attendance-management/reports/LateArrivalDiagnostic'));
+const CorrectionWorkflow = lazy(() => import('./pages/hr-dashboard/attendance-management/CorrectionWorkflow'));
+const LeaveManagement = lazy(() => import('./pages/hr-dashboard/leave-management/LeaveManagement'));
+const LeaveRequests = lazy(() => import('./pages/hr-dashboard/leave-management/LeaveRequests'));
+const LeaveApproval = lazy(() => import('./pages/hr-dashboard/leave-management/LeaveApproval'));
+const LeaveHistory = lazy(() => import('./pages/hr-dashboard/leave-management/LeaveHistory'));
+const EmployeeLeaveProfile = lazy(() => import('./pages/hr-dashboard/leave-management/EmployeeLeaveProfile'));
+const PendingApproval = lazy(() => import('./pages/hr-dashboard/leave-management/PendingApproval'));
+const PayrollManagement = lazy(() => import('./pages/hr-dashboard/payroll-management/PayrollManagement'));
+const PayrollOverview = lazy(() => import('./pages/hr-dashboard/payroll-management/PayrollOverview'));
+const SalaryProcessing = lazy(() => import('./pages/hr-dashboard/payroll-management/SalaryProcessing'));
+const PayslipManagement = lazy(() => import('./pages/hr-dashboard/payroll-management/PayslipManagement'));
+const RecruitmentManagement = lazy(() => import('./pages/hr-dashboard/recruitment-management/RecruitmentManagement'));
+const PostJob = lazy(() => import('./pages/hr-dashboard/recruitment-management/PostJob'));
+const ActiveJobs = lazy(() => import('./pages/hr-dashboard/recruitment-management/ActiveJobs'));
+const InternalJobs = lazy(() => import('./pages/hr-dashboard/recruitment-management/InternalJobs'));
+const Candidates = lazy(() => import('./pages/hr-dashboard/recruitment/Candidates'));
+const Applications = lazy(() => import('./pages/hr-dashboard/recruitment/Applications'));
+const Interviews = lazy(() => import('./pages/hr-dashboard/recruitment/Interviews'));
+const InterviewFeedback = lazy(() => import('./pages/hr-dashboard/recruitment/InterviewFeedback'));
+const ScheduleInterview = lazy(() => import('./pages/hr-dashboard/recruitment/ScheduleInterview'));
+const CandidateProfile = lazy(() => import('./pages/hr-dashboard/recruitment/CandidateProfile'));
+const PerformanceManagement = lazy(() => import('./pages/hr-dashboard/performance-management/PerformanceManagement'));
+const MonthlyPerformance = lazy(() => import('./pages/hr-dashboard/performance-management/MonthlyPerformance'));
+const ManagerFeedback = lazy(() => import('./pages/hr-dashboard/performance-management/ManagerFeedback'));
+const PerformanceReports = lazy(() => import('./pages/hr-dashboard/performance-management/PerformanceReports'));
+const AnalyticsManagement = lazy(() => import('./pages/hr-dashboard/analytics-management/AnalyticsManagement'));
+const EmployeeReports = lazy(() => import('./pages/hr-dashboard/analytics-management/EmployeeReports'));
+const AttendanceAnalytics = lazy(() => import('./pages/hr-dashboard/analytics-management/AttendanceAnalytics'));
+const PerformanceInsights = lazy(() => import('./pages/hr-dashboard/analytics-management/PerformanceInsights'));
+const ResignationHub = lazy(() => import('./pages/hr-dashboard/resignation-management/ResignationHub'));
+const SubmitResignation = lazy(() => import('./pages/hr-dashboard/resignation-management/SubmitResignation'));
+const ResignationRequests = lazy(() => import('./pages/hr-dashboard/resignation-management/ResignationRequests'));
+const ExitProcess = lazy(() => import('./pages/hr-dashboard/resignation-management/ExitProcess'));
+
+// Lazy load Company Admin Pages
+const AdminDashboard = lazy(() => import('./pages/admin-dashboard/AdminDashboard'));
+const AdminDepartments = lazy(() => import('./pages/admin-dashboard/Departments'));
+const CreateDepartment = lazy(() => import('./pages/admin-dashboard/department-management/CreateDepartment'));
+const ManageTeams = lazy(() => import('./pages/admin-dashboard/department-management/ManageTeams'));
+const CreateTeam = lazy(() => import('./pages/admin-dashboard/department-management/CreateTeam'));
+const EditTeam = lazy(() => import('./pages/admin-dashboard/department-management/EditTeam'));
+const ViewTeams = lazy(() => import('./pages/admin-dashboard/department-management/ViewTeams'));
+const AdminProfileView = lazy(() => import('./pages/admin-dashboard/profile-management/AdminProfileView'));
+const AdminProfileEdit = lazy(() => import('./pages/admin-dashboard/profile-management/AdminProfileEdit'));
+const ProfileSettings = lazy(() => import('./pages/admin-dashboard/profile-management/ProfileSettings'));
+const AccountDetails = lazy(() => import('./pages/admin-dashboard/profile-management/AccountDetails'));
+const ChangePassword = lazy(() => import('./pages/admin-dashboard/profile-management/ChangePassword'));
+const SalaryStructure = lazy(() => import('./pages/admin-dashboard/payroll-management/SalaryStructure'));
+const PayslipGeneration = lazy(() => import('./pages/admin-dashboard/payroll-management/PayslipGeneration'));
+const FinanceReports = lazy(() => import('./pages/admin-dashboard/payroll-management/FinanceReports'));
+const RecruitmentHub = lazy(() => import('./pages/admin-dashboard/recruitment-control/RecruitmentHub'));
+const RecruitmentAnalytics = lazy(() => import('./pages/admin-dashboard/recruitment-control/RecruitmentAnalytics'));
+const SecureDocument = lazy(() => import('./pages/admin-dashboard/payroll-management/SecureDocument'));
+const LinkExpired = lazy(() => import('./pages/admin-dashboard/payroll-management/LinkExpired'));
+const SharingSecurity = lazy(() => import('./pages/admin-dashboard/payroll-management/SharingSecurity'));
+const CandidateTracking = lazy(() => import('./pages/admin-dashboard/recruitment-control/CandidateTracking'));
+const InterviewManagement = lazy(() => import('./pages/admin-dashboard/recruitment-control/InterviewManagement'));
+const CreateJob = lazy(() => import('./pages/admin-dashboard/recruitment-control/CreateJob'));
+const EditJob = lazy(() => import('./pages/admin-dashboard/recruitment-control/EditJob'));
+const CompanyPolicies = lazy(() => import('./pages/admin-dashboard/policies/CompanyPolicies'));
+const SystemSettings = lazy(() => import('./pages/admin-dashboard/settings/SystemSettings'));
+const AdminPreferences = lazy(() => import('./pages/admin-dashboard/settings/AdminPreferences'));
+const WFHPermissions = lazy(() => import('./pages/admin-dashboard/WFHPermissions'));
+
+// Lazy load Main Admin Pages
+const MainDashboard = lazy(() => import('./pages/main-admin/MainDashboard'));
+const CompanySetup = lazy(() => import('./pages/main-admin/CompanySetup'));
+const CompanyDetails = lazy(() => import('./pages/main-admin/CompanyDetails'));
+const CompanySuccess = lazy(() => import('./pages/main-admin/CompanySuccess'));
+const UserManagement = lazy(() => import('./pages/main-admin/UserManagement'));
+const PlatformConfig = lazy(() => import('./pages/main-admin/PlatformConfig'));
+const SystemIntegrations = lazy(() => import('./pages/main-admin/SystemIntegrations'));
+const GlobalReports = lazy(() => import('./pages/main-admin/GlobalReports'));
+const SystemMonitoring = lazy(() => import('./pages/main-admin/SystemMonitoring'));
+
+// Lazy load Auth Pages (non-critical)
+const TwoFactor = lazy(() => import('./pages/auth/TwoFactor'));
+const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'));
+const ConfirmResetPassword = lazy(() => import('./pages/auth/ConfirmResetPassword'));
+const Success = lazy(() => import('./pages/auth/Success'));
 
 // Placeholder components for Settings
 const Placeholder = ({ title }) => (
@@ -120,6 +124,13 @@ const Placeholder = ({ title }) => (
     </div>
     <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">{title} Module</h2>
     <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Final Optimization In Progress</p>
+  </div>
+);
+
+// Loading fallback for lazy-loaded pages
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-slate-50">
+    <div className="w-10 h-10 border-4 border-slate-200 border-t-primary-500 rounded-full animate-spin"></div>
   </div>
 );
 
@@ -221,6 +232,7 @@ function AppContent() {
           <JobProvider>
           <PolicyProvider>
             <AdminDashboardProvider>
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* 1. Cinematic Auth Flow */}
               <Route path="/" element={<RootRedirect />} />
@@ -236,6 +248,7 @@ function AppContent() {
               <Route path="/admin/*" element={
                 <ProtectedRoute allowedRoles={['Admin']}>
                   <AdminLayout>
+                    <Suspense fallback={<PageLoader />}>
                     <Routes>
                       <Route path="/" element={<AdminDashboard />} />
                       <Route path="/dashboard" element={<AdminDashboard />} />
@@ -296,6 +309,7 @@ function AppContent() {
                       <Route path="/resignation/requests" element={<ResignationRequests />} />
                       <Route path="/resignation/exit" element={<ExitProcess />} />
                     </Routes>
+                    </Suspense>
                   </AdminLayout>
                 </ProtectedRoute>
               } />
@@ -304,6 +318,7 @@ function AppContent() {
               <Route path="/main-admin/*" element={
                 <ProtectedRoute allowedRoles={['Main Admin']}>
                   <AdminLayout>
+                    <Suspense fallback={<PageLoader />}>
                     <Routes>
                       <Route path="/" element={<MainDashboard />} />
                       <Route path="/dashboard" element={<MainDashboard />} />
@@ -316,6 +331,7 @@ function AppContent() {
                       <Route path="/reports" element={<GlobalReports />} />
                       <Route path="/monitoring" element={<SystemMonitoring />} />
                     </Routes>
+                    </Suspense>
                   </AdminLayout>
                 </ProtectedRoute>
               } />
@@ -324,6 +340,7 @@ function AppContent() {
               <Route path="/employee/*" element={
                 <ProtectedRoute allowedRoles={['Employee']}>
                   <DashboardLayout>
+                    <Suspense fallback={<PageLoader />}>
                     <Routes>
                       <Route path="/" element={<MyProfile />} />
                       <Route path="/dashboard" element={<MyProfile />} />
@@ -342,6 +359,7 @@ function AppContent() {
                       <Route path="/performance" element={<PerformanceManagement />} />
                       <Route path="/performance/monthly" element={<MonthlyPerformance />} />
                     </Routes>
+                    </Suspense>
                   </DashboardLayout>
                 </ProtectedRoute>
               } />
@@ -350,6 +368,7 @@ function AppContent() {
               <Route path="/*" element={
                 <ProtectedRoute allowedRoles={['HR']}>
                   <DashboardLayout>
+                    <Suspense fallback={<PageLoader />}>
                     <Routes>
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/dashboard" element={<Dashboard />} />
@@ -423,6 +442,7 @@ function AppContent() {
 
                       <Route path="/settings" element={<Placeholder title="Settings" />} />
                     </Routes>
+                    </Suspense>
                   </DashboardLayout>
                 </ProtectedRoute>
               } />
@@ -430,6 +450,7 @@ function AppContent() {
               {/* 5. Fallback Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
             </AdminDashboardProvider>
             </PolicyProvider>
           </JobProvider>

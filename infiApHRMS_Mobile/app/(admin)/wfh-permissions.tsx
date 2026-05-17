@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import {
 } from '../../services/wfh';
 import { getAuthHeaders } from '../../services/auth';
 import { useAppTheme } from '@/context/ThemeContext';
+import { useRealtime } from '../../hooks/useRealtime';
 
 type Level = 'global' | 'employee' | 'team' | 'department';
 
@@ -47,6 +48,7 @@ interface Department {
 
 export default function WFHPermissionsScreen() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => WFHPermissionsStyles(colors), [colors]);
   const [permissions, setPermissions] = useState<WFHPermissionRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -108,6 +110,16 @@ export default function WFHPermissionsScreen() {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  useRealtime([
+    {
+      entityType: 'wfhPermission',
+      onEvent: (action, payload) => {
+        console.log('[Realtime] WFH Permission event:', action, payload);
+        loadPermissions();
+      },
+    },
+  ]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -370,7 +382,7 @@ export default function WFHPermissionsScreen() {
                           <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
                             {emp.staffDepartment && (
                               <View style={{ backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-                                <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '700' }}>{emp.staffDepartment}</Text>
+                                <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: '700' }}>{emp.staffDepartment}</Text>
                               </View>
                             )}
                             {emp.staffJobRole && (
@@ -463,13 +475,14 @@ export default function WFHPermissionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+function WFHPermissionsStyles(colors: any) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { marginTop: 12, fontSize: 14, color: '#64748b', fontWeight: '600' },
+  loadingText: { marginTop: 12, fontSize: 14, color: colors.textMuted, fontWeight: '600' },
   scrollContent: { padding: 20, paddingBottom: 120 },
   summaryCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 20,
     flexDirection: 'row',
@@ -481,21 +494,21 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   summaryItem: { flex: 1, alignItems: 'center' },
-  summaryVal: { fontSize: 22, fontWeight: '900', color: '#1e293b', marginBottom: 4 },
-  summaryLab: { fontSize: 12, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 },
+  summaryVal: { fontSize: 22, fontWeight: '900', color: colors.textSecondary, marginBottom: 4 },
+  summaryLab: { fontSize: 12, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
   divider: { width: 1, backgroundColor: '#e2e8f0' },
   filterRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   filterTab: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     paddingVertical: 10,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   filterTabActive: { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' },
-  filterTabText: { fontSize: 12, fontWeight: '700', color: '#64748b' },
+  filterTabText: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
   filterTabTextActive: { color: '#fff' },
   grantButton: {
     backgroundColor: '#8b5cf6',
@@ -514,12 +527,12 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   grantButtonText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1e293b', marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.textSecondary, marginBottom: 12 },
   emptyState: { alignItems: 'center', marginTop: 60 },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#1e293b', marginTop: 16, marginBottom: 6 },
-  emptySub: { fontSize: 13, color: '#94a3b8', textAlign: 'center', paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: colors.textSecondary, marginTop: 16, marginBottom: 6 },
+  emptySub: { fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingHorizontal: 40 },
   permissionCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 18,
     marginBottom: 12,
@@ -529,24 +542,24 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
   },
   cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   levelBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   levelBadgeText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase' },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   statusBadgeText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-  targetLabel: { fontSize: 15, fontWeight: '800', color: '#1e293b', marginBottom: 2 },
-  targetMeta: { fontSize: 12, color: '#94a3b8', fontWeight: '600', marginBottom: 10 },
+  targetLabel: { fontSize: 15, fontWeight: '800', color: colors.textSecondary, marginBottom: 2 },
+  targetMeta: { fontSize: 12, color: colors.textMuted, fontWeight: '600', marginBottom: 10 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
-  cardMeta: { fontSize: 11, color: '#94a3b8', fontWeight: '600' },
+  cardMeta: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
   revokeBtn: { backgroundColor: '#fef2f2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#fee2e2' },
   revokeBtnText: { color: '#ef4444', fontSize: 11, fontWeight: '800' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '85%' },
+  modalContent: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '85%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
-  inputLabel: { fontSize: 13, fontWeight: '800', color: '#1e293b', marginBottom: 10, marginTop: 8 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: colors.textSecondary },
+  inputLabel: { fontSize: 13, fontWeight: '800', color: colors.textSecondary, marginBottom: 10, marginTop: 8 },
   levelSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   levelOption: {
     flexDirection: 'row',
@@ -557,12 +570,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   levelOptionActive: { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' },
-  levelOptionText: { fontSize: 12, fontWeight: '700', color: '#64748b' },
+  levelOptionText: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
   levelOptionTextActive: { color: '#fff' },
-  selectorList: { maxHeight: 200, backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', padding: 4 },
+  selectorList: { maxHeight: 200, backgroundColor: colors.background, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 4 },
   selectorItem: {
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -573,17 +586,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   selectorItemActive: { backgroundColor: '#f5f3ff', borderWidth: 1, borderColor: '#ddd6fe' },
-  selectorItemText: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
-  selectorItemSub: { fontSize: 11, color: '#94a3b8', fontWeight: '600' },
+  selectorItemText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  selectorItemSub: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
   selectorCheck: { marginLeft: 8 },
   notesInput: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     padding: 14,
     fontSize: 14,
-    color: '#1e293b',
+    color: colors.textSecondary,
     textAlignVertical: 'top',
     minHeight: 80,
   },
@@ -598,3 +611,4 @@ const styles = StyleSheet.create({
   confirmButtonDisabled: { opacity: 0.6 },
   confirmButtonText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 });
+}

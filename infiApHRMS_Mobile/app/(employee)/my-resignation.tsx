@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,11 @@ import { router } from 'expo-router';
 import { BottomNav } from '../../components/BottomNav';
 import Header from '../../components/layout/Header';
 import { useUser } from '../../context/UserContext';
-import { fetchResignations } from '../../services/auth';
+import { fetchMyResignation } from '../../services/auth';
+import { useAppTheme } from '@/context/ThemeContext';
 
 const statusColors: Record<string, { bg: string; text: string; border: string }> = {
-  Submitted: { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
+  Submitted: { bg: '#fffbeb', text: '#b45309', border: '#fde68a' },
   'Under Review': { bg: '#fffbeb', text: '#b45309', border: '#fde68a' },
   Approved: { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0' },
   Rejected: { bg: '#fef2f2', text: '#b91c1c', border: '#fecaca' },
@@ -26,6 +27,8 @@ const statusColors: Record<string, { bg: string; text: string; border: string }>
 
 export default function MyResignationPage() {
   const { user } = useUser();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => MyResignationStyles(colors), [colors]);
   const [resignations, setResignations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,23 +37,16 @@ export default function MyResignationPage() {
   const loadResignations = useCallback(async () => {
     try {
       setError('');
-      const response = await fetchResignations();
-      const all = response.data || [];
-      const mine = all.filter(
-        (r) =>
-          r.userId === user._id ||
-          r.userId === user.employeeId ||
-          r.employeeId === user.employeeId ||
-          r.employeeEmail === user.email
-      );
-      setResignations(mine);
+      const response = await fetchMyResignation();
+      const data = response.data || [];
+      setResignations(data);
     } catch (err: any) {
       setError(err.message || 'Unable to load resignation data.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     loadResignations();
@@ -79,12 +75,12 @@ export default function MyResignationPage() {
       >
         {loading && !refreshing ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#007AFF" />
+            <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>Loading...</Text>
           </View>
         ) : error ? (
           <View style={styles.centered}>
-            <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
+            <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={loadResignations}>
               <Text style={styles.retryBtnText}>Retry</Text>
@@ -92,7 +88,7 @@ export default function MyResignationPage() {
           </View>
         ) : resignations.length === 0 ? (
           <View style={styles.centered}>
-            <Ionicons name="document-text-outline" size={64} color="#e2e8f0" />
+            <Ionicons name="document-text-outline" size={64} color={colors.border} />
             <Text style={styles.emptyTitle}>No Resignation Found</Text>
             <Text style={styles.emptySubtitle}>
               You have not submitted any resignation request yet.
@@ -106,7 +102,10 @@ export default function MyResignationPage() {
           </View>
         ) : (
           resignations.map((item) => {
-            const statusStyle = statusColors[item.status] || statusColors.Pending;
+            const displayStatus = item.status === 'Approved' || item.status === 'Rejected'
+              ? item.status
+              : 'Pending';
+            const statusStyle = statusColors[displayStatus] || statusColors.Pending;
             return (
               <View key={item._id} style={styles.card}>
                 <View style={styles.cardHeader}>
@@ -121,13 +120,13 @@ export default function MyResignationPage() {
                     ]}
                   >
                     <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                      {item.status}
+                      {displayStatus}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.detailRow}>
-                  <Ionicons name="help-circle-outline" size={16} color="#94a3b8" />
+                  <Ionicons name="help-circle-outline" size={16} color={colors.textMuted} />
                   <Text style={styles.detailLabel}>Reason</Text>
                   <Text style={styles.detailValue} numberOfLines={2}>
                     {item.reason}
@@ -135,26 +134,26 @@ export default function MyResignationPage() {
                 </View>
 
                 <View style={styles.detailRow}>
-                  <Ionicons name="calendar-outline" size={16} color="#94a3b8" />
+                  <Ionicons name="calendar-outline" size={16} color={colors.textMuted} />
                   <Text style={styles.detailLabel}>Last Working Day</Text>
                   <Text style={styles.detailValue}>{formatDate(item.lastWorkingDate)}</Text>
                 </View>
 
                 <View style={styles.detailRow}>
-                  <Ionicons name="time-outline" size={16} color="#94a3b8" />
+                  <Ionicons name="time-outline" size={16} color={colors.textMuted} />
                   <Text style={styles.detailLabel}>Notice Period</Text>
                   <Text style={styles.detailValue}>{item.noticePeriodDays} days</Text>
                 </View>
 
                 <View style={styles.detailRow}>
-                  <Ionicons name="create-outline" size={16} color="#94a3b8" />
+                  <Ionicons name="create-outline" size={16} color={colors.textMuted} />
                   <Text style={styles.detailLabel}>Submitted On</Text>
                   <Text style={styles.detailValue}>{formatDate(item.createdAt)}</Text>
                 </View>
 
                 {item.actionedBy && (item.status === 'Approved' || item.status === 'Rejected') ? (
                   <View style={styles.detailRow}>
-                    <Ionicons name="person-outline" size={16} color="#94a3b8" />
+                    <Ionicons name="person-outline" size={16} color={colors.textMuted} />
                     <Text style={styles.detailLabel}>
                       {item.status === 'Approved' ? 'Approved by' : 'Rejected by'}
                     </Text>
@@ -164,7 +163,7 @@ export default function MyResignationPage() {
 
                 {item.managerRemarks ? (
                   <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
-                    <Ionicons name="chatbubble-outline" size={16} color="#94a3b8" />
+                    <Ionicons name="chatbubble-outline" size={16} color={colors.textMuted} />
                     <Text style={styles.detailLabel}>HR Remarks</Text>
                     <Text style={styles.detailValue}>{item.managerRemarks}</Text>
                   </View>
@@ -182,10 +181,11 @@ export default function MyResignationPage() {
   );
 }
 
-const styles = StyleSheet.create({
+function MyResignationStyles(colors: any) {
+  return StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: 20,
@@ -200,60 +200,60 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   errorText: {
     marginTop: 16,
     fontSize: 14,
-    color: '#ef4444',
+    color: colors.error,
     fontWeight: '600',
     textAlign: 'center',
   },
   retryBtn: {
     marginTop: 16,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.textSecondary,
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 12,
   },
   retryBtnText: {
-    color: '#fff',
+    color: colors.card,
     fontWeight: '700',
     fontSize: 14,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0f172a',
+    color: colors.textSecondary,
     marginTop: 20,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
     marginTop: 8,
     textAlign: 'center',
   },
   applyBtn: {
     marginTop: 24,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.textSecondary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
   },
   applyBtnText: {
-    color: '#fff',
+    color: colors.card,
     fontWeight: '800',
     fontSize: 14,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: colors.borderLight,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -267,12 +267,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.borderLight,
   },
   cardTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0f172a',
+    color: colors.textSecondary,
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -292,19 +292,20 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f8fafc',
+    borderBottomColor: colors.borderLight,
   },
   detailLabel: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: colors.textMuted,
     fontWeight: '600',
     width: 110,
   },
   detailValue: {
     flex: 1,
     fontSize: 13,
-    color: '#0f172a',
+    color: colors.textSecondary,
     fontWeight: '700',
     textAlign: 'right',
   },
 });
+}

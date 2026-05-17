@@ -130,11 +130,6 @@ export default function SignIn() {
             <View style={styles.inputGroup}>
               <View style={styles.passwordHeader}>
                 <Text style={styles.label}>Password</Text>
-                <Link href="/(auth)/forgot-password" asChild>
-                  <TouchableOpacity>
-                    <Text style={styles.forgotPassword}>Forgot password?</Text>
-                  </TouchableOpacity>
-                </Link>
               </View>
               <View style={styles.inputContainer}>
                 <Ionicons name="lock-closed-outline" size={20} color={colors.inputPlaceholder} style={styles.inputIcon} />
@@ -180,14 +175,6 @@ export default function SignIn() {
 
             <View style={{ height: 20 }} />
 
-            <View style={styles.cardFooter}>
-              <Text style={styles.noAccountText}>Don’t have an account? </Text>
-              <Link href="/(auth)/sign-up" asChild>
-                <TouchableOpacity>
-                  <Text style={styles.createAccountText}>Create an account</Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
           </View>
 
           <View style={styles.badgesContainer}>

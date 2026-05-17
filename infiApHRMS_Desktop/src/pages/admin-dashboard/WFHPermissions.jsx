@@ -17,6 +17,7 @@ import {
   Home,
 } from 'lucide-react';
 import api from '../../utils/axios';
+import { useRealtime } from '../../hooks/useRealtime';
 
 const LEVEL_CONFIG = {
   global: { icon: Globe, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', label: 'Global' },
@@ -70,6 +71,16 @@ const WFHPermissions = () => {
   useEffect(() => {
     loadAll();
   }, []);
+
+  useRealtime([
+    {
+      entityType: 'wfhPermission',
+      onEvent: (action, payload) => {
+        console.log('[Realtime] WFH Permission event:', action, payload);
+        fetchData();
+      },
+    },
+  ]);
 
   const handleGrant = async () => {
     if (selectedLevel === 'employee' && !selectedEmployeeId) {

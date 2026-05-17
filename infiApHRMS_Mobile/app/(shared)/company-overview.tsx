@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 import { useAppTheme } from '@/context/ThemeContext';
 const CompanyOverview = () => {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => CompanyOverviewStyles(colors), [colors]);
   return (
     <View style={styles.container}>
       <Text style={styles.text}>CompanyOverview</Text>
@@ -10,17 +12,20 @@ const CompanyOverview = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  text: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-});
+function CompanyOverviewStyles(colors: any) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+    },
+    text: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: colors.textSecondary,
+    },
+  });
+}
 
 export default CompanyOverview;
