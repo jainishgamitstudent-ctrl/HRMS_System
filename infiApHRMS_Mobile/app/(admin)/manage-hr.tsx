@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { ADMIN_API_URL } from '../../constants/api';
 import { useAppTheme } from '@/context/ThemeContext';
 export default function ManageHR() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => ManageHRStyles(colors), [colors]);
   const [hrStaff, setHRStaff] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -158,38 +159,39 @@ export default function ManageHR() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+function ManageHRStyles(colors: any) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scrollContent: { padding: 20 },
   summaryCard: { 
-    flexDirection: 'row', backgroundColor: '#fff', borderRadius: 24, padding: 20, 
-    marginBottom: 24, borderWidth: 1, borderColor: '#f1f5f9', shadowColor: '#4f46e5',
+    flexDirection: 'row', backgroundColor: colors.card, borderRadius: 24, padding: 20, 
+    marginBottom: 24, borderWidth: 1, borderColor: colors.borderLight, shadowColor: '#4f46e5',
     shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2
   },
   summaryItem: { flex: 1, alignItems: 'center' },
-  summaryVal: { fontSize: 24, fontWeight: '800', color: '#1e293b' },
-  summaryLab: { fontSize: 12, fontWeight: '600', color: '#64748b', marginTop: 4 },
+  summaryVal: { fontSize: 24, fontWeight: '800', color: colors.textSecondary },
+  summaryLab: { fontSize: 12, fontWeight: '600', color: colors.textMuted, marginTop: 4 },
   divider: { width: 1, backgroundColor: '#f1f5f9', height: '100%' },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1e293b', marginBottom: 16 },
-  hrCard: { backgroundColor: '#fff', borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#f1f5f9' },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: colors.textSecondary, marginBottom: 16 },
+  hrCard: { backgroundColor: colors.card, borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.borderLight },
   hrHeader: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#eef2ff', justifyContent: 'center', alignItems: 'center' },
-  avatarText: { fontSize: 18, fontWeight: '800', color: '#4f46e5' },
   info: { flex: 1, marginLeft: 12 },
-  name: { fontSize: 16, fontWeight: '700', color: '#1e293b' },
-  role: { fontSize: 13, color: '#64748b', marginTop: 2 },
+  name: { fontSize: 16, fontWeight: '700', color: colors.textSecondary },
+  role: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   statusText: { fontSize: 10, fontWeight: '800' },
-  detailsRow: { flexDirection: 'row', gap: 16, marginTop: 16, borderTopWidth: 1, borderTopColor: '#f8fafc', paddingTop: 16 },
+  detailsRow: { flexDirection: 'row', gap: 16, marginTop: 16, borderTopWidth: 1, borderColor: colors.borderLight, paddingTop: 16 },
   detail: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  detailText: { fontSize: 12, color: '#64748b', fontWeight: '500' },
+  detailText: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
   actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
   actionBtn: { 
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', 
-    gap: 8, paddingVertical: 10, borderRadius: 12, backgroundColor: '#f1f5f9' 
+    gap: 8, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.actionBg 
   },
   deleteBtn: { backgroundColor: '#fef2f2' },
   actionBtnText: { fontSize: 13, fontWeight: '700', color: '#4f46e5' },
   empty: { alignItems: 'center', marginTop: 60 },
-  emptyText: { fontSize: 16, color: '#94a3b8', fontWeight: '600', marginTop: 12 },
+  emptyText: { fontSize: 16, color: colors.textMuted, fontWeight: '600', marginTop: 12 },
 });
+}

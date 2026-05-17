@@ -14,6 +14,7 @@ import {
   setupAndroidNotificationChannel,
 } from '../services/notifications';
 import { useUser } from './UserContext';
+import { connectSocket, disconnectSocket, getSocket } from '../services/socket';
 
 export type NotificationType = 'leave' | 'attendance' | 'payroll' | 'system';
 
@@ -106,6 +107,26 @@ const mapNotification = (record: ApiNotification, index: number): Notification =
 
 const POLL_INTERVAL_MS = 30000;
 
+const buildNotificationFromSocketPayload = (payload: any): Notification => {
+  const type = getNotificationType(payload.category);
+  const createdIso = payload.createdAt || new Date().toISOString();
+  return {
+    id: String(payload.id || Date.now()),
+    type,
+    title: payload.headline || 'Notification',
+    message: (payload.details || '').slice(0, 120),
+    description: payload.details || '',
+    time: 'Just now',
+    timestamp: createdIso,
+    isRead: false,
+    sender: 'System',
+    division: 'General',
+    isOnline: true,
+    route: getNotificationRoute(type),
+    relatedRoomId: payload.relatedRoomId ? String(payload.relatedRoomId) : null,
+  };
+};
+
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -164,6 +185,59 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => clearInterval(id);
   }, [refreshNotifications, isAuthenticated]);
 
+  // Socket.IO real-time notification setup
+  useEffect(() => {
+    console.log('[Notifications] Socket setup triggered, isAuthenticated:', isAuthenticated);
+    if (!isAuthenticated) {
+      disconnectSocket();
+      return;
+    }
+
+    let isActive = true;
+
+    const setupSocket = async () => {
+      const socket = await connectSocket();
+      if (!socket || !isActive) return;
+
+      socket.on('notification', (payload) => {
+        if (!isActive) return;
+        console.log('[Socket] Notification received:', payload.headline);
+        const notification = buildNotificationFromSocketPayload(payload);
+        seenIdsRef.current.add(notification.id);
+        setToast(notification);
+        refreshNotifications();
+      });
+
+      socket.on('toast', (payload) => {
+        if (!isActive) return;
+        console.log('[Socket] Toast received:', payload.message);
+        const notification: Notification = {
+          id: String(payload.id || Date.now()),
+          type: getNotificationType(payload.category) || 'system',
+          title: payload.message || 'Notification',
+          message: (payload.message || '').slice(0, 120),
+          description: payload.message || '',
+          time: 'Just now',
+          timestamp: new Date().toISOString(),
+          isRead: false,
+          sender: 'System',
+          division: 'General',
+          isOnline: true,
+          route: undefined,
+          relatedRoomId: null,
+        };
+        setToast(notification);
+      });
+    };
+
+    setupSocket();
+
+    return () => {
+      isActive = false;
+      // Keep socket connected for background notifications; only disconnect on auth change
+    };
+  }, [isAuthenticated, refreshNotifications]);
+
   // Push notification setup
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -174,13 +248,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await setupAndroidNotificationChannel();
 
       const token = await registerForPushNotificationsAsync();
-      console.log('[Push] Expo token:', token);
+      console.log('[Push] Expo token received:', token ? 'Yes' : 'No');
       if (token) {
         try {
           await registerPushToken(token);
-          console.log('[Push] Token registered with backend');
+          console.log('[Push] Token registered with backend - SUCCESS');
         } catch (e) {
-          console.warn('[Push] Failed to register token:', e);
+          console.error('[Push] Token registration FAILED:', e);
         }
       }
 

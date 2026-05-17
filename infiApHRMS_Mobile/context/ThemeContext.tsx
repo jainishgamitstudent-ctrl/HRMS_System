@@ -62,7 +62,7 @@ export const darkColors = {
   navBg: 'rgba(30, 41, 59, 0.95)',
   navBorder: 'rgba(51, 65, 85, 0.5)',
   navActive: '#3b82f6',
-  navInactive: '#64748b',
+  navInactive: '#94a3b8',
   overlay: 'rgba(0, 0, 0, 0.55)',
   shadow: '#000000',
   timelineDot: '#475569',

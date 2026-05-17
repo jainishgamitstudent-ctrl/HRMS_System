@@ -1,6 +1,7 @@
 const RequestRoom = require("../models/requestRoom.model");
 const User = require("../models/user.model");
 const { notifyUser, notifyUsers, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
+const { emitToRoles } = require("../utils/socketManager");
 
 exports.createRoom = async (req, res) => {
     try {
@@ -45,6 +46,14 @@ exports.createRoom = async (req, res) => {
                 sentBy: userId,
                 relatedRoomId: room._id,
                 excludeUserId: userId,
+            });
+
+            // Send real-time toast popup to HR/Admin
+            emitToRoles(["hr", "admin", "superadmin"], "toast", {
+                type: "info",
+                message: `New Query from ${creatorName}`,
+                category: "alert",
+                relatedRoomId: String(room._id),
             });
         } catch (notifyErr) {
             console.warn("[RequestRoom] notifyRoleUsers failed (non-blocking):", notifyErr.message);

@@ -3,6 +3,7 @@ const LeaveBalance = require("../models/leaveBalance.model");
 const User = require("../models/user.model");
 const RequestRoom = require("../models/requestRoom.model");
 const { notifyUser, notifyRoleUsers, notifyUsers, emitToastToUser } = require("../utils/notifier");
+const { emitToRoles } = require("../utils/socketManager");
 
 const normalizeLeaveDate = (value) => {
     if (typeof value === "string") {
@@ -142,6 +143,18 @@ exports.applyLeave = async (req, res) => {
                 relatedRoomId: room._id,
                 excludeUserId: userId,
             });
+
+            // Send real-time toast popup to HR/Admin
+            try {
+                emitToRoles(["hr", "admin", "superadmin"], "toast", {
+                    type: "info",
+                    message: `New Leave Request from ${employeeName}`,
+                    category: "leave",
+                    relatedRoomId: String(room._id),
+                });
+            } catch (toastErr) {
+                console.warn("[Leave] Toast emission failed (non-blocking):", toastErr.message);
+            }
         } catch (roomErr) {
             console.warn("[Leave] RequestRoom creation failed (non-blocking):", roomErr.message);
         }

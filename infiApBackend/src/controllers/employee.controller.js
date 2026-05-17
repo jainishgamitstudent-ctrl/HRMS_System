@@ -7,7 +7,8 @@ const Holiday = require("../models/holiday.model");
 const RequestRoom = require("../models/requestRoom.model");
 const Payroll = require("../models/payroll.model");
 const moment = require("moment");
-const { notifyUser } = require("../utils/notifier");
+const { notifyUser, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
+const { emitToRoles } = require("../utils/socketManager");
 
 const normalizeLeaveDate = (value) => {
     if (typeof value === "string") {
@@ -697,6 +698,34 @@ exports.applyLeave = async (req, res) => {
                 relatedLeaveId: leaveApp._id,
             });
             console.log(`[Employee] RequestRoom created for leave ${leaveApp._id}`);
+
+            // Notify HR/Admin about new leave request
+            const employee = await User.findById(EmployeeID).select("name").lean();
+            const employeeName = employee?.name || "An employee";
+            const dateRange = normalizedStartDate && normalizedEndDate
+                ? ` (${new Date(normalizedStartDate).toDateString()} - ${new Date(normalizedEndDate).toDateString()})`
+                : "";
+            await notifyRoleUsers({
+                roles: ["hr", "admin", "superadmin"],
+                category: "leave",
+                headline: `New Leave Request: ${employeeName}`,
+                details: `${employeeName} applied for ${LeaveType}${dateRange}. Reason: ${Reason}`,
+                sentBy: EmployeeID,
+                excludeUserId: EmployeeID,
+            });
+
+            // Send real-time toast popup to HR/Admin
+            try {
+                const room = await RequestRoom.findOne({ relatedLeaveId: leaveApp._id }).lean();
+                emitToRoles(["hr", "admin", "superadmin"], "toast", {
+                    type: "info",
+                    message: `New Leave Request from ${employeeName}`,
+                    category: "leave",
+                    relatedRoomId: room ? String(room._id) : null,
+                });
+            } catch (toastErr) {
+                console.warn("[Employee] Toast emission failed (non-blocking):", toastErr.message);
+            }
         } catch (roomErr) {
             console.warn("[Employee] RequestRoom creation failed (non-blocking):", roomErr.message);
         }
@@ -1467,6 +1496,32 @@ exports.applyLeaveRequest = async (req, res) => {
         });
 
         await leaveApp.save();
+
+        // Notify HR/Admin about new leave request
+        try {
+            const employee = await User.findById(employeeID).select("name").lean();
+            const employeeName = employee?.name || "An employee";
+            const dateRange = startDate && endDate
+                ? ` (${new Date(startDate).toDateString()} - ${new Date(endDate).toDateString()})`
+                : "";
+            await notifyRoleUsers({
+                roles: ["hr", "admin", "superadmin"],
+                category: "leave",
+                headline: `New Leave Request: ${employeeName}`,
+                details: `${employeeName} applied for ${leaveType}${dateRange}. Reason: ${reason}`,
+                sentBy: employeeID,
+                excludeUserId: employeeID,
+            });
+
+            // Send real-time toast popup to HR/Admin
+            emitToRoles(["hr", "admin", "superadmin"], "toast", {
+                type: "info",
+                message: `New Leave Request from ${employeeName}`,
+                category: "leave",
+            });
+        } catch (notifyErr) {
+            console.warn("[ApplyLeaveRequest] Notification failed (non-blocking):", notifyErr.message);
+        }
 
         res.status(200).json({
             status: "Success",

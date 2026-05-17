@@ -106,7 +106,7 @@ const NavItem = ({ item, isActive }: { item: NavItemType; isActive: boolean }) =
           color={isActive ? colors.primary : colors.navInactive}
         />
       </Animated.View>
-      <Animated.Text style={[styles.navLabel, isActive && { color: colors.primary }, animatedTextStyle]}>
+      <Animated.Text style={[styles.navLabel, { color: isActive ? colors.primary : colors.navInactive }, animatedTextStyle]}>
         {item.label}
       </Animated.Text>
       {isActive && (

@@ -142,6 +142,20 @@ exports.addEmployee = async (req, res) => {
         const newEmployee = new User(userData);
 
         await newEmployee.save();
+
+        // Send welcome notification to new employee
+        try {
+            await notifyUser({
+                recipient: newEmployee._id,
+                category: "system",
+                headline: "Welcome to the Team!",
+                details: `Welcome ${name}! Your employee ID is ${employeeId}. Contact HR for login details.`,
+                sentBy: req.user?._id,
+            });
+        } catch (notifyErr) {
+            console.warn("[AddEmployee] notifyUser failed (non-blocking):", notifyErr.message);
+        }
+
         res.status(201).json({ success: true, message: "Employee added successfully", data: newEmployee });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -183,6 +197,24 @@ exports.editEmployee = async (req, res) => {
         if (!employee) return res.status(404).json({ success: false, message: "Employee not found" });
 
         res.status(200).json({ success: true, message: "Employee updated successfully", data: employee });
+
+        // Notify employee of significant changes
+        try {
+            const fieldsToNotify = ['department', 'designation', 'reportingManager'];
+            const changedFields = fieldsToNotify.filter(f => updates[f] !== undefined);
+            if (changedFields.length > 0) {
+                const actorName = req.user?.name || "HR";
+                await notifyUser({
+                    recipient: id,
+                    category: "system",
+                    headline: "Profile Updated",
+                    details: `Your profile has been updated by ${actorName}. Changed: ${changedFields.join(", ")}`,
+                    sentBy: req.user?._id,
+                });
+            }
+        } catch (notifyErr) {
+            console.warn("[EditEmployee] notifyUser failed (non-blocking):", notifyErr.message);
+        }
     } catch (error) {
         logger.error('Edit Employee Error', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
@@ -213,6 +245,22 @@ exports.updateDoubleShiftPermission = async (req, res) => {
             message: `Double shift permission ${doubleShiftAllowed ? 'granted' : 'revoked'} successfully`,
             data: employee,
         });
+
+        // Notify employee about double shift permission change
+        try {
+            const actorName = req.user?.name || "HR";
+            await notifyUser({
+                recipient: id,
+                category: "attendance",
+                headline: doubleShiftAllowed ? "Double Shift Permission Granted" : "Double Shift Permission Revoked",
+                details: doubleShiftAllowed
+                    ? `You have been granted double shift permission by ${actorName}.`
+                    : `Your double shift permission has been revoked by ${actorName}.`,
+                sentBy: req.user?._id,
+            });
+        } catch (notifyErr) {
+            console.warn("[DoubleShift] notifyUser failed (non-blocking):", notifyErr.message);
+        }
     } catch (error) {
         logger.error('Update Double Shift Permission Error', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
@@ -222,21 +270,18 @@ exports.updateDoubleShiftPermission = async (req, res) => {
 exports.getAllEmployees = async (req, res) => {
     try {
         const { department, role, search, page = 1, limit = 20 } = req.query;
-        // Admin/SuperAdmin can see all; HR should only see employees, not other HR or admin
         const requesterRole = String(req.user?.role || "").toLowerCase();
-        const excludedRoles = ["main_admin", "superadmin", "admin"];
-        if (requesterRole === "hr") {
-            excludedRoles.push("hr");
-        }
-        const filter = { role: { $nin: excludedRoles } };
+        const filter = {};
 
-        // Admin can filter by any department; HR is restricted to their own department
+        // HR should only see actual employees; Admin/SuperAdmin can see all non-admin staff
         if (requesterRole === "hr") {
-            const hrDepartment = String(req.user?.department || "").trim();
-            if (hrDepartment) {
-                filter.department = hrDepartment;
-            }
-        } else if (department) {
+            filter.role = "employee";
+        } else {
+            filter.role = { $nin: ["main_admin", "superadmin", "admin"] };
+        }
+
+        // Optional department filter from query params for both HR and Admin
+        if (department) {
             filter.department = department;
         }
 

@@ -5,6 +5,7 @@ const Team = require("../models/team.model");
 const Department = require("../models/department.model");
 const moment = require("moment");
 const { notifyUser, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
+const { emitToRoles } = require("../utils/socketManager");
 
 /**
  * Check if a user has WFH permission.
@@ -89,6 +90,17 @@ exports.applyWFH = async (req, res) => {
         sentBy: employeeId,
         excludeUserId: employeeId,
       });
+
+      // Send real-time toast popup to HR/Admin
+      try {
+        emitToRoles(["hr", "admin", "superadmin"], "toast", {
+          type: "info",
+          message: `New WFH Request from ${employeeName}`,
+          category: "attendance",
+        });
+      } catch (toastErr) {
+        console.warn("[WFH] Toast emission failed (non-blocking):", toastErr.message);
+      }
     } catch (notifyErr) {
       console.warn("[WFH] notifyRoleUsers failed (non-blocking):", notifyErr.message);
     }
@@ -197,6 +209,22 @@ exports.grantWFHPermission = async (req, res) => {
     });
     console.log("[grantWFHPermission] Created permission:", newPermission._id.toString());
 
+    // Notify affected employee when individual-level permission is granted
+    try {
+      if (level === "employee" && employeeId) {
+        const grantorName = req.user?.name || "HR/Admin";
+        await notifyUser({
+          recipient: employeeId,
+          category: "attendance",
+          headline: "WFH Permission Granted",
+          details: `You have been granted WFH permission by ${grantorName}.${notes ? " Notes: " + notes : ""}`,
+          sentBy: grantedBy,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn("[grantWFHPermission] notifyUser failed (non-blocking):", notifyErr.message);
+    }
+
     return res.status(200).json({
       status: "Success",
       message: `WFH permission granted at ${level} level`,
@@ -225,9 +253,28 @@ exports.revokeWFHPermission = async (req, res) => {
       return res.status(404).json({ status: "Error", message: "Permission not found" });
     }
 
+    const wasEmployeeLevel = permission.level === "employee" && permission.employeeId;
+    const affectedEmployeeId = wasEmployeeLevel ? permission.employeeId : null;
+
     permission.isActive = false;
     permission.revokedAt = new Date();
     await permission.save();
+
+    // Notify affected employee
+    try {
+      if (affectedEmployeeId) {
+        const revokerName = req.user?.name || "HR/Admin";
+        await notifyUser({
+          recipient: affectedEmployeeId,
+          category: "attendance",
+          headline: "WFH Permission Revoked",
+          details: `Your WFH permission has been revoked by ${revokerName}.`,
+          sentBy: req.user?._id,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn("[revokeWFHPermission] notifyUser failed (non-blocking):", notifyErr.message);
+    }
 
     return res.status(200).json({
       status: "Success",
@@ -260,6 +307,22 @@ exports.updateWFHPermission = async (req, res) => {
 
     await permission.save();
 
+    // Notify affected employee if permission targets a specific employee
+    try {
+      if (permission.level === "employee" && permission.employeeId) {
+        const updaterName = req.user?.name || "HR/Admin";
+        await notifyUser({
+          recipient: permission.employeeId,
+          category: "attendance",
+          headline: "WFH Permission Updated",
+          details: `Your WFH permission has been updated by ${updaterName}.${notes ? " Notes: " + notes : ""}`,
+          sentBy: req.user?._id,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn("[updateWFHPermission] notifyUser failed (non-blocking):", notifyErr.message);
+    }
+
     return res.status(200).json({
       status: "Success",
       message: "WFH permission updated successfully",
@@ -280,6 +343,23 @@ exports.deleteWFHPermission = async (req, res) => {
     if (!permission) {
       return res.status(404).json({ status: "Error", message: "Permission not found" });
     }
+
+    // Notify affected employee
+    try {
+      if (permission.level === "employee" && permission.employeeId) {
+        const deleterName = req.user?.name || "HR/Admin";
+        await notifyUser({
+          recipient: permission.employeeId,
+          category: "attendance",
+          headline: "WFH Permission Removed",
+          details: `Your WFH permission has been permanently removed by ${deleterName}.`,
+          sentBy: req.user?._id,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn("[deleteWFHPermission] notifyUser failed (non-blocking):", notifyErr.message);
+    }
+
     return res.status(200).json({
       status: "Success",
       message: "WFH permission deleted permanently",
