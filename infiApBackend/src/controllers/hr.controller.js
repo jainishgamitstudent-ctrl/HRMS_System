@@ -89,7 +89,7 @@ exports.getHRAdminProfile = async (req, res) => {
 // ---> HR Operations: Employee <---
 exports.addEmployee = async (req, res) => {
     try {
-        const { name, email, phone, role: providedRole, employeeId: providedEmployeeId, department, designation, reportingManager, annualSalary, employmentType, password = "Password@123" } = req.body;
+        const { name, email, phone, role: providedRole, employeeId: providedEmployeeId, department, designation, reportingManager, annualSalary, employmentType, status, joiningDate, password = "Password@123" } = req.body;
 
         if (!name || !email) {
             return res.status(400).json({ success: false, message: "Name and email are required" });
@@ -133,8 +133,12 @@ exports.addEmployee = async (req, res) => {
 
         const userData = {
             name, email, phone, password, role: targetRole,
-            employeeId, department, designation, annualSalary, employmentType
+            employeeId, department, designation, annualSalary, employmentType,
+            status: status || "Active"
         };
+        if (joiningDate) {
+            userData.joiningDate = new Date(joiningDate);
+        }
         if (reportingManager && String(reportingManager).trim()) {
             userData.reportingManager = reportingManager;
         }

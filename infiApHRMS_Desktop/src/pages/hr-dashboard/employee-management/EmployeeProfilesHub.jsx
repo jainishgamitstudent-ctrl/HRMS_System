@@ -42,12 +42,29 @@ const EmployeeProfilesHub = () => {
    const [searchQuery, setSearchQuery] = useState('');
    const [imgErrors, setImgErrors] = useState({});
 
-   const filteredEmployees = employees.filter(emp =>
-      emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (emp.role || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (emp.department || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (emp.email || '').toLowerCase().includes(searchQuery.toLowerCase())
-   );
+   const filteredEmployees = employees.filter(emp => {
+      // Filter out strict new hires / onboarding employees so they only show in New Hires module
+      const isOnboarding = emp.status === 'New Hire' || emp.status === 'Onboarding' || emp.status === 'Pending';
+      const dateStr = emp.joiningDate || emp.createdAt;
+      
+      let isStrictNewHire = false;
+      if (isOnboarding) {
+        isStrictNewHire = true;
+      } else if (dateStr) {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(now.getDate() - 7);
+        isStrictNewHire = date >= sevenDaysAgo && (emp.status === 'New Hire' || emp.status === 'Onboarding' || emp.status === 'Pending');
+      }
+
+      if (isStrictNewHire) return false;
+
+      return emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (emp.role || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (emp.department || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (emp.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+   });
 
    return (
       <div className="flex flex-col h-[calc(100vh-120px)] w-full gap-4 p-4">

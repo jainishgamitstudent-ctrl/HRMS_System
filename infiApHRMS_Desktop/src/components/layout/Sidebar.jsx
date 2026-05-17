@@ -206,7 +206,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
       name: role === 'HR' ? 'Recruitment' : 'Recruitment',
       icon: Briefcase,
       path: role === 'HR' ? '/recruitment' : '/admin/recruitment-control/hub',
-      roles: ['HR']
+      roles: ['HR', 'Admin']
     },
     {
       name: role === 'HR' ? 'Payroll' : 'Payroll',
@@ -295,6 +295,12 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
       roles: ['Employee']
     },
     {
+      name: 'Internal Jobs',
+      icon: Briefcase,
+      path: '/employee/jobs',
+      roles: ['Employee']
+    },
+    {
       name: 'Resignation',
       icon: DoorOpen,
       path: '/employee/resignation/submit',
@@ -321,29 +327,29 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
   };
 
   return (
-    <div className={`w-80 bg-white h-screen fixed left-0 top-0 border-r border-slate-200 flex flex-col z-40 shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-transform duration-300 lg:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-      {/* Premium Logo Section */}
-      <div className="p-8 mb-4">
-        <div className="flex items-center gap-4 mb-2">
-          <div className="w-14 h-14 bg-white rounded-2xl shadow-soft flex items-center justify-center overflow-hidden border border-slate-50 transition-transform hover:scale-105">
-            <img src="/logo.png" alt="InfiAP Logo" className="w-full h-full object-contain p-2" />
+    <div className={`w-72 bg-white h-screen fixed left-0 top-0 border-r border-slate-100 flex flex-col z-40 shadow-[4px_0_20px_rgba(0,0,0,0.04)] transition-transform duration-300 lg:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* Logo Section */}
+      <div className="px-6 py-6 mb-2">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl flex items-center justify-center overflow-hidden shadow-md shadow-indigo-200">
+            <img src="/logo.png" alt="InfiAP Logo" className="w-full h-full object-contain p-1" />
           </div>
           <div className="flex flex-col">
-            <span className="text-2xl font-black text-slate-800 tracking-tighter leading-none mb-1">InfiAP</span>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Solutions</span>
+            <span className="text-xl font-black text-slate-800 tracking-tighter leading-none">InfiAP</span>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.18em] leading-none mt-0.5">HR Suite</span>
           </div>
         </div>
 
-        {/* Dynamic Role Badge */}
-        <div className={`mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-current/10 ${getRoleColor()}`}>
+        {/* Role Badge */}
+        <div className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-current/10 ${getRoleColor()}`}>
           <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></div>
           <span className="text-[10px] font-black uppercase tracking-widest leading-none">{getRoleLabel()}</span>
         </div>
       </div>
 
-      {/* Navigation Menu */}
-      <nav className="flex-1 px-4 overflow-y-auto no-scrollbar pb-10">
-        <p className="px-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Navigation</p>
+      {/* Navigation */}
+      <nav className="flex-1 px-3 overflow-y-auto no-scrollbar pb-10">
+        <p className="px-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.22em] mb-3">Navigation</p>
         <ul className="space-y-1">
           {filteredMenuItems.map((item) => (
             <li key={item.name}>
@@ -357,13 +363,13 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
                       }
                       toggleSubmenu(item.key);
                     }}
-                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 group ${location.pathname.startsWith(item.path)
-                      ? (openSubmenu === item.key ? 'bg-slate-100 text-slate-900 border-l-4 border-slate-900 ml-0' : 'bg-slate-900 text-white shadow-xl shadow-slate-200')
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl group ${location.pathname.startsWith(item.path)
+                      ? (openSubmenu === item.key ? 'bg-indigo-50 text-indigo-700' : 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-200')
                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                       }`}
                   >
-                    <item.icon size={18} className="transition-transform group-hover:scale-110" />
-                    <span className="font-bold text-sm tracking-tight whitespace-nowrap">{item.name}</span>
+                    <item.icon size={16} className="shrink-0" />
+                    <span className="font-semibold text-[13px] tracking-tight whitespace-nowrap">{item.name}</span>
                     <ChevronDown size={14} className={`ml-auto transition-transform duration-300 ${openSubmenu === item.key ? 'rotate-180' : ''}`} />
                   </button>
 
@@ -398,57 +404,60 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
                   to={item.path}
                   onClick={() => setMobileMenuOpen?.(false)}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-300 group ${isActive
-                      ? 'bg-slate-900 text-white shadow-xl shadow-slate-200'
+                    `flex items-center gap-3 px-4 py-2.5 rounded-xl group ${isActive
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-200'
                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                     }`
                   }
                 >
-                  <item.icon size={18} className="transition-transform group-hover:scale-110" />
-                  <span className="font-bold text-sm tracking-tight">{item.name}</span>
+                  <item.icon size={16} className="shrink-0" />
+                  <span className="font-semibold text-[13px] tracking-tight">{item.name}</span>
                 </NavLink>
               )}
             </li>
           ))}
         </ul>
 
-        {/* Dynamic Action Button based on Role */}
-        <div className="mt-8 px-5">
+        {/* Quick Action */}
+        <div className="mt-6 px-3">
           {role === 'HR' ? (
             <button
               onClick={() => navigate('/employees/add')}
-              className="w-full flex items-center justify-center gap-2 py-3.5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 transition-all shadow-lg active:scale-95 text-[10px] uppercase tracking-widest"
+              style={{ background: 'linear-gradient(135deg, #6366F1, #4F46E5)' }}
+              className="w-full flex items-center justify-center gap-2 py-3 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 active:scale-95 text-[11px] uppercase tracking-wider"
             >
-              <PlusCircle size={16} />
+              <PlusCircle size={14} />
               Add Employee
             </button>
           ) : role === 'Employee' ? (
             <button
               onClick={() => navigate('/employee/profile/edit')}
-              className="w-full flex items-center justify-center gap-2 py-3.5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-lg active:scale-95 text-[10px] uppercase tracking-widest"
+              style={{ background: 'linear-gradient(135deg, #3B82F6, #2563EB)' }}
+              className="w-full flex items-center justify-center gap-2 py-3 text-white font-bold rounded-xl shadow-lg shadow-blue-200 active:scale-95 text-[11px] uppercase tracking-wider"
             >
-              <Users size={16} />
+              <Users size={14} />
               Edit Profile
             </button>
           ) : (
             <button
               onClick={() => navigate('/admin/department-management/create')}
-              className="w-full flex items-center justify-center gap-2 py-3.5 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 transition-all shadow-lg active:scale-95 text-[10px] uppercase tracking-widest"
+              style={{ background: 'linear-gradient(135deg, #1E293B, #334155)' }}
+              className="w-full flex items-center justify-center gap-2 py-3 text-white font-bold rounded-xl shadow-lg shadow-slate-200 active:scale-95 text-[11px] uppercase tracking-wider"
             >
-              <Building2 size={16} />
-              New Dept
+              <Building2 size={14} />
+              New Department
             </button>
           )}
         </div>
       </nav>
 
-      {/* Footer Actions */}
-      <div className="p-4 border-t border-slate-100 bg-white">
+      {/* Footer */}
+      <div className="p-3 border-t border-slate-100">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-5 py-3.5 rounded-xl text-red-500 hover:bg-red-50 transition-all font-black text-xs w-full text-left uppercase tracking-widest group"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 font-semibold text-xs w-full text-left uppercase tracking-wider group"
         >
-          <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
+          <LogOut size={16} className="group-hover:-translate-x-0.5" />
           <span>Sign Out</span>
         </button>
       </div>

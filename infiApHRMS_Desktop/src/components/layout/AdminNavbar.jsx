@@ -107,17 +107,52 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
   const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=4E63F0&color=fff`;
 
   return (
-    <div className="h-16 md:h-20 bg-white border-b border-slate-100 sticky top-0 z-10 flex items-center justify-between px-4 md:px-8 w-full">
-      <div className="flex items-center gap-4 md:gap-6 min-w-0">
+    <div className="h-16 md:h-[60px] bg-white border-b border-slate-100 sticky top-0 z-[35] flex items-center justify-between px-4 md:px-8 w-full gap-4">
+      {/* Left: Menu + Page Title */}
+      <div className="flex items-center gap-3 min-w-0 shrink-0">
         <button 
           onClick={() => setMobileMenuOpen?.(true)}
-          className="p-2 -ml-2 rounded-xl text-slate-400 hover:bg-slate-50 hover:text-slate-600 lg:hidden transition-colors"
+          className="p-2 -ml-1.5 rounded-xl text-slate-400 hover:bg-slate-50 hover:text-slate-600 lg:hidden"
         >
-          <Menu size={24} />
+          <Menu size={22} />
         </button>
-        <div className="min-w-0">
-          <p className="hidden md:block text-[9px] font-black uppercase tracking-[0.25em] text-slate-400">Admin Workspace</p>
-          <h1 className="text-lg md:text-xl font-black text-slate-900 tracking-tight truncate">{getPageTitle()}</h1>
+        <div className="min-w-0 hidden sm:block">
+          <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400">Admin Workspace</p>
+          <h1 className="text-base font-black text-slate-900 tracking-tight truncate leading-tight">{getPageTitle()}</h1>
+        </div>
+      </div>
+
+      {/* Center: Search */}
+      <div className="flex-1 max-w-sm hidden md:block" ref={searchRef}>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+          <input
+            type="text"
+            placeholder="Search employees, departments..."
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setShowSearchResults(e.target.value.length > 0); }}
+            onFocus={() => searchTerm && setShowSearchResults(true)}
+            className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-4 py-2 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:ring-4 focus:ring-indigo-500/8 focus:border-indigo-300 focus:bg-white outline-none"
+          />
+          {showSearchResults && filteredResults.length > 0 && (
+            <div className="absolute top-full mt-2 w-full bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden z-50">
+              {filteredResults.map((result, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => { navigate(result.path); setShowSearchResults(false); setSearchTerm(''); }}
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                    <result.icon size={13} className="text-indigo-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-slate-800 truncate">{result.name || result.title}</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">{result.type}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -284,7 +319,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
                 {[
                   { label: 'View Profile', icon: User, path: '/admin/profile' },
                   { label: 'Edit Profile', icon: Settings, path: '/admin/profile/edit' },
-                  { label: 'Reset Password', icon: Key, path: '/reset-password' },
+                  { label: 'Reset Password', icon: Key, path: '/admin/profile/change-password' },
                 ].map((item) => (
                   <button
                     key={item.label}

@@ -7,11 +7,18 @@ import {
     EyeOff,
     Check,
     AlertCircle,
-    Loader2
+    Loader2,
+    ShieldCheck,
+    Users,
+    UserCog
 } from 'lucide-react';
 import AuthLayout from '../../components/layout/AuthLayout';
-
 import { useAuth } from '../../context/AuthContext';
+
+const ROLES = [
+    { value: 'admin', label: 'Admin', icon: ShieldCheck },
+    { value: 'hr', label: 'HR', icon: UserCog },
+];
 
 const Login = () => {
     const navigate = useNavigate();
@@ -49,14 +56,12 @@ const Login = () => {
         }
 
         if (result.requires2FA) {
-            // Navigate to 2FA page — the pending2FA state is in AuthContext
             navigate('/2fa', { 
                 state: { devOtp: result.devOtp } 
             });
             return;
         }
 
-        // Direct login (no 2FA) — redirect based on role
         redirectByRole(result.role);
     };
 
@@ -75,32 +80,37 @@ const Login = () => {
 
     return (
         <AuthLayout>
-            <div className="bg-white p-7 rounded-2xl shadow-[0_22px_40px_-20px_rgba(45,55,110,0.35)] border border-[#E4E9F5] flex flex-col w-full">
+            <div className="bg-white p-8 rounded-2xl shadow-[0_24px_48px_-12px_rgba(45,55,110,0.18)] border border-[#E8EDF5] flex flex-col w-full">
                 
-                {/* Header Cluster */}
-                <div className="text-center mb-6">
-                    <h1 className="text-4xl font-black text-[#1F2754] tracking-tight mb-2">Welcome Back</h1>
-                    <p className="text-[10px] font-black text-[#7C87AE] uppercase tracking-[0.2em] leading-relaxed max-w-xs mx-auto">
-                        Sign in to access your InfiAP HR dashboard.
+                {/* Header */}
+                <div className="text-center mb-7">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-3">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                        Secure Login
+                    </div>
+                    <h1 className="text-3xl font-black text-[#1A2052] tracking-tight mb-1.5">Welcome Back</h1>
+                    <p className="text-[13px] font-medium text-[#7C87AE] leading-relaxed">
+                        Sign in to access your InfiAP HR dashboard
                     </p>
                 </div>
 
                 {/* Error Alert */}
                 {displayError && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                        <AlertCircle size={16} className="text-red-500 shrink-0" />
-                        <p className="text-xs font-semibold text-red-600">{displayError}</p>
+                    <div className="mb-5 p-3.5 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <AlertCircle size={15} className="text-red-500 shrink-0 mt-0.5" />
+                        <p className="text-xs font-semibold text-red-600 leading-relaxed">{displayError}</p>
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-5">
                     
                     {/* Form Fields */}
-                    <div className="space-y-3">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-[#8E98BC] uppercase tracking-[0.2em] ml-1">Email</label>
+                    <div className="space-y-4">
+                        {/* Email */}
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-[#8E98BC] uppercase tracking-[0.18em] ml-0.5">Email Address</label>
                             <div className="relative group">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#93A0C7] group-focus-within:text-[#4E63F0] transition-colors" size={16} />
+                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#93A0C7] group-focus-within:text-[#4E63F0] transition-colors" size={15} />
                                 <input 
                                     type="email"
                                     name="email"
@@ -108,24 +118,25 @@ const Login = () => {
                                     onChange={handleChange} 
                                     required
                                     placeholder="name@company.com"
-                                    className="w-full bg-[#F3F6FC] border border-[#E4E9F5] rounded-xl pl-11 pr-4 py-3 text-sm font-medium text-[#2D3865] placeholder:text-[#A2AED0] focus:ring-4 focus:ring-[#4E63F0]/10 focus:bg-white focus:border-[#4E63F0] transition-all outline-none"
+                                    className="w-full bg-[#F4F7FC] border border-[#E8EDF5] rounded-xl pl-10 pr-4 py-3 text-sm font-medium text-[#2D3865] placeholder:text-[#B0BBDB] focus:ring-4 focus:ring-[#4E63F0]/10 focus:bg-white focus:border-[#4E63F0] outline-none"
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between px-1">
-                                <label className="text-[10px] font-black text-[#8E98BC] uppercase tracking-[0.2em]">Password</label>
+                        {/* Password */}
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between px-0.5">
+                                <label className="text-[11px] font-bold text-[#8E98BC] uppercase tracking-[0.18em]">Password</label>
                                 <button 
                                     type="button"
                                     onClick={() => navigate('/reset-password')}
-                                    className="text-[10px] font-bold text-[#4E63F0] hover:underline"
+                                    className="text-[11px] font-semibold text-[#4E63F0] hover:text-[#3D4FD6] hover:underline"
                                 >
                                     Forgot password?
                                 </button>
                             </div>
                             <div className="relative group">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#93A0C7] group-focus-within:text-[#4E63F0] transition-colors" size={16} />
+                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#93A0C7] group-focus-within:text-[#4E63F0] transition-colors" size={15} />
                                 <input 
                                     type={showPassword ? "text" : "password"}
                                     name="password"
@@ -133,22 +144,22 @@ const Login = () => {
                                     onChange={handleChange}
                                     required
                                     placeholder="••••••••"
-                                    className="w-full bg-[#F3F6FC] border border-[#E4E9F5] rounded-xl pl-11 pr-11 py-3 text-sm font-medium text-[#2D3865] placeholder:text-[#A2AED0] focus:ring-4 focus:ring-[#4E63F0]/10 focus:bg-white focus:border-[#4E63F0] transition-all outline-none"
+                                    className="w-full bg-[#F4F7FC] border border-[#E8EDF5] rounded-xl pl-10 pr-11 py-3 text-sm font-medium text-[#2D3865] placeholder:text-[#B0BBDB] focus:ring-4 focus:ring-[#4E63F0]/10 focus:bg-white focus:border-[#4E63F0] outline-none"
                                 />
                                 <button 
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#93A0C7] hover:text-[#4E63F0] transition-colors"
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#93A0C7] hover:text-[#4E63F0] p-0.5"
                                 >
-                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                                 </button>
                             </div>
                         </div>
                     </div>
 
                     {/* Remember Me */}
-                    <div className="flex items-center px-1">
-                        <label className="flex items-center gap-3 cursor-pointer group">
+                    <div className="flex items-center px-0.5">
+                        <label className="flex items-center gap-2.5 cursor-pointer group">
                             <div className="relative">
                                 <input 
                                     type="checkbox" 
@@ -156,36 +167,50 @@ const Login = () => {
                                     checked={rememberMe}
                                     onChange={() => setRememberMe(!rememberMe)}
                                 />
-                                <div className="w-4 h-4 bg-white border border-[#D5CDED] rounded peer-checked:bg-[#6C5CE7] peer-checked:border-[#6C5CE7] transition-all"></div>
-                                <Check size={12} className="absolute inset-0 m-auto text-white opacity-0 peer-checked:opacity-100 transition-opacity stroke-4" />
+                                <div className="w-4 h-4 bg-white border border-[#CBD5E1] rounded peer-checked:bg-[#4E63F0] peer-checked:border-[#4E63F0] shadow-sm" />
+                                <Check size={10} className="absolute inset-0 m-auto text-white opacity-0 peer-checked:opacity-100" strokeWidth={3} />
                             </div>
-                            <span className="text-[11px] font-semibold text-[#6D79A2] group-hover:text-[#4E63F0] transition-colors">Remember me</span>
+                            <span className="text-[12px] font-semibold text-[#6D79A2] group-hover:text-[#4E63F0]">Remember me for 30 days</span>
                         </label>
                     </div>
 
-                    {/* Role select */}
-                    <div className="mt-2">
-                        <label className="text-[10px] font-black text-[#8E98BC] uppercase tracking-[0.2em] ml-1">Role</label>
-                        <select
-                            value={selectedRole}
-                            onChange={(e) => setSelectedRole(e.target.value)}
-                            className="w-full mt-2 bg-[#F3F6FC] border border-[#E4E9F5] rounded-xl py-3 px-4 text-sm font-medium text-[#2D3865]"
-                        >
-                            <option value="admin">Admin</option>
-                            <option value="hr">HR</option>
-                            <option value="employee">Employee</option>
-                        </select>
+                    {/* Role Selector — Premium Toggle Buttons */}
+                    <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-[#8E98BC] uppercase tracking-[0.18em] ml-0.5">Sign in as</label>
+                        <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-[#F4F7FC] rounded-xl border border-[#E8EDF5]">
+                            {ROLES.map(({ value, label, icon: Icon }) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setSelectedRole(value)}
+                                    className={`relative flex flex-col items-center gap-1.5 py-3 px-2 rounded-lg transition-all duration-300 ease-in-out overflow-hidden ${
+                                        selectedRole === value
+                                            ? 'bg-white shadow-md border border-[#4E63F0]/20 text-[#4E63F0] transform scale-[1.02]'
+                                            : 'text-[#94A3B8] hover:text-[#64748B] hover:bg-white/80'
+                                    }`}
+                                >
+                                    {selectedRole === value && (
+                                        <div className="absolute inset-0 bg-gradient-to-br from-[#4E63F0]/5 to-transparent rounded-lg" />
+                                    )}
+                                    <Icon size={18} strokeWidth={selectedRole === value ? 2.5 : 2} className="relative z-10" />
+                                    <span className={`text-[11px] font-black uppercase tracking-widest leading-none relative z-10 ${
+                                        selectedRole === value ? 'text-[#4E63F0]' : 'text-[#94A3B8]'
+                                    }`}>{label}</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Sign In Button */}
                     <button 
                         type="submit"
                         disabled={isSubmitting}
-                        className={`w-full py-3 text-white text-sm font-bold rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-[#4E63F0]/20 flex items-center justify-center gap-2 ${
-                            isSubmitting 
-                                ? 'bg-[#4E63F0]/70 cursor-wait' 
-                                : 'bg-linear-to-r from-[#4E63F0] to-[#6855E8] hover:shadow-xl hover:shadow-[#4E63F0]/20'
-                        }`}
+                        style={{
+                            background: isSubmitting
+                                ? 'linear-gradient(135deg, rgba(78,99,240,0.7), rgba(104,85,232,0.7))'
+                                : 'linear-gradient(135deg, #4E63F0, #6855E8)',
+                        }}
+                        className="w-full py-3.5 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 flex items-center justify-center gap-2 mt-1 active:scale-[0.98]"
                     >
                         {isSubmitting ? (
                             <>
@@ -193,10 +218,9 @@ const Login = () => {
                                 Authenticating...
                             </>
                         ) : (
-                            'Sign In'
+                            'Sign In to InfiAP'
                         )}
                     </button>
-
 
                 </form>
             </div>

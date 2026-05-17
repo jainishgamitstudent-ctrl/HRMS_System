@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
     ArrowLeft, 
     X, 
@@ -9,16 +9,17 @@ import {
     Save, 
     ChevronDown,
     DollarSign,
-    CheckCircle2
+    CheckCircle2,
+    Briefcase
 } from 'lucide-react';
-import { useJobContext } from '../../../context/JobContext';
-import { useNotifications } from '../../../context/NotificationContext';
+import { useAdminDashboard } from '../../../context/AdminDashboardContext';
 
-const CreateJob = () => {
+const EditJob = () => {
+    const { id } = useParams();
     const navigate = useNavigate();
-    const { addJob } = useJobContext();
-    const { addNotification } = useNotifications();
-    const [skills, setSkills] = useState(['React', 'Node.js', 'Tailwind CSS']);
+    const { jobs, updateJob, loading } = useAdminDashboard();
+    
+    const [skills, setSkills] = useState([]);
     const [skillInput, setSkillInput] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
     const [formData, setFormData] = useState({
@@ -29,8 +30,33 @@ const CreateJob = () => {
         salary: '',
         location: '',
         deadline: '',
+        status: 'Active',
         description: ''
     });
+
+    useEffect(() => {
+        const job = jobs.find(j => String(j.id) === String(id));
+        if (job) {
+            setFormData({
+                title: job.title || '',
+                department: job.department || 'Engineering',
+                type: job.type || 'Full-time',
+                experience: job.experience || 'Mid (3-5 years)',
+                salary: job.salary || '',
+                location: job.location || '',
+                deadline: job.deadline ? job.deadline.slice(0, 10) : '',
+                status: job.status || 'Active',
+                description: job.description || ''
+            });
+            if (Array.isArray(job.requirements)) {
+                setSkills(job.requirements);
+            } else if (Array.isArray(job.skills)) {
+                setSkills(job.skills);
+            } else {
+                setSkills(['React', 'Node.js', 'Tailwind CSS']);
+            }
+        }
+    }, [id, jobs]);
 
     const handleAddSkill = (e) => {
         if (e.key === 'Enter' && skillInput.trim()) {
@@ -48,14 +74,9 @@ const CreateJob = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        await addJob({
+        await updateJob(id, {
             ...formData,
             skills
-        });
-        addNotification({
-            title: 'Job Posting Live',
-            message: `The position "${formData.title}" is now active in ${formData.department} division.`,
-            type: 'success'
         });
         setShowSuccess(true);
         setTimeout(() => {
@@ -76,8 +97,8 @@ const CreateJob = () => {
                         <ArrowLeft size={24} className="group-hover:-translate-x-1 transition-transform" />
                     </button>
                     <div>
-                        <h1 className="text-3xl font-bold text-slate-800 tracking-tight mb-1">Create Job Posting</h1>
-                        <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Fill in the details to post a new job opening</p>
+                        <h1 className="text-3xl font-bold text-slate-800 tracking-tight mb-1">Edit Job Posting</h1>
+                        <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Modify the details for this active recruitment node</p>
                     </div>
                 </div>
             </div>
@@ -86,7 +107,7 @@ const CreateJob = () => {
                 {/* Main Form Area */}
                 <div className="lg:col-span-2 space-y-8">
                     <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-10">
-                        {/* Section 1: Core Identification */}
+                        {/* Section 1: Basic Info */}
                         <div className="space-y-6">
                             <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Basic Information</h3>
                             <div className="space-y-2">
@@ -171,7 +192,7 @@ const CreateJob = () => {
                             </div>
                         </div>
 
-                        {/* Section 3: Skills & Description */}
+                        {/* Section 3: Requirements */}
                         <div className="space-y-6 pt-6 border-t border-slate-50">
                             <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Requirements</h3>
                             <div className="space-y-2">
@@ -215,22 +236,41 @@ const CreateJob = () => {
                 <div className="space-y-6">
                     <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm sticky top-12 space-y-8">
                         <div>
-                            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-6">Actions</h4>
-                            <div className="space-y-4">
-                                <button 
-                                    type="submit"
-                                    className="w-full py-4 bg-indigo-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
-                                >
-                                    <Rocket size={18} />
-                                    Post Job
-                                </button>
-                                <button 
-                                    type="button"
-                                    className="w-full py-4 border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
-                                >
-                                    <Save size={18} />
-                                    Save Draft
-                                </button>
+                            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-6">Status & Save</h4>
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Recruitment Status</label>
+                                    <div className="relative">
+                                        <select 
+                                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-5 py-3.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all appearance-none cursor-pointer"
+                                            value={formData.status}
+                                            onChange={(e) => setFormData({...formData, status: e.target.value})}
+                                        >
+                                            <option value="Active">Active / Open</option>
+                                            <option value="Filled">Filled</option>
+                                            <option value="Closed">Closed</option>
+                                            <option value="On Hold">On Hold</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                                    </div>
+                                </div>
+                                
+                                <div className="space-y-4 pt-2">
+                                    <button 
+                                        type="submit"
+                                        className="w-full py-4 bg-indigo-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+                                    >
+                                        <Save size={18} />
+                                        Save Changes
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => navigate('/admin/recruitment-control')}
+                                        className="w-full py-4 border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div className="pt-6 border-t border-slate-50">
@@ -257,8 +297,8 @@ const CreateJob = () => {
                         <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg shadow-emerald-50">
                             <CheckCircle2 size={40} strokeWidth={3} />
                         </div>
-                        <h2 className="text-3xl font-bold text-slate-800 tracking-tight mb-4">Job Posted Successfully</h2>
-                        <p className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-10">The job opening is now live and visible to candidates.</p>
+                        <h2 className="text-3xl font-bold text-slate-800 tracking-tight mb-4">Job Updated Successfully</h2>
+                        <p className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-10">The recruitment node changes are now live and propagated.</p>
                         <div className="flex flex-col md:flex-row items-center gap-4">
                             <button 
                                 onClick={() => navigate('/admin/recruitment-control')}
@@ -274,4 +314,4 @@ const CreateJob = () => {
     );
 };
 
-export default CreateJob;
+export default EditJob;

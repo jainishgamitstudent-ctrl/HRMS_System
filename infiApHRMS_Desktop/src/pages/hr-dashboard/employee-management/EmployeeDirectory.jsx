@@ -38,7 +38,7 @@ const EmployeeDirectory = () => {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const { employees = [], loading, fetchEmployees, deleteEmployee, pagination } = useEmployeeContext();
-  const { departments = [], fetchDepartments } = useAdminDashboard();
+  const { departments = [], fetchDepartments, silentRefreshAll } = useAdminDashboard();
 
   // Load departments once if empty. Employees are auto-fetched by EmployeeContext.
   useEffect(() => {
@@ -85,6 +85,23 @@ const EmployeeDirectory = () => {
     const query = searchQuery.toLowerCase().trim();
     
     return (employees || []).filter(emp => {
+      // Filter out strict new hires / onboarding employees so they only show in New Hires module
+      const isOnboarding = emp.status === 'New Hire' || emp.status === 'Onboarding' || emp.status === 'Pending';
+      const dateStr = emp.joiningDate || emp.createdAt;
+      
+      let isStrictNewHire = false;
+      if (isOnboarding) {
+        isStrictNewHire = true;
+      } else if (dateStr) {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(now.getDate() - 7);
+        isStrictNewHire = date >= sevenDaysAgo && (emp.status === 'New Hire' || emp.status === 'Onboarding' || emp.status === 'Pending');
+      }
+
+      if (isStrictNewHire) return false;
+
       const name = (emp.name || '').toLowerCase();
       const email = (emp.email || '').toLowerCase();
       const dept = (emp.department || '').toLowerCase();
@@ -120,6 +137,9 @@ const EmployeeDirectory = () => {
         const result = await deleteEmployee(id);
         if (result.success) {
           showNotification(`Employee ${name} deleted successfully.`);
+          if (typeof silentRefreshAll === 'function') {
+            silentRefreshAll();
+          }
         } else {
           showNotification(result.error || "Failed to delete employee.");
         }

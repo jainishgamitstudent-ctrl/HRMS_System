@@ -84,7 +84,7 @@ const Navbar = ({ setMobileMenuOpen }) => {
   const displayRole = 'HR Panel';
 
   return (
-    <div className="h-16 md:h-20 bg-white border-b border-[#E7EBF7] sticky top-0 z-10 flex items-center justify-between px-3 md:px-8 w-full">
+    <div className="h-16 md:h-20 bg-white border-b border-[#E7EBF7] sticky top-0 z-[35] flex items-center justify-between px-3 md:px-8 w-full">
       
       <div className="flex items-center gap-4 md:gap-6 flex-1 max-w-2xl">
         <button 
@@ -257,9 +257,9 @@ const Navbar = ({ setMobileMenuOpen }) => {
               
               <div className="p-2">
                 {[
-                  { label: 'View Profile', icon: User, path: '/profile' },
-                  { label: 'Edit Profile', icon: Settings, path: '/profile/edit' },
-                  { label: 'Reset Password', icon: Key, path: '/reset-password' },
+                  { label: 'View Profile', icon: User, path: user?.role === 'Employee' ? '/employee/profile' : '/profile' },
+                  { label: 'Edit Profile', icon: Settings, path: user?.role === 'Employee' ? '/employee/profile/edit' : '/profile/edit' },
+                  { label: 'Reset Password', icon: Key, path: user?.role === 'Employee' ? '/employee/profile/change-password' : '/profile/change-password' },
                 ].map((item) => (
                   <button
                     key={item.label}

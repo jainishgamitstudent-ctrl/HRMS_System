@@ -11,7 +11,7 @@ const AdminLayout = ({ children }) => {
       <Sidebar mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
       
       {/* Right Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 lg:ml-80">
+      <div className="flex-1 flex flex-col min-w-0 lg:ml-72">
         <AdminNavbar setMobileMenuOpen={setMobileMenuOpen} />
         <main className="p-4 md:p-6 lg:p-10 w-full animate-in fade-in duration-500">
           <div className="w-full max-w-[1440px] mx-auto">

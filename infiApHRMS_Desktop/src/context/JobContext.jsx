@@ -143,17 +143,19 @@ export const JobProvider = ({ children }) => {
     totalApplicants: jobs.reduce((acc, current) => acc + (current.applicants || 0), 0),
   }), [jobs]);
 
+  const contextValue = useMemo(() => ({
+    jobs,
+    addJob,
+    updateJob,
+    deleteJob,
+    totals,
+    loading,
+    error,
+    fetchJobs
+  }), [jobs, totals, loading, error, fetchJobs]);
+
   return (
-    <JobContext.Provider value={{ 
-      jobs, 
-      addJob, 
-      updateJob, 
-      deleteJob, 
-      totals, 
-      loading, 
-      error, 
-      fetchJobs 
-    }}>
+    <JobContext.Provider value={contextValue}>
       {children}
     </JobContext.Provider>
   );

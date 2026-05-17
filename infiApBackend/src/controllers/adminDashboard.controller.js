@@ -324,6 +324,9 @@ const updateAdminProfileFields = async (adminId, payload) => {
 // --- 1. Dashboard Summary Stats ---
 exports.getSummaryStats = async (req, res) => {
     try {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
         const [
             totalDepartments,
             activeDepartments,
@@ -333,7 +336,8 @@ exports.getSummaryStats = async (req, res) => {
             activeTeams,
             activeJobs,
             pendingLeaves,
-            resignations
+            resignations,
+            newHires
         ] = await Promise.all([
             Department.countDocuments(),
             Department.countDocuments({ isActive: true }),
@@ -343,7 +347,15 @@ exports.getSummaryStats = async (req, res) => {
             Team.countDocuments({ isActive: true }),
             Job.countDocuments({ status: "Open" }),
             LeaveApplication.countDocuments({ ApprovalStatus: "Awaiting Approve" }),
-            Resignation.countDocuments({ status: { $in: ["Submitted", "Under Review"] } })
+            Resignation.countDocuments({ status: { $in: ["Submitted", "Under Review"] } }),
+            User.countDocuments({
+                role: { $in: ["employee", "hr", "admin"] },
+                status: { $ne: "Terminate" },
+                $or: [
+                    { status: { $in: ["New Hire", "Onboarding", "Pending"] } },
+                    { joiningDate: { $gte: sevenDaysAgo } }
+                ]
+            })
         ]);
 
         res.status(200).json({
@@ -361,7 +373,8 @@ exports.getSummaryStats = async (req, res) => {
                 activeJobs,
                 openJobs: activeJobs,
                 pendingLeaves,
-                resignations
+                resignations,
+                newHires
             }
         });
     } catch (error) {
@@ -873,7 +886,7 @@ exports.getDepartmentAddEmployeeForm = async (req, res) => {
 
 exports.addDepartmentEmployee = async (req, res) => {
     try {
-        const { fullName, name, email, designation, department, password } = req.body;
+        const { fullName, name, email, designation, department, password, status, joiningDate } = req.body;
 
         const normalizedName = (fullName || name || "").trim();
         const normalizedEmail = (email || "").trim().toLowerCase();
@@ -910,15 +923,21 @@ exports.addDepartmentEmployee = async (req, res) => {
             return res.status(404).json({ success: false, message: "Department not found or inactive" });
         }
 
-        const employee = await User.create({
+        const employeePayload = {
             name: normalizedName,
             email: normalizedEmail,
             password: String(password),
             role: "employee",
             designation: normalizedDesignation,
             department: departmentDoc.name,
-            isEmailVerified: true
-        });
+            isEmailVerified: true,
+            status: status || "Active"
+        };
+        if (joiningDate) {
+            employeePayload.joiningDate = new Date(joiningDate);
+        }
+
+        const employee = await User.create(employeePayload);
 
         const createdEmployee = await User.findById(employee._id).select("-password -refreshToken");
 
@@ -964,7 +983,23 @@ exports.getDepartments = async (req, res) => {
 exports.updateDepartment = async (req, res) => {
     try {
         const { id } = req.params;
-        const dept = await Department.findByIdAndUpdate(id, req.body, { new: true });
+        const updateData = { ...req.body };
+
+        // Map frontend fields to schema fields
+        if (updateData.manager !== undefined) {
+            updateData.head = updateData.manager || null;
+            delete updateData.manager;
+        }
+        if (updateData.teams !== undefined) {
+            updateData.numberOfTeams = Number(updateData.teams) || 0;
+            delete updateData.teams;
+        }
+        if (updateData.departmentName !== undefined) {
+            updateData.name = updateData.departmentName;
+            delete updateData.departmentName;
+        }
+
+        const dept = await Department.findByIdAndUpdate(id, updateData, { new: true }).populate("head", "name email designation role");
         res.status(200).json({ success: true, data: dept });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

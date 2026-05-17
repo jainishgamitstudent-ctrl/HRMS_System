@@ -312,8 +312,7 @@ export const AdminDashboardProvider = ({ children }) => {
       const res = await api.post('/admin-dashboard/departments', requestPayload);
       const created = normalizeDepartment(res.data?.data || requestPayload);
       setDepartments((prev) => [created, ...prev]);
-      await fetchDepartments();
-      await fetchSummary();
+      await silentRefreshAll();
       addToast('success', 'Department created successfully!');
       return { success: true, data: created };
     } catch (error) {
@@ -330,9 +329,8 @@ export const AdminDashboardProvider = ({ children }) => {
     try {
       const res = await api.patch(`/admin-dashboard/departments/${deptId}`, payload);
       const updated = normalizeDepartment(res.data?.data || payload);
-      setDepartments((prev) => prev.map((dept) => (dept.id === deptId ? updated : dept)));
-      await fetchDepartments();
-      await fetchSummary();
+      setDepartments((prev) => prev.map((dept) => (String(dept.id) === String(deptId) ? updated : dept)));
+      await silentRefreshAll();
       addToast('success', 'Department updated successfully!');
       return { success: true, data: updated };
     } catch (error) {
@@ -348,8 +346,8 @@ export const AdminDashboardProvider = ({ children }) => {
   const deleteDepartment = async (deptId) => {
     try {
       await api.delete(`/admin-dashboard/departments/${deptId}`);
-      setDepartments((prev) => prev.filter((dept) => dept.id !== deptId));
-      await fetchSummary();
+      setDepartments((prev) => prev.filter((dept) => String(dept.id) !== String(deptId)));
+      await silentRefreshAll();
       addToast('success', 'Department deleted successfully');
       return { success: true };
     } catch (error) {
@@ -375,7 +373,7 @@ export const AdminDashboardProvider = ({ children }) => {
       const res = await api.post('/admin-dashboard/teams', requestPayload);
       const created = normalizeTeam(res.data?.data || requestPayload);
       setTeams((prev) => [created, ...prev]);
-      await fetchSummary();
+      await silentRefreshAll();
       addToast('success', 'Team created successfully!');
       return { success: true, data: created };
     } catch (error) {
@@ -392,9 +390,8 @@ export const AdminDashboardProvider = ({ children }) => {
     try {
       const res = await api.patch(`/admin-dashboard/teams/${teamId}`, payload);
       const updated = normalizeTeam(res.data?.data || payload);
-      setTeams((prev) => prev.map((team) => (team.id === teamId ? updated : team)));
-      await fetchTeams();
-      await fetchSummary();
+      setTeams((prev) => prev.map((team) => (String(team.id) === String(teamId) ? updated : team)));
+      await silentRefreshAll();
       addToast('success', 'Team updated successfully!');
       return { success: true, data: updated };
     } catch (error) {
@@ -410,8 +407,8 @@ export const AdminDashboardProvider = ({ children }) => {
   const deleteTeam = async (teamId) => {
     try {
       await api.delete(`/admin-dashboard/teams/${teamId}`);
-      setTeams((prev) => prev.filter((team) => team.id !== teamId));
-      await fetchSummary();
+      setTeams((prev) => prev.filter((team) => String(team.id) !== String(teamId)));
+      await silentRefreshAll();
       addToast('success', 'Team deleted successfully');
       return { success: true };
     } catch (error) {
@@ -453,7 +450,7 @@ export const AdminDashboardProvider = ({ children }) => {
       console.log('[addJob] Success:', res.data);
       const created = normalizeJob(res.data?.data || requestPayload);
       setJobs((prev) => [created, ...prev]);
-      await fetchSummary();
+      await silentRefreshAll();
       addToast('success', 'Job posted successfully!');
       return { success: true, data: created };
     } catch (error) {
@@ -463,6 +460,85 @@ export const AdminDashboardProvider = ({ children }) => {
         success: false,
         error: msg
       };
+    }
+  };
+
+  const updateJob = async (jobId, payload) => {
+    let experienceYears = payload.experienceYears;
+    if (payload.experience && !experienceYears) {
+      const expMap = {
+        'Entry (0-2 years)': 1,
+        'Mid (3-5 years)': 4,
+        'Senior (6+ years)': 7,
+        'Lead / Principal': 10
+      };
+      experienceYears = expMap[payload.experience] ?? Number(payload.experience) ?? 1;
+    }
+
+    const requestPayload = {
+      title: payload.title,
+      department: payload.department,
+      type: payload.type,
+      description: payload.description,
+      experienceYears,
+      location: payload.location,
+      closingDate: payload.deadline,
+      status: payload.status,
+      requirements: Array.isArray(payload.skills) ? payload.skills : payload.requirements
+    };
+
+    try {
+      const res = await api.patch(`/admin-dashboard/jobs/${jobId}`, requestPayload);
+      const updated = normalizeJob(res.data?.data || payload);
+      setJobs((prev) => prev.map((j) => (String(j.id) === String(jobId) ? updated : j)));
+      await silentRefreshAll();
+      addToast('success', 'Job updated successfully!');
+      return { success: true, data: updated };
+    } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to update job';
+      addToast('error', msg);
+      return {
+        success: false,
+        error: msg
+      };
+    }
+  };
+
+  const deleteJob = async (jobId) => {
+    try {
+      await api.delete(`/admin-dashboard/jobs/${jobId}`);
+      setJobs((prev) => prev.filter((j) => String(j.id) !== String(jobId)));
+      await silentRefreshAll();
+      addToast('success', 'Job deleted successfully');
+      return { success: true };
+    } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to delete job';
+      addToast('error', msg);
+      return {
+        success: false,
+        error: msg
+      };
+    }
+  };
+
+  const silentRefreshAll = async () => {
+    if (!isAdminView) {
+      return;
+    }
+    try {
+      await Promise.all([
+        fetchDepartments(),
+        fetchTeams(),
+        fetchJobs(),
+        fetchStaffDirectory(),
+        fetchPendingLeaves(),
+        fetchActivities(),
+        fetchInsights(),
+        fetchResignations()
+      ]);
+      await fetchSummary();
+    } catch (error) {
+      console.error('Failed to silently refresh dashboard data:', error);
     }
   };
 
@@ -503,39 +579,45 @@ export const AdminDashboardProvider = ({ children }) => {
     totalApplicants: jobs.reduce((acc, current) => acc + (current.applicants || 0), 0)
   }), [departments, teams, jobs]);
 
+  const contextValue = useMemo(() => ({
+    loading,
+    summary,
+    insights,
+    departments,
+    teams,
+    jobs,
+    staffDirectory,
+    pendingLeaves,
+    activities,
+    resignations,
+    totals,
+    refreshAll,
+    silentRefreshAll,
+    fetchSummary,
+    fetchInsights,
+    fetchDepartments,
+    fetchTeams,
+    fetchJobs,
+    fetchStaffDirectory,
+    fetchPendingLeaves,
+    fetchActivities,
+    fetchResignations,
+    addDepartment,
+    updateDepartment,
+    deleteDepartment,
+    addTeam,
+    updateTeam,
+    deleteTeam,
+    addJob,
+    updateJob,
+    deleteJob
+  }), [
+    loading, summary, insights, departments, teams, jobs, staffDirectory,
+    pendingLeaves, activities, resignations, totals
+  ]);
+
   return (
-    <AdminDashboardContext.Provider
-      value={{
-        loading,
-        summary,
-        insights,
-        departments,
-        teams,
-        jobs,
-        staffDirectory,
-        pendingLeaves,
-        activities,
-        resignations,
-        totals,
-        refreshAll,
-        fetchSummary,
-        fetchInsights,
-        fetchDepartments,
-        fetchTeams,
-        fetchJobs,
-        fetchStaffDirectory,
-        fetchPendingLeaves,
-        fetchActivities,
-        fetchResignations,
-        addDepartment,
-        updateDepartment,
-        deleteDepartment,
-        addTeam,
-        updateTeam,
-        deleteTeam,
-        addJob
-      }}
-    >
+    <AdminDashboardContext.Provider value={contextValue}>
       {children}
     </AdminDashboardContext.Provider>
   );

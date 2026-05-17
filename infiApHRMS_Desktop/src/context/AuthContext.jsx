@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { authService } from '../services/auth.service';
 import apiClient from '../services/apiClient';
 import { tokenStore } from '../services/tokenStore';
@@ -271,30 +271,35 @@ export const AuthProvider = ({ children }) => {
     setRole(normalizedRole);
   };
 
+  const contextValue = useMemo(() => ({
+    user,
+    role,
+    token,
+    loading,
+    error,
+    pending2FA,
+    isAuthenticated: !!user,
+    login,
+    verify2FA,
+    register,
+    logout,
+    switchRole,
+    fetchProfile,
+    fetchAllUsers,
+    deleteUser,
+    createAdmin,
+    createHR,
+    createEmployee,
+    setError,
+  }), [
+    user, role, token, loading, error, pending2FA,
+    login, verify2FA, register, logout, switchRole,
+    fetchProfile, fetchAllUsers, deleteUser,
+    createAdmin, createHR, createEmployee
+  ]);
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        role,
-        token,
-        loading,
-        error,
-        pending2FA,
-        isAuthenticated: !!user,  // true if user is hydrated (cookie OR token auth)
-        login,
-        verify2FA,
-        register,
-        logout,
-        switchRole,
-        fetchProfile,
-        fetchAllUsers,
-        deleteUser,
-        createAdmin,
-        createHR,
-        createEmployee,
-        setError,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

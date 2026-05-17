@@ -49,6 +49,16 @@ export const PolicyProvider = ({ children }) => {
         }
     };
 
+    const updatePolicy = async (id, policyData) => {
+        try {
+            const res = await api.patch(`/policies/${id}`, policyData);
+            setPolicies(policies.map(p => p._id === id ? res.data.data : p));
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.response?.data?.error || 'An error occurred' };
+        }
+    };
+
     return (
         <PolicyContext.Provider value={{
             policies,
@@ -56,7 +66,8 @@ export const PolicyProvider = ({ children }) => {
             error,
             fetchPolicies,
             addPolicy,
-            removePolicy
+            removePolicy,
+            updatePolicy
         }}>
             {children}
         </PolicyContext.Provider>

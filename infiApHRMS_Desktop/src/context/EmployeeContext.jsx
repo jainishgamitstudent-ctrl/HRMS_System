@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { getEmployees, createEmployee as apiCreateEmployee, updateEmployee as apiUpdateEmployee, getEmployeeProfile as apiGetEmployeeProfile, deleteEmployee as apiDeleteEmployee } from '../services/hrApi';
 import { useAuth } from './AuthContext';
 
@@ -223,21 +223,21 @@ export const EmployeeProvider = ({ children }) => {
     setEmployees(prev => prev.filter(emp => emp.id !== id && emp._id !== id));
   };
 
+  const contextValue = useMemo(() => ({
+    employees,
+    loading,
+    error,
+    pagination,
+    fetchEmployees,
+    addEmployee,
+    updateEmployee,
+    removeEmployee,
+    deleteEmployee,
+    getProfile,
+  }), [employees, loading, error, pagination, fetchEmployees]);
+
   return (
-    <EmployeeContext.Provider
-      value={{
-        employees,
-        loading,
-        error,
-        pagination,
-        fetchEmployees,
-        addEmployee,
-        updateEmployee,
-        removeEmployee,
-        deleteEmployee,
-        getProfile,
-      }}
-    >
+    <EmployeeContext.Provider value={contextValue}>
       {children}
     </EmployeeContext.Provider>
   );

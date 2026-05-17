@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, FileText, Clock, Loader2, X, ExternalLink, ShieldCheck, FileCheck, Scale } from 'lucide-react';
 import api from '../../../utils/axios';
+import { usePolicyContext } from '../../../context/PolicyContext';
 
 const PRIVACY_POLICY = {
   title: 'Privacy Policy',
@@ -119,8 +120,14 @@ Questions about these terms? legal@yourcompany.io`
 
 const CompanyPolicies = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [policies, setPolicies] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { 
+    policies = [], 
+    loading, 
+    fetchPolicies, 
+    addPolicy, 
+    removePolicy, 
+    updatePolicy 
+  } = usePolicyContext();
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingPolicyId, setEditingPolicyId] = useState(null);
@@ -133,19 +140,6 @@ const CompanyPolicies = () => {
   const [uploadingDoc, setUploadingDoc] = useState(false);
 
   const builtInDocs = [PRIVACY_POLICY, TERMS_OF_SERVICE];
-
-  const fetchPolicies = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get('/policies');
-      const data = res?.data?.data || res?.data || [];
-      setPolicies(data);
-    } catch (err) {
-      setPolicies([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     fetchPolicies();
@@ -169,10 +163,13 @@ const CompanyPolicies = () => {
     setCreateModalOpen(true);
   };
 
-  const handleDeletePolicy = (e, policyId) => {
+  const handleDeletePolicy = async (e, policyId) => {
     e.stopPropagation();
     if (window.confirm('Are you sure you want to delete this policy?')) {
-      setPolicies(prev => prev.filter(p => (p._id || p.title) !== policyId));
+      const result = await removePolicy(policyId);
+      if (!result.success) {
+        alert(result.error || 'Failed to delete policy.');
+      }
     }
   };
 
@@ -181,18 +178,17 @@ const CompanyPolicies = () => {
     if (!newPolicyData.title.trim() || !newPolicyData.content.trim()) return;
 
     if (editingPolicyId) {
-      setPolicies(prev => prev.map(p => 
-        (p._id || p.title) === editingPolicyId 
-          ? { ...p, ...newPolicyData, updatedAt: new Date().toISOString() } 
-          : p
-      ));
+      const result = await updatePolicy(editingPolicyId, newPolicyData);
+      if (!result.success) {
+        alert(result.error || 'Failed to update policy.');
+        return;
+      }
     } else {
-      const newPolicy = {
-        _id: Date.now().toString(),
-        ...newPolicyData,
-        updatedAt: new Date().toISOString()
-      };
-      setPolicies(prev => [newPolicy, ...prev]);
+      const result = await addPolicy(newPolicyData);
+      if (!result.success) {
+        alert(result.error || 'Failed to create policy.');
+        return;
+      }
     }
 
     setCreateModalOpen(false);

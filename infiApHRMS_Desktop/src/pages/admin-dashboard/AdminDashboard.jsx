@@ -19,6 +19,7 @@ import {
    Wallet,
    X,
    Check,
+   CheckCircle2,
    DoorOpen,
    Settings,
    CreditCard,
@@ -125,44 +126,81 @@ const AdminDashboard = () => {
       }
    };
 
-   const stats = useMemo(() => [
-      {
-         label: 'Departments',
-         value: String(departments.length > 0 ? departments.length : summary.totalDepartments),
-         icon: Building2,
-         helper: 'Live departments'
-      },
-      {
-         label: 'Employees',
-         value: String(staffDirectory.length > 0 ? staffDirectory.length : summary.totalEmployees),
-         icon: Users,
-         helper: 'Live employee directory'
-      },
-      {
-         label: 'Pending Leaves',
-         value: String(insights?.pendingLeaves || pendingLeaves.length || 0),
-         icon: CalendarDays,
-         helper: 'Awaiting review'
-      },
-      {
-         label: 'New Hires',
-         value: String(insights?.newHires || 0),
-         icon: Sparkles,
-         helper: 'This month'
-      },
-      {
-         label: 'Resignation Nodes',
-         value: String(summary.resignations || 0),
-         icon: DoorOpen,
-         helper: 'Active exit register'
-      },
-      {
-         label: 'Monthly Payroll',
-         value: formatCurrency(insights?.monthlyPayroll || 0),
-         icon: BarChart3,
-         helper: 'Current month spend'
-      }
-   ], [departments.length, staffDirectory.length, jobs, summary.totalDepartments, summary.totalEmployees, summary.activeJobs, summary.resignations, insights]);
+   const stats = useMemo(() => {
+       const activeCount = staffDirectory.filter(e => e.status === 'Active').length || summary.activeEmployees || 0;
+       const onboardingCount = staffDirectory.filter(e => e.status === 'Onboarding' || e.status === 'New Hire' || e.status === 'Pending').length || 0;
+       
+       const thirtyDaysAgo = new Date();
+       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+       const newHiresCount = staffDirectory.filter(e => {
+          const dateStr = e.joiningDate || e.createdAt;
+          if (!dateStr) return e.status === 'Onboarding' || e.status === 'New Hire';
+          return new Date(dateStr) >= thirtyDaysAgo || e.status === 'Onboarding' || e.status === 'New Hire';
+       }).length || insights?.newHires || 0;
+
+       return [
+          {
+             label: 'Total Employees',
+             value: String(staffDirectory.length > 0 ? staffDirectory.length : summary.totalEmployees || 0),
+             icon: Users,
+             helper: 'Live directory',
+             color: 'text-indigo-600',
+             bg: 'bg-indigo-50',
+             accent: 'from-indigo-500 to-indigo-400',
+             onClick: () => navigate('/admin/employees')
+          },
+          {
+             label: 'New Hires',
+             value: String(summary.newHires ?? newHiresCount),
+             icon: Sparkles,
+             helper: 'Recent & Onboarding',
+             color: 'text-violet-600',
+             bg: 'bg-violet-50',
+             accent: 'from-violet-500 to-violet-400',
+             onClick: () => navigate('/admin/new-hires')
+          },
+          {
+             label: 'Active Employees',
+             value: String(activeCount),
+             icon: CheckCircle2,
+             helper: 'Currently active',
+             color: 'text-emerald-600',
+             bg: 'bg-emerald-50',
+             accent: 'from-emerald-500 to-emerald-400',
+             onClick: () => navigate('/admin/employees')
+          },
+          {
+             label: 'Pending Onboarding',
+             value: String(onboardingCount),
+             icon: Clock3,
+             helper: 'Awaiting setup',
+             color: 'text-amber-600',
+             bg: 'bg-amber-50',
+             accent: 'from-amber-500 to-amber-400',
+             onClick: () => navigate('/admin/new-hires')
+          },
+          {
+             label: 'Open Positions',
+             value: String(summary.newHires !== undefined ? (summary.activeJobs ?? jobs.filter(j => j.status === 'Active').length) : (summary.activeJobs || jobs.length || 0)),
+             icon: Briefcase,
+             helper: 'Active recruitments',
+             color: 'text-sky-600',
+             bg: 'bg-sky-50',
+             accent: 'from-sky-500 to-sky-400',
+             onClick: () => navigate('/admin/recruitment-control')
+          },
+          {
+             label: 'Resignations',
+             value: String(summary.resignations || 0),
+             icon: DoorOpen,
+             helper: 'Active exit register',
+             color: 'text-rose-600',
+             bg: 'bg-rose-50',
+             accent: 'from-rose-500 to-rose-400',
+             onClick: () => navigate('/admin/resignation')
+          }
+       ];
+    }, [staffDirectory, jobs, summary, insights, navigate]);
 
    const recentDepartments = departments.slice(0, 4);
    const recentJobs = jobs.slice(0, 4);
@@ -193,102 +231,106 @@ const AdminDashboard = () => {
             </div>
          )}
 
+
+
          {/* Assign Salary Modal */}
          {assignModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-               <div className="absolute inset-0 bg-black/40" onClick={closeAssignModal} />
-               <div className="relative bg-white w-full max-w-md rounded-xl shadow-xl p-6">
-                  <div className="flex items-center justify-between mb-5">
-                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
-                           <Wallet size={20} className="text-indigo-600" />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+               <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" onClick={closeAssignModal} />
+               <div className="relative bg-white w-full max-w-md rounded-[32px] border border-slate-100 shadow-2xl p-10 space-y-8 animate-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center border border-indigo-100/50 shadow-sm">
+                           <Wallet size={24} className="text-indigo-600" />
                         </div>
                         <div>
-                           <h3 className="text-base font-semibold text-slate-800">Assign Salary</h3>
-                           <p className="text-xs text-slate-400">Set salary for employee</p>
+                           <h3 className="text-xl font-black text-slate-900 tracking-tight leading-none mb-1.5 uppercase">Assign Salary</h3>
+                           <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest leading-none">Configure payroll values</p>
                         </div>
                      </div>
-                     <button onClick={closeAssignModal} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                        <X size={18} />
+                     <button onClick={closeAssignModal} className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-400 hover:text-slate-600">
+                        <X size={20} />
                      </button>
                   </div>
                   <form onSubmit={handleAssignSalary} className="space-y-4">
-                     <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Select Employee</label>
-                        <select
-                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 transition-colors bg-white"
-                           value={assignForm.employeeId}
-                           onChange={handleEmployeeSelect}
-                           required
-                        >
-                           <option value="">Choose employee...</option>
-                           {employeeList.map((emp) => (
-                              <option key={emp._id} value={emp._id}>
-                                 {emp.name} ({emp.employeeId || emp.designation || 'Employee'})
-                              </option>
-                           ))}
-                        </select>
-                     </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                           <label className="block text-xs font-medium text-slate-500 mb-1">Month</label>
-                           <select
-                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 transition-colors bg-white"
-                              value={assignForm.month}
-                              onChange={(e) => setAssignForm((prev) => ({ ...prev, month: Number(e.target.value) }))}
-                              required
-                           >
-                              {MONTHS.map((m) => (
-                                 <option key={m.value} value={m.value}>{m.label}</option>
-                              ))}
-                           </select>
-                        </div>
-                        <div>
-                           <label className="block text-xs font-medium text-slate-500 mb-1">Year</label>
-                           <input
-                              type="number" min={2000} max={2100}
-                              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 transition-colors"
-                              value={assignForm.year}
-                              onChange={(e) => setAssignForm((prev) => ({ ...prev, year: e.target.value }))}
-                              required
-                           />
-                        </div>
-                     </div>
-                     <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Basic Salary (₹)</label>
-                        <input
-                           type="number" min={0}
-                           placeholder="e.g. 50000"
-                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 transition-colors"
-                           value={assignForm.basicSalary}
-                           onChange={(e) => setAssignForm((prev) => ({ ...prev, basicSalary: e.target.value }))}
-                           required
-                        />
-                     </div>
-                     <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Deductions (₹)</label>
-                        <input
-                           type="number" min={0}
-                           placeholder="e.g. 5000"
-                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 transition-colors"
-                           value={assignForm.deductions}
-                           onChange={(e) => setAssignForm((prev) => ({ ...prev, deductions: e.target.value }))}
-                           required
-                        />
-                     </div>
-                     <div className="p-3 bg-slate-50 rounded-lg">
-                        <p className="text-xs text-slate-400 mb-0.5">Net Salary</p>
-                        <p className="text-lg font-bold text-slate-800">
-                           {formatCurrency((Number(assignForm.basicSalary) || 0) - (Number(assignForm.deductions) || 0))}
-                        </p>
-                     </div>
-                     <button
-                        type="submit"
-                        disabled={processingId || !selectedEmployee}
-                        className="w-full py-2.5 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
-                     >
-                        {processingId ? 'Saving...' : 'Assign Salary'}
-                     </button>
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Employee</label>
+                         <select
+                            className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all text-slate-700"
+                            value={assignForm.employeeId}
+                            onChange={handleEmployeeSelect}
+                            required
+                         >
+                            <option value="">Choose employee...</option>
+                            {employeeList.map((emp) => (
+                               <option key={emp._id} value={emp._id}>
+                                  {emp.name} ({emp.employeeId || emp.designation || 'Employee'})
+                               </option>
+                            ))}
+                         </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                         <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Month</label>
+                            <select
+                               className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all text-slate-700"
+                               value={assignForm.month}
+                               onChange={(e) => setAssignForm((prev) => ({ ...prev, month: Number(e.target.value) }))}
+                               required
+                            >
+                               {MONTHS.map((m) => (
+                                  <option key={m.value} value={m.value}>{m.label}</option>
+                               ))}
+                            </select>
+                         </div>
+                         <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Year</label>
+                            <input
+                               type="number" min={2000} max={2100}
+                               className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all"
+                               value={assignForm.year}
+                               onChange={(e) => setAssignForm((prev) => ({ ...prev, year: e.target.value }))}
+                               required
+                            />
+                         </div>
+                      </div>
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Basic Salary (₹)</label>
+                         <input
+                            type="number" min={0}
+                            placeholder="e.g. 50000"
+                            className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all"
+                            value={assignForm.basicSalary}
+                            onChange={(e) => setAssignForm((prev) => ({ ...prev, basicSalary: e.target.value }))}
+                            required
+                         />
+                      </div>
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Deductions (₹)</label>
+                         <input
+                            type="number" min={0}
+                            placeholder="e.g. 5000"
+                            className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all"
+                            value={assignForm.deductions}
+                            onChange={(e) => setAssignForm((prev) => ({ ...prev, deductions: e.target.value }))}
+                            required
+                         />
+                      </div>
+                      <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 flex justify-between items-center">
+                         <div>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400">Calculated Net Salary</p>
+                            <p className="text-2xl font-black text-slate-900 mt-1">
+                               {formatCurrency((Number(assignForm.basicSalary) || 0) - (Number(assignForm.deductions) || 0))}
+                            </p>
+                         </div>
+                      </div>
+                      <button
+                         type="submit"
+                         disabled={processingId || !selectedEmployee}
+                         className="w-full py-5 bg-slate-900 text-white text-xs font-black uppercase tracking-[0.25em] rounded-2xl shadow-xl hover:bg-indigo-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+                      >
+                         {processingId ? 'Processing...' : 'Sync Payroll Entry'}
+                      </button>
                   </form>
                </div>
             </div>
@@ -313,13 +355,16 @@ const AdminDashboard = () => {
                   <Activity size={16} />
                   <span className="text-[10px] font-black uppercase tracking-[0.2em]">Overview</span>
                </div>
-               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {stats.map((stat) => (
-                     <div key={stat.label} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 hover:border-slate-200 hover:bg-white transition-all group cursor-default">
-                        <stat.icon size={16} className="text-slate-400 mb-3 group-hover:text-indigo-500 transition-colors" />
-                        <p className="text-xl font-black text-slate-900 leading-none mb-1">{stat.value}</p>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{stat.label}</p>
-                        <p className="mt-2 text-[8px] font-black uppercase tracking-widest text-slate-300">{stat.helper}</p>
+                     <div key={stat.label} onClick={stat.onClick} className={`rounded-xl border border-slate-100 bg-white p-4 hover:border-indigo-100 hover:shadow-md hover:shadow-indigo-50 group overflow-hidden relative ${stat.onClick ? 'cursor-pointer' : 'cursor-default'}`}>
+                        <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${stat.accent || 'from-indigo-500 to-indigo-400'}`} />
+                        <div className={`w-8 h-8 ${stat.bg || 'bg-slate-50'} rounded-xl flex items-center justify-center mb-3`}>
+                           <stat.icon size={15} className={stat.color || 'text-slate-500'} />
+                        </div>
+                        <p className="text-2xl font-black text-slate-900 leading-none mb-1">{stat.value}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{stat.label}</p>
+                        <p className="mt-1.5 text-[9px] font-bold uppercase tracking-widest text-slate-300">{stat.helper}</p>
                      </div>
                   ))}
                   {/* Salary Assignment Card */}
@@ -329,9 +374,10 @@ const AdminDashboard = () => {
                         <p className="text-base font-black text-slate-900 leading-none mb-1">Assign Salary</p>
                         <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400">Set payroll</p>
                      </div>
-                     <button
+            <button
                         onClick={openAssignModal}
-                        className="mt-4 w-full py-2 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:bg-slate-800 transition-colors"
+                        style={{ background: 'linear-gradient(135deg, #1e293b, #334155)' }}
+                        className="mt-4 w-full py-2 text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90"
                      >
                         Assign
                      </button>

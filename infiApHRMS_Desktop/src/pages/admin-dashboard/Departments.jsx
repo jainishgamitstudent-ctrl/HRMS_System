@@ -184,7 +184,8 @@ const Departments = () => {
           </div>
           <button
             onClick={() => navigate(createDepartmentRoute)}
-            className="flex items-center gap-3 px-8 py-4 bg-linear-to-r from-[#4E63F0] to-[#6855E8] text-white rounded-2xl shadow-xl shadow-indigo-100 hover:shadow-indigo-200 hover:-translate-y-1 transition-all active:scale-95 text-xs font-black uppercase tracking-widest"
+            style={{ background: 'linear-gradient(135deg, #4E63F0, #6855E8)' }}
+            className="flex items-center gap-3 px-7 py-3.5 text-white rounded-2xl shadow-xl shadow-indigo-100 hover:shadow-indigo-200 hover:-translate-y-0.5 text-xs font-black uppercase tracking-widest active:scale-95"
           >
             <Plus size={18} strokeWidth={3} />
             Create Department

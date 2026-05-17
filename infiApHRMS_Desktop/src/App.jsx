@@ -13,6 +13,7 @@ import AddEmployee from './pages/hr-dashboard/employee-management/AddEmployee';
 import EditEmployee from './pages/hr-dashboard/employee-management/EditEmployee';
 import EmployeeProfiles from './pages/hr-dashboard/employee-management/EmployeeProfiles';
 import EmployeeProfilesHub from './pages/hr-dashboard/employee-management/EmployeeProfilesHub';
+import NewHiresManagement from './pages/hr-dashboard/employee-management/NewHiresManagement';
 import MyProfile from './pages/hr-dashboard/profile-management/MyProfile';
 import EditProfile from './pages/hr-dashboard/profile-management/EditProfile';
 import AttendanceDashboard from './pages/hr-dashboard/attendance-management/AttendanceDashboard';
@@ -36,6 +37,7 @@ import PayslipManagement from './pages/hr-dashboard/payroll-management/PayslipMa
 import RecruitmentManagement from './pages/hr-dashboard/recruitment-management/RecruitmentManagement';
 import PostJob from './pages/hr-dashboard/recruitment-management/PostJob';
 import ActiveJobs from './pages/hr-dashboard/recruitment-management/ActiveJobs';
+import InternalJobs from './pages/hr-dashboard/recruitment-management/InternalJobs';
 import { JobProvider } from './context/JobContext';
 import Candidates from './pages/hr-dashboard/recruitment/Candidates';
 import Applications from './pages/hr-dashboard/recruitment/Applications';
@@ -80,6 +82,7 @@ import SharingSecurity from './pages/admin-dashboard/payroll-management/SharingS
 import CandidateTracking from './pages/admin-dashboard/recruitment-control/CandidateTracking';
 import InterviewManagement from './pages/admin-dashboard/recruitment-control/InterviewManagement';
 import CreateJob from './pages/admin-dashboard/recruitment-control/CreateJob';
+import EditJob from './pages/admin-dashboard/recruitment-control/EditJob';
 import CompanyPolicies from './pages/admin-dashboard/policies/CompanyPolicies';
 import SystemSettings from './pages/admin-dashboard/settings/SystemSettings';
 import AdminPreferences from './pages/admin-dashboard/settings/AdminPreferences';
@@ -252,9 +255,11 @@ function AppContent() {
                       {/* Admin Profile */}
                       <Route path="profile" element={<AdminProfileView />} />
                       <Route path="profile/edit" element={<AdminProfileEdit />} />
+                      <Route path="profile/change-password" element={<ChangePassword />} />
                       <Route path="employees/add" element={<AddEmployee />} />
                       <Route path="employees/profile/:id" element={<EmployeeProfiles />} />
                       <Route path="employees/edit/:id" element={<EditEmployee />} />
+                      <Route path="new-hires" element={<NewHiresManagement />} />
 
                       {/* Payroll */}
                       <Route path="/payroll-management" element={<PayrollManagement />} />
@@ -267,6 +272,15 @@ function AppContent() {
 
                       <Route path="/policies" element={<CompanyPolicies />} />
                       <Route path="/settings" element={<SystemSettings />} />
+
+                      {/* Recruitment Control */}
+                      <Route path="recruitment-control" element={<RecruitmentHub />} />
+                      <Route path="recruitment-control/hub" element={<RecruitmentHub />} />
+                      <Route path="recruitment-control/create" element={<CreateJob />} />
+                      <Route path="recruitment-control/edit/:id" element={<EditJob />} />
+                      <Route path="recruitment-control/tracking" element={<CandidateTracking />} />
+                      <Route path="recruitment-control/interviews" element={<InterviewManagement />} />
+                      <Route path="recruitment-control/analytics" element={<RecruitmentAnalytics />} />
                       
                       {/* Independent Profile & Account Routes */}
                       <Route path="/profile-settings" element={<ProfileSettings />} />
@@ -315,6 +329,8 @@ function AppContent() {
                       <Route path="/dashboard" element={<MyProfile />} />
                       <Route path="/profile" element={<MyProfile />} />
                       <Route path="/profile/edit" element={<EditProfile />} />
+                      <Route path="/profile/change-password" element={<ChangePassword />} />
+                      <Route path="/jobs" element={<InternalJobs />} />
                       <Route path="/resignation/submit" element={<SubmitResignation />} />
                       <Route path="/leave" element={<LeaveManagement />} />
                       <Route path="/leave/requests" element={<LeaveRequests />} />
@@ -342,8 +358,11 @@ function AppContent() {
                       <Route path="/employees/profiles" element={<EmployeeProfilesHub />} />
                       <Route path="/employees/edit/:id" element={<EditEmployee />} />
                       <Route path="/employees/profile/:id" element={<EmployeeProfiles />} />
+                      <Route path="/new-hires" element={<NewHiresManagement />} />
                       <Route path="/profile" element={<MyProfile />} />
                       <Route path="/profile/edit" element={<EditProfile />} />
+                      <Route path="/profile/change-password" element={<ChangePassword />} />
+                      <Route path="/jobs" element={<InternalJobs />} />
 
                       {/* Departments — HR can view & create, Admin full access */}
                       <Route path="/departments" element={<AdminDepartments />} />

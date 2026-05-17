@@ -89,7 +89,7 @@ const userSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ["Active", "On Leave", "Terminate"],
+            enum: ["New Hire", "Onboarding", "Active", "On Leave", "Resigned", "Terminated", "Terminate"],
             default: "Active"
         },
         currentBaseSalary: {

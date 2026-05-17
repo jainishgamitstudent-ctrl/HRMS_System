@@ -149,7 +149,7 @@ const AdminProfileView = () => {
           </div>
         </div>
         <button
-          onClick={() => navigate('/admin/employees/edit')}
+          onClick={() => navigate('/admin/profile/edit')}
           className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
         >
           <Edit3 size={14} /> Edit Profile

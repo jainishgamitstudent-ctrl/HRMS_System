@@ -199,7 +199,7 @@ const AdminProfileEdit = () => {
       }
 
       setTimeout(() => {
-        navigate('/admin/employees/view');
+        navigate('/admin/profile');
       }, 1500);
     } catch (err) {
       setError(err.response?.data?.message || err.response?.data?.error || 'Failed to update admin profile');
@@ -466,7 +466,7 @@ const AdminProfileEdit = () => {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/admin/employees/view')}
+            onClick={() => navigate('/admin/profile')}
             className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-100 text-slate-800 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-all"
           >
             <X size={16} />

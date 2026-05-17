@@ -28,6 +28,7 @@ const emptyForm = {
   manager: '',
   salary: '',
   password: '',
+  status: 'Onboarding',
 };
 
 const fieldClass =
@@ -131,7 +132,7 @@ const AddEmployee = () => {
       ...formData,
       phone: fullPhone,
       salary: formData.salary ? Number(formData.salary) : undefined,
-      status: 'Active',
+      status: formData.status || 'Active',
       systemRole: formData.systemRole,
     });
 
@@ -285,6 +286,24 @@ const AddEmployee = () => {
               {!isAdmin && (
                 <span className="text-[10px] text-slate-400">Only Admin can create HR users</span>
               )}
+            </label>
+
+            <label className="space-y-1.5">
+              <span className={labelClass}>Employee Status</span>
+              <select
+                name="status"
+                value={formData.status || 'Onboarding'}
+                onChange={handleChange}
+                required
+                className={fieldClass}
+              >
+                <option value="New Hire">New Hire</option>
+                <option value="Onboarding">Onboarding</option>
+                <option value="Active">Active</option>
+                <option value="On Leave">On Leave</option>
+                <option value="Resigned">Resigned</option>
+                <option value="Terminated">Terminated</option>
+              </select>
             </label>
 
             <label className="space-y-1.5">

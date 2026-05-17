@@ -16,7 +16,7 @@ import { useAdminDashboard } from '../../../context/AdminDashboardContext';
 
 const RecruitmentHub = () => {
   const navigate = useNavigate();
-  const { jobs, fetchJobs, loading, summary, deleteTeam } = useAdminDashboard();
+  const { jobs, fetchJobs, loading, summary, deleteJob, updateJob } = useAdminDashboard();
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -42,7 +42,7 @@ const RecruitmentHub = () => {
   ], [jobs, summary]);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 text-left">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-1 uppercase">Recruitment</h1>
@@ -169,6 +169,17 @@ const RecruitmentHub = () => {
                     title="Edit Job"
                   >
                     <Edit2 size={13} />
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      if (window.confirm('Are you sure you want to delete this job posting?')) {
+                        await deleteJob(job.id);
+                      }
+                    }}
+                    className="p-2.5 border border-slate-100 text-rose-400 hover:border-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                    title="Delete Job"
+                  >
+                    <Trash2 size={13} />
                   </button>
                 </div>
               </div>

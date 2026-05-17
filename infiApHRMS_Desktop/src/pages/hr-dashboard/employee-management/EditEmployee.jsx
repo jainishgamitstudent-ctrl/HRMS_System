@@ -47,6 +47,7 @@ const EditEmployee = () => {
         location: '',
         status: '',
         profilePicture: '',
+        joiningDate: '',
         doubleShiftAllowed: false
     });
 
@@ -63,6 +64,7 @@ const EditEmployee = () => {
                 location: employee.location || 'Mumbai Office',
                 status: employee.status,
                 profilePicture: employee.profileImage || employee.profilePicture || '',
+                joiningDate: employee.joiningDate ? employee.joiningDate.slice(0, 10) : '',
                 doubleShiftAllowed: employee.doubleShiftAllowed ?? false
             });
             // Set existing profile image preview
@@ -230,7 +232,7 @@ const EditEmployee = () => {
                             Status
                         </h3>
                         <div className="space-y-2">
-                            {['Active', 'On Leave', 'Terminate'].map((status) => (
+                            {['New Hire', 'Onboarding', 'Active', 'On Leave', 'Resigned', 'Terminated'].map((status) => (
                                 <button
                                     key={status}
                                     type="button"
@@ -245,7 +247,8 @@ const EditEmployee = () => {
                                     <div className={`w-2 h-2 rounded-full ${
                                         status === 'Active' ? 'bg-emerald-500' : 
                                         status === 'On Leave' ? 'bg-amber-500' : 
-                                        'bg-red-500'
+                                        (status === 'Resigned' || status === 'Terminated') ? 'bg-red-500' :
+                                        'bg-indigo-500'
                                     }`} />
                                 </button>
                             ))}
@@ -427,6 +430,16 @@ const EditEmployee = () => {
                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white focus:border-indigo-500 transition-all outline-none"
                                        />
                                    </div>
+                               </div>
+                               <div className="space-y-2">
+                                   <label className="text-xs font-medium text-slate-600">Joining Date</label>
+                                   <input
+                                       name="joiningDate"
+                                       value={formData.joiningDate}
+                                       onChange={handleChange}
+                                       type="date"
+                                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white focus:border-indigo-500 transition-all outline-none"
+                                   />
                                </div>
                             </div>
                          </section>
