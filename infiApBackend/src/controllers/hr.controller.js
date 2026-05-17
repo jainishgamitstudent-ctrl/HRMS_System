@@ -12,6 +12,7 @@ const Holiday = require("../models/holiday.model");
 const Job = require("../models/job.model");
 const logger = require("../utils/logger");
 const { notifyUser } = require("../utils/notifier");
+const { emitEntityEvent } = require("../utils/socketManager");
 
 // ---> Welcome Page Greeting <---
 exports.getDashboardSummary = async (req, res) => {
@@ -195,6 +196,11 @@ exports.editEmployee = async (req, res) => {
 
         const employee = await User.findByIdAndUpdate(id, updates, { new: true, runValidators: false });
         if (!employee) return res.status(404).json({ success: false, message: "Employee not found" });
+
+        // Emit real-time event
+        emitEntityEvent('employee', 'updated', employee.toObject(), {
+            targetRoles: ['HR', 'Admin', 'Employee']
+        });
 
         res.status(200).json({ success: true, message: "Employee updated successfully", data: employee });
 
