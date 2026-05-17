@@ -34,7 +34,7 @@ const CreateTeam = () => {
 
   useEffect(() => {
     fetchDepartments();
-    fetchEmployees();
+    fetchEmployees({ limit: 1000 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -138,13 +138,33 @@ const CreateTeam = () => {
                       {(() => {
                         const getDeptName = (dept) => {
                           if (!dept) return '';
-                          if (typeof dept === 'string') return dept.trim();
-                          return (dept.name || '').trim();
+                          if (typeof dept === 'string') return dept.trim().toLowerCase();
+                          return (dept.name || '').trim().toLowerCase();
                         };
-                        const userDept = getDeptName(user?.department);
-                        const list = role === 'HR'
-                          ? (employees || []).filter(emp => getDeptName(emp.department) === userDept)
+                        const getDeptId = (dept) => {
+                          if (!dept) return '';
+                          if (typeof dept === 'string') return dept.trim();
+                          return (dept._id || dept.id || '').trim();
+                        };
+                        const userDeptName = getDeptName(user?.department);
+                        const userDeptId = getDeptId(user?.department);
+                        let list = role === 'HR'
+                          ? (employees || []).filter(emp => {
+                              const empName = getDeptName(emp.department);
+                              const empId = getDeptId(emp.department);
+                              return empName === userDeptName ||
+                                     (userDeptId && empId === userDeptId) ||
+                                     (userDeptName && empName.includes(userDeptName)) ||
+                                     (empName && userDeptName.includes(empName));
+                            })
                           : (employees || []);
+                        // Fallback: if filtered list is empty for HR, show all employees
+                        if (role === 'HR' && list.length === 0) {
+                          list = employees || [];
+                        }
+                        if (list.length === 0) {
+                          return <option value="" disabled>No employees available</option>;
+                        }
                         return list.map(emp => (
                           <option key={emp.id} value={emp.id}>
                             {emp.name} ({emp.employeeId || emp.id}) - {emp.role}

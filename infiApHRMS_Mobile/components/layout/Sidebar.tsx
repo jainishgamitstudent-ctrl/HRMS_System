@@ -37,7 +37,6 @@ const MENU_CONFIG = {
     { icon: 'grid-outline', label: 'Dashboard', route: '/(employee)/' },
     { icon: 'person-outline', label: 'My Profile', route: '/(employee)/profile' },
     { icon: 'calendar-outline', label: 'Leave Management', route: '/(employee)/leave' },
-    { icon: 'chatbubbles-outline', label: 'Request Rooms', route: '/(employee)/request-rooms' },
     { icon: 'time-outline', label: 'Attendance', route: '/(employee)/attendance' },
     { icon: 'cash-outline', label: 'Payroll', route: '/(employee)/payroll' },
     { icon: 'notifications-outline', label: 'Notifications', route: '/(employee)/notifications' },

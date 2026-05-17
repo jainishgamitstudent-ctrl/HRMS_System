@@ -199,8 +199,11 @@ exports.editEmployee = async (req, res) => {
             updates.profileImage = `data:${mimeType};base64,${base64Image}`;
         }
 
+        // Fetch old employee to compare actual changes
+        const oldEmployee = await User.findById(id).lean();
+        if (!oldEmployee) return res.status(404).json({ success: false, message: "Employee not found" });
+
         const employee = await User.findByIdAndUpdate(id, updates, { new: true, runValidators: false });
-        if (!employee) return res.status(404).json({ success: false, message: "Employee not found" });
 
         // Emit real-time event
         emitEntityEvent('employee', 'updated', employee.toObject(), {
@@ -209,19 +212,47 @@ exports.editEmployee = async (req, res) => {
 
         res.status(200).json({ success: true, message: "Employee updated successfully", data: employee });
 
-        // Notify employee of significant changes
+        // Notify employee of significant changes (only if value actually changed)
         try {
-            const fieldsToNotify = ['department', 'designation', 'reportingManager'];
-            const changedFields = fieldsToNotify.filter(f => updates[f] !== undefined);
+            const fieldLabels = {
+                department: 'Department',
+                designation: 'Designation',
+                reportingManager: 'Reporting Manager',
+                doubleShiftAllowed: 'Double Shift Permission',
+            };
+            const fieldsToNotify = Object.keys(fieldLabels);
+            const changedFields = fieldsToNotify.filter(f => {
+                if (updates[f] === undefined) return false;
+                // Compare as strings for consistent matching
+                const oldVal = oldEmployee[f] !== undefined && oldEmployee[f] !== null ? String(oldEmployee[f]) : '';
+                const newVal = String(updates[f]);
+                return oldVal !== newVal;
+            });
             if (changedFields.length > 0) {
                 const actorName = req.user?.name || "HR";
+                const labelText = changedFields.map(f => fieldLabels[f] || f).join(", ");
                 await notifyUser({
                     recipient: id,
                     category: "system",
                     headline: "Profile Updated",
-                    details: `Your profile has been updated by ${actorName}. Changed: ${changedFields.join(", ")}`,
+                    details: `Your profile has been updated by ${actorName}. Changed: ${labelText}`,
                     sentBy: req.user?._id,
                 });
+
+                // If doubleShiftAllowed changed, also send dedicated notification to other HR/Admin roles
+                if (changedFields.includes('doubleShiftAllowed')) {
+                    const actorRole = req.user?.role;
+                    const otherRoles = actorRole === "hr" ? ["admin", "superadmin"] : ["hr", "superadmin"];
+                    const employeeName = employee?.name || oldEmployee?.name || "an employee";
+                    await notifyRoleUsers({
+                        roles: otherRoles,
+                        category: "attendance",
+                        headline: String(updates.doubleShiftAllowed) === "true" ? "Double Shift Permission Granted" : "Double Shift Permission Revoked",
+                        details: `${actorName} ${String(updates.doubleShiftAllowed) === "true" ? "granted" : "revoked"} double shift permission for ${employeeName}.`,
+                        sentBy: req.user?._id,
+                        excludeUserId: req.user?._id,
+                    });
+                }
             }
         } catch (notifyErr) {
             console.warn("[EditEmployee] notifyUser failed (non-blocking):", notifyErr.message);

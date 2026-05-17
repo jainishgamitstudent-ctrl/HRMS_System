@@ -126,7 +126,7 @@ export const createDoubleShiftRequest = async (requestDate: string, reason: stri
     status: string;
     message: string;
     data: DoubleShiftRequest;
-  }>('/employee/double-shift/request', {
+  }>('/double-shift/request', {
     method: 'POST',
     headers,
     body: { requestDate, reason },
@@ -138,7 +138,7 @@ export const fetchMyDoubleShiftRequests = async () => {
   return request<{
     status: string;
     data: DoubleShiftRequest[];
-  }>('/employee/double-shift/my-requests', {
+  }>('/double-shift/my-requests', {
     method: 'GET',
     headers,
   });

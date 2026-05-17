@@ -9,7 +9,7 @@ import Header from '../../components/layout/Header';
 import { API_BASE_URL } from '../../constants/api';
 
 import { useAppTheme } from '@/context/ThemeContext';
-const TEAMS = ['All Teams', 'Engineering', 'Design', 'Marketing', 'Product', 'HR'];
+const ROLES = ['All Members', 'HR', 'Employee', 'Admin'];
 
 // These fields are missing from the API but used in the UI
 type UIEmployee = {
@@ -18,6 +18,7 @@ type UIEmployee = {
   role: string;
   team: string;
   teamColor: string;
+  department: string;
   image: any; // string URL or required asset
   status: string;
   bio: string;
@@ -48,8 +49,11 @@ const getImageUrl = (profile: string) => {
 export default function DirectoryPage() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => DirectoryStyles(colors), [colors]);
+  const [activeRole, setActiveRole] = useState('All Members');
   const [activeTeam, setActiveTeam] = useState('All Teams');
+  const [activeDept, setActiveDept] = useState('All Departments');
   const [searchQuery, setSearchQuery] = useState('');
+  const [openDropdown, setOpenDropdown] = useState<null | 'role' | 'team' | 'dept'>(null);
   const [employees, setEmployees] = useState<UIEmployee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,9 +67,10 @@ export default function DirectoryPage() {
         const mapped: UIEmployee[] = response.data.map((emp: DirectoryEmployee) => ({
           id: emp.id,
           name: emp.name,
-          role: emp.roal || 'Employee',
+          role: (emp.roal || 'Employee').trim(),
           team: (emp['work roal'] || 'General').toUpperCase(),
           teamColor: getTeamColor(emp['work roal'] || 'General'),
+          department: (emp['work roal'] || 'General').toUpperCase(),
           image: emp.profile ? { uri: getImageUrl(emp.profile) } : require('../../assets/images/sarah.png'),
           status: 'active',
           bio: 'Building the future of InfiAP with expertise and passion.',
@@ -91,25 +96,41 @@ export default function DirectoryPage() {
     loadEmployees(false);
   };
 
-  const filteredEmployees = employees.filter(emp => {
-    // Exact mapping for filter chips
-    let teamMatch = false;
-    if (activeTeam === 'All Teams') {
-      teamMatch = true;
-    } else if (activeTeam === 'Engineering') {
-      teamMatch = emp.team === 'ENGINEERING';
-    } else if (activeTeam === 'Design') {
-      teamMatch = emp.team === 'PRODUCT DESIGN';
-    } else if (activeTeam === 'Marketing') {
-      teamMatch = emp.team === 'MARKETING';
-    } else {
-      teamMatch = emp.team.toLowerCase().includes(activeTeam.toLowerCase());
-    }
+  const uniqueTeams = useMemo(() => {
+    const teams = new Set(employees.map(e => e.team));
+    return ['All Teams', ...Array.from(teams).sort()];
+  }, [employees]);
 
-    const matchesSearch = emp.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const uniqueDepts = useMemo(() => {
+    const depts = new Set(employees.map(e => e.department));
+    return ['All Departments', ...Array.from(depts).sort()];
+  }, [employees]);
+
+  const dropdownConfig = useMemo(() => {
+    switch (openDropdown) {
+      case 'role':
+        return { title: 'Select Role', options: ROLES, value: activeRole, onSelect: setActiveRole };
+      case 'team':
+        return { title: 'Select Team', options: uniqueTeams, value: activeTeam, onSelect: setActiveTeam };
+      case 'dept':
+        return { title: 'Select Department', options: uniqueDepts, value: activeDept, onSelect: setActiveDept };
+      default:
+        return null;
+    }
+  }, [openDropdown, activeRole, activeTeam, activeDept, uniqueTeams, uniqueDepts]);
+
+  const filteredEmployees = employees.filter(emp => {
+    const roleMatch = activeRole === 'All Members' ||
+      emp.role.toLowerCase() === activeRole.toLowerCase();
+
+    const teamMatch = activeTeam === 'All Teams' || emp.team === activeTeam;
+
+    const deptMatch = activeDept === 'All Departments' || emp.department === activeDept;
+
+    const matchesSearch = emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          emp.role.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return teamMatch && matchesSearch;
+
+    return roleMatch && teamMatch && deptMatch && matchesSearch;
   });
 
   return (
@@ -136,23 +157,26 @@ export default function DirectoryPage() {
           />
         </View>
 
-        {/* Filter Chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
-          {TEAMS.map((team) => (
-            <TouchableOpacity
-              key={team}
-              style={[styles.chip, activeTeam === team && styles.chipActive]}
-              onPress={() => setActiveTeam(team)}
-            >
-              <Text style={[styles.chipText, activeTeam === team && styles.chipTextActive]}>
-                {team}
-              </Text>
-              {(team === 'Engineering' || team === 'Design') && (
-                <Ionicons name="chevron-down" size={14} color={activeTeam === team ? '#fff' : '#64748b'} style={{ marginLeft: 4 }} />
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Compact Filter Pills */}
+        <View style={styles.filtersRow}>
+          <TouchableOpacity style={styles.filterPill} onPress={() => setOpenDropdown('role')}>
+            <Ionicons name="people-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.filterPillText} numberOfLines={1}>{activeRole}</Text>
+            <Ionicons name="chevron-down" size={12} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.filterPill} onPress={() => setOpenDropdown('team')}>
+            <Ionicons name="layers-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.filterPillText} numberOfLines={1}>{activeTeam}</Text>
+            <Ionicons name="chevron-down" size={12} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.filterPill} onPress={() => setOpenDropdown('dept')}>
+            <Ionicons name="business-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.filterPillText} numberOfLines={1}>{activeDept}</Text>
+            <Ionicons name="chevron-down" size={12} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
 
         {/* Recommended Section Header */}
         <View style={styles.sectionHeaderRow}>
@@ -278,6 +302,51 @@ export default function DirectoryPage() {
         </View>
       </Modal>
 
+      {/* Dropdown Picker Modal */}
+      <Modal
+        visible={openDropdown !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setOpenDropdown(null)}
+      >
+        <View style={styles.dropdownOverlay}>
+          <Pressable style={styles.dropdownBackdrop} onPress={() => setOpenDropdown(null)} />
+          <View style={styles.dropdownSheet}>
+            <View style={styles.dropdownHeader}>
+              <Text style={styles.dropdownHeaderTitle}>{dropdownConfig?.title}</Text>
+              <TouchableOpacity onPress={() => setOpenDropdown(null)}>
+                <Ionicons name="close" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {dropdownConfig?.options.map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={[
+                    styles.dropdownOption,
+                    dropdownConfig.value === opt && styles.dropdownOptionActive
+                  ]}
+                  onPress={() => {
+                    dropdownConfig.onSelect(opt);
+                    setOpenDropdown(null);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    dropdownConfig.value === opt && styles.dropdownOptionTextActive
+                  ]}>
+                    {opt}
+                  </Text>
+                  {dropdownConfig.value === opt && (
+                    <Ionicons name="checkmark" size={18} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <BottomNav />
     </View>
   );
@@ -310,29 +379,85 @@ function DirectoryStyles(colors: any) {
     fontSize: 14,
     color: colors.textSecondary,
   },
-  chipsScroll: {
-    paddingBottom: 24,
-    gap: 12,
+  filtersRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20,
   },
-  chip: {
+  filterPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
+    gap: 6,
     backgroundColor: colors.background,
-    marginRight: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flex: 1,
+    justifyContent: 'center',
   },
-  chipActive: {
-    backgroundColor: colors.primary,
+  filterPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text,
+    maxWidth: 70,
   },
-  chipText: {
+  dropdownOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(2, 6, 23, 0.4)',
+  },
+  dropdownBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  dropdownSheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '70%',
+  },
+  dropdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  dropdownHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  dropdownOptionActive: {
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginVertical: 2,
+    borderBottomWidth: 0,
+  },
+  dropdownOptionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textMuted,
+    color: colors.textSecondary,
   },
-  chipTextActive: {
-    color: '#fff',
+  dropdownOptionTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
   },
   sectionHeaderRow: {
     flexDirection: 'row',

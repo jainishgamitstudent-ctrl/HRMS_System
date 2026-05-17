@@ -136,6 +136,24 @@ const CreateJob = () => {
                                     </div>
                                 </div>
                             </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Experience Level</label>
+                                    <div className="relative">
+                                        <select 
+                                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-6 py-4 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all appearance-none"
+                                            value={formData.experience}
+                                            onChange={(e) => setFormData({...formData, experience: e.target.value})}
+                                        >
+                                            <option>Entry (0-2 years)</option>
+                                            <option>Mid (3-5 years)</option>
+                                            <option>Senior (6+ years)</option>
+                                            <option>Lead / Principal</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Section 2: Compensation & Logistics */}

@@ -30,7 +30,11 @@ export const JobProvider = ({ children }) => {
         title: job.title || 'Untitled',
         department: job.department || 'General',
         type: job.type || 'Full-time',
-        experience: job.experience || 'Mid (3-5 years)',
+        experience: job.experienceYears === 1 ? 'Entry (0-2 years)' :
+                    job.experienceYears === 4 ? 'Mid (3-5 years)' :
+                    job.experienceYears === 7 ? 'Senior (6+ years)' :
+                    job.experienceYears === 10 ? 'Lead / Principal' :
+                    job.experience || 'Mid (3-5 years)',
         salary: job.salary || '',
         location: job.location || 'Remote',
         deadline: job.deadline || '',
@@ -71,11 +75,19 @@ export const JobProvider = ({ children }) => {
   // Add job via API
   const addJob = async (newJob) => {
     try {
+      const expMap = {
+        'Entry (0-2 years)': 1,
+        'Mid (3-5 years)': 4,
+        'Senior (6+ years)': 7,
+        'Lead / Principal': 10
+      };
+      const experienceYears = expMap[newJob.experience] ?? Number(newJob.experience) ?? 1;
+
       const payload = {
         title: newJob.title,
         department: newJob.department,
         type: newJob.type,
-        experience: newJob.experience,
+        experienceYears,
         location: newJob.location,
         description: newJob.description,
         skills: newJob.skills,
@@ -117,7 +129,18 @@ export const JobProvider = ({ children }) => {
   // Update job via API
   const updateJob = async (id, updatedData) => {
     try {
-      await updateRecruitmentJob(id, updatedData);
+      const expMap = {
+        'Entry (0-2 years)': 1,
+        'Mid (3-5 years)': 4,
+        'Senior (6+ years)': 7,
+        'Lead / Principal': 10
+      };
+      const payload = { ...updatedData };
+      if (payload.experience) {
+        payload.experienceYears = expMap[payload.experience] ?? Number(payload.experience) ?? 1;
+        delete payload.experience;
+      }
+      await updateRecruitmentJob(id, payload);
       setJobs(prev => prev.map(j => j.id === id ? { ...j, ...updatedData } : j));
       return { success: true };
     } catch (err) {
