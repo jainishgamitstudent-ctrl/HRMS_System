@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../../components/layout/Header';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { useAppTheme } from '@/context/ThemeContext';
-import { checkMyWFHPermission } from '../../services/wfh';
+import { checkMyWFHPermission, fetchUpcomingWFH } from '../../services/wfh';
 import { useRealtimeWFH } from '../../hooks/useRealtime';
-const MOCK_WFH: any[] = [];  // Empty initial data - will be fetched from API
 
 const WFHCard = ({ item, index, styles }: { item: any, index: number, styles: any }) => {
   const { colors } = useAppTheme();
@@ -54,7 +53,7 @@ const WFHCard = ({ item, index, styles }: { item: any, index: number, styles: an
 export default function UpcomingWFH() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => UpcomingWfhStyles(colors), [colors]);
-  const [wfhList, setWfhList] = useState(MOCK_WFH);
+  const [wfhList, setWfhList] = useState<any[]>([]);
   const [wfhEnabled, setWfhEnabled] = useState(false);
   const [permissionLevel, setPermissionLevel] = useState<string | null>(null);
   const [permissionNotes, setPermissionNotes] = useState<string | null>(null);
@@ -66,56 +65,46 @@ export default function UpcomingWFH() {
     return isNaN(d.getTime()) ? 'Workday' : days[d.getDay()];
   };
 
-  useEffect(() => {
-    const loadWfhData = async () => {
-      try {
-        setCheckingPermission(true);
+  const loadWfhData = useCallback(async () => {
+    try {
+      setCheckingPermission(true);
 
-        // Check WFH permission first
-        const permResponse = await checkMyWFHPermission();
-        const enabled = permResponse?.data?.wfhEnabled ?? false;
-        const level = permResponse?.data?.level ?? null;
-        const notes = permResponse?.data?.notes ?? null;
-        setWfhEnabled(enabled);
-        setPermissionLevel(level);
-        setPermissionNotes(notes);
+      // Check WFH permission first
+      const permResponse = await checkMyWFHPermission();
+      const enabled = permResponse?.data?.wfhEnabled ?? false;
+      const level = permResponse?.data?.level ?? null;
+      const notes = permResponse?.data?.notes ?? null;
+      setWfhEnabled(enabled);
+      setPermissionLevel(level);
+      setPermissionNotes(notes);
 
-        if (!enabled) {
-          setCheckingPermission(false);
-          return;
-        }
-
-        // Load WFH data from backend
-        const api = require('../../constants/api').API_BASE_URL;
-        const response = await fetch(`${api}/wfh/upcoming`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.ok) {
-          const json = await response.json();
-          if (json && json.data && Array.isArray(json.data)) {
-            const mapped = json.data.map((d: any) => ({
-              id: d.id || Math.random().toString(36).substr(2, 9),
-              date: new Date(d.date || d.Date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-              day: getDayOfWeek(d.date || d.Date),
-              duration: d.duration || d.Duration || 'Full Day',
-              status: d.status || d.Status || 'Pending'
-            }));
-            setWfhList(mapped);
-          }
-        }
-      } catch (error) {
-        console.log('Error fetching WFH data:', error);
-      } finally {
+      if (!enabled) {
         setCheckingPermission(false);
+        return;
       }
-    };
 
-    loadWfhData();
+      // Load WFH data from backend
+      const wfhResponse = await fetchUpcomingWFH();
+      if (wfhResponse.status === 'Success' && Array.isArray(wfhResponse.data)) {
+        const mapped = wfhResponse.data.map((d: any) => ({
+          id: d.id || Math.random().toString(36).substr(2, 9),
+          date: new Date(d.date || d.Date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          day: getDayOfWeek(d.date || d.Date),
+          duration: d.duration || d.Duration || 'Full Day',
+          status: d.status || d.Status || 'Pending'
+        }));
+        setWfhList(mapped);
+      }
+    } catch (error) {
+      console.log('Error fetching WFH data:', error);
+    } finally {
+      setCheckingPermission(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadWfhData();
+  }, [loadWfhData]);
 
   useRealtimeWFH((action, payload) => {
     console.log('[Realtime] WFH event:', action, payload);

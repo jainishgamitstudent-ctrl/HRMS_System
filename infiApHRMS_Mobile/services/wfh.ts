@@ -110,6 +110,20 @@ export type WFHPermissionRevokeResponse = {
   data: { id: string; level: string; isActive: boolean };
 };
 
+export type WFHUpcomingItem = {
+  id: string;
+  date: string;
+  day: string;
+  duration: string;
+  status: string;
+};
+
+export type WFHUpcomingResponse = {
+  status: string;
+  data: WFHUpcomingItem[];
+  wfhEnabled?: boolean;
+};
+
 export const checkMyWFHPermission = async () => {
   const headers = await getAuthHeaders();
   return request<WFHPermissionCheckResponse>('/wfh/permission/check', {
@@ -149,6 +163,14 @@ export const revokeWFHPermission = async (permissionId: string) => {
   const headers = await getAuthHeaders();
   return request<WFHPermissionRevokeResponse>(`/wfh/permissions/${permissionId}/revoke`, {
     method: 'PATCH',
+    headers,
+  });
+};
+
+export const fetchUpcomingWFH = async () => {
+  const headers = await getAuthHeaders();
+  return request<WFHUpcomingResponse>('/wfh/upcoming', {
+    method: 'GET',
     headers,
   });
 };
