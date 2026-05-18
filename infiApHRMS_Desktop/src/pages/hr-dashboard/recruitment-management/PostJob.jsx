@@ -10,7 +10,7 @@ import {
     ChevronDown,
     Briefcase,
     Building2,
-    DollarSign,
+    IndianRupee,
     CheckCircle2
 } from 'lucide-react';
 import { useJobContext } from '../../../context/JobContext';
@@ -170,10 +170,10 @@ const PostJob = () => {
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Annual Salary Range</label>
                                     <div className="relative group">
-                                        <DollarSign className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16} />
+                                        <IndianRupee className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16} />
                                         <input 
                                             type="text" 
-                                            placeholder="e.g. $120k - $160k"
+                                            placeholder="e.g. ₹10L - ₹15L"
                                             className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-12 pr-6 py-4 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all"
                                             value={formData.salary}
                                             onChange={(e) => setFormData({...formData, salary: e.target.value})}

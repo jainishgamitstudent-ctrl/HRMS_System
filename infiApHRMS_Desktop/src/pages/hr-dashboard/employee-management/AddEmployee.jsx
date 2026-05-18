@@ -131,7 +131,7 @@ const AddEmployee = () => {
     const result = await addEmployee({
       ...formData,
       phone: fullPhone,
-      salary: formData.salary ? Number(formData.salary) : undefined,
+      annualSalary: formData.salary ? Number(formData.salary) : undefined,
       status: formData.status || 'Active',
       systemRole: formData.systemRole,
     });

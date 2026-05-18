@@ -66,7 +66,6 @@ const PerformanceInsights = lazy(() => import('./pages/hr-dashboard/analytics-ma
 const ResignationHub = lazy(() => import('./pages/hr-dashboard/resignation-management/ResignationHub'));
 const SubmitResignation = lazy(() => import('./pages/hr-dashboard/resignation-management/SubmitResignation'));
 const ResignationRequests = lazy(() => import('./pages/hr-dashboard/resignation-management/ResignationRequests'));
-const ExitProcess = lazy(() => import('./pages/hr-dashboard/resignation-management/ExitProcess'));
 
 // Lazy load Company Admin Pages
 const AdminDashboard = lazy(() => import('./pages/admin-dashboard/AdminDashboard'));
@@ -306,7 +305,6 @@ function AppContent() {
                       {/* Resignation Control */}
                       <Route path="/resignation" element={<ResignationHub />} />
                       <Route path="/resignation/requests" element={<ResignationRequests />} />
-                      <Route path="/resignation/exit" element={<ExitProcess />} />
                     </Routes>
                     </Suspense>
                   </AdminLayout>
@@ -434,7 +432,6 @@ function AppContent() {
                       <Route path="/resignation" element={<ResignationHub />} />
                       <Route path="/resignation/submit" element={<SubmitResignation />} />
                       <Route path="/resignation/requests" element={<ResignationRequests />} />
-                      <Route path="/resignation/exit" element={<ExitProcess />} />
 
                       {/* WFH Access Control */}
                       <Route path="/wfh-access" element={<WFHPermissions />} />

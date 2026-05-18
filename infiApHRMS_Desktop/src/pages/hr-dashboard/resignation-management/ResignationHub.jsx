@@ -404,12 +404,6 @@ const ResignationHub = () => {
                  <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Compliance Engine Active</p>
               </div>
           </div>
-          <button
-            onClick={() => navigate(`${baseRoute}/resignation/exit`)}
-            className="px-6 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-white border border-white/5"
-          >
-            Initiate Exit Protocol
-          </button>
         </div>
       </div>
     </div>

@@ -34,13 +34,16 @@ const formatDate = (value) => {
 };
 
 const normalizeLeave = (leave, index) => {
-  // Handle EmployeeID from backend (populated employee reference)
-  const employee = leave.EmployeeID || leave.employee || leave.user || {};
+  // EmployeeID may be a populated object or an unpopulated ObjectId string
+  const rawEmployee = leave.EmployeeID || leave.employee || leave.user;
+  const employee = (rawEmployee && typeof rawEmployee === 'object') ? rawEmployee : {};
+
   const startDate = leave.StartDate || leave.startDate || leave.fromDate || leave.dateFrom || leave.leaveStartDate;
   const endDate = leave.EndDate || leave.endDate || leave.toDate || leave.dateTo || leave.leaveEndDate || startDate;
 
-  // Get employee name from various possible fields
-  const employeeName = leave.employeeName || leave.EmployeeID?.name || employee.name || employee.fullName || leave.name || 'Unknown Employee';
+  const employeeName = leave.employeeName || employee.name || employee.fullName || leave.name || 'Unknown Employee';
+  const employeeId = leave.employeeId || employee.employeeId || employee.empId || 'N/A';
+  const department = leave.department || employee.department || leave.dept || 'N/A';
 
   // Map backend status to frontend status
   let status = leave.status || leave.ApprovalStatus || 'Pending';
@@ -51,8 +54,8 @@ const normalizeLeave = (leave, index) => {
   return {
     id: leave._id || leave.id || leave.leaveId || `LEAVE-${index + 1}`,
     employeeName,
-    employeeId: leave.employeeId || leave.EmployeeID?.employeeId || employee.employeeId || employee.empId || 'N/A',
-    department: leave.department || leave.EmployeeID?.department || employee.department || leave.dept || 'N/A',
+    employeeId,
+    department,
     leaveType: leave.LeaveType || leave.leaveType || leave.type || leave.category || 'Leave',
     startDate,
     endDate,

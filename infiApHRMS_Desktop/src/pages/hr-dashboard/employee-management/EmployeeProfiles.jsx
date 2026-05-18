@@ -36,7 +36,7 @@ const formatSalary = (value) => {
 
    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       maximumFractionDigits: 0
    }).format(amount);
 };
@@ -63,7 +63,7 @@ const normalizeProfileData = (payload, fallbackId) => {
       employeeType: job.employeeType || data.employmentType || '',
       avatar: profile.profileImage || data.profileImage || data.avatar || '',
       attendance,
-      salary: formatSalary(financial.currentBaseSalary || financial.annualSalaryUSD || data.currentBaseSalary || data.annualSalary),
+      salary: formatSalary(financial.annualSalaryUSD || data.annualSalary || financial.currentBaseSalary || data.currentBaseSalary),
    };
 };
 
@@ -209,7 +209,7 @@ const EmployeeProfiles = () => {
               </div>
               {employee.salary && (
                 <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-xs text-slate-500 uppercase tracking-wide">Base Salary</span>
+                  <span className="text-xs text-slate-500 uppercase tracking-wide">Annual Salary</span>
                   <span className="text-sm font-medium text-slate-800">{employee.salary}</span>
                 </div>
               )}
