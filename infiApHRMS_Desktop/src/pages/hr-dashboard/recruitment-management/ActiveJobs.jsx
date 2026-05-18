@@ -155,10 +155,6 @@ const ActiveJobs = () => {
                                         <span className="text-2xl font-black text-slate-800 tracking-tight leading-none mb-2">{job.applicants}</span>
                                         <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Applicants</span>
                                     </div>
-                                    <div className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest 
-                                        ${job.status === 'Active' ? 'bg-indigo-50 text-indigo-500' : 'bg-slate-100 text-slate-400'}`}>
-                                        {job.status}
-                                    </div>
                                     <div className="flex items-center gap-3">
                                         <button 
                                             onClick={(e) => {

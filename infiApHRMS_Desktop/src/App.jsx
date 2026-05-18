@@ -48,6 +48,7 @@ const PayslipManagement = lazy(() => import('./pages/hr-dashboard/payroll-manage
 const RecruitmentManagement = lazy(() => import('./pages/hr-dashboard/recruitment-management/RecruitmentManagement'));
 const PostJob = lazy(() => import('./pages/hr-dashboard/recruitment-management/PostJob'));
 const ActiveJobs = lazy(() => import('./pages/hr-dashboard/recruitment-management/ActiveJobs'));
+const JobDetail = lazy(() => import('./pages/hr-dashboard/recruitment-management/JobDetail'));
 const InternalJobs = lazy(() => import('./pages/hr-dashboard/recruitment-management/InternalJobs'));
 const Candidates = lazy(() => import('./pages/hr-dashboard/recruitment/Candidates'));
 const Applications = lazy(() => import('./pages/hr-dashboard/recruitment/Applications'));
@@ -407,6 +408,7 @@ function AppContent() {
                       <Route path="/recruitment" element={<RecruitmentManagement />} />
                       <Route path="/recruitment/post-job" element={<PostJob />} />
                       <Route path="/recruitment/active-jobs" element={<ActiveJobs />} />
+                      <Route path="/recruitment/active-jobs/:id" element={<JobDetail />} />
                       <Route path="/recruitment/candidates" element={<Candidates />} />
                       <Route path="/recruitment/applications" element={<Applications />} />
                       <Route path="/recruitment/interviews" element={<Interviews />} />
