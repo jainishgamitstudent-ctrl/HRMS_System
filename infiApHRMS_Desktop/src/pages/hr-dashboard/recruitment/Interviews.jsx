@@ -90,18 +90,18 @@ const Interviews = () => {
                 const res = await getCandidateTracking();
                 const payload = Array.isArray(res.data?.data) ? res.data.data : [];
                 const mapped = payload.map((item, index) => {
-                    const schedule = item.interview || item.interviewSchedule || item.nextInterview || {};
+                    const schedule = item.technicalInterview || item.interview || item.interviewSchedule || item.nextInterview || {};
                     return {
                         id: schedule.id || schedule._id || item.interviewId || `INT-${index + 1}`,
                         candidateId: item.id || item.candidateId || item._id || item.code || `CAN-${index + 1}`,
-                        candidate: item.name || item.fullName || item.candidateName || `Candidate ${index + 1}`,
-                        role: item.role || item.jobTitle || item.position || 'Role Pending',
+                        candidate: item.applicantName || item.name || item.fullName || item.candidateName || `Candidate ${index + 1}`,
+                        role: item.jobTitle || item.role || item.position || 'Role Pending',
                         stage: schedule.stage || item.stage || item.status || 'Interview',
                         dateTime: schedule.dateTime || schedule.scheduledAt || schedule.date || item.interviewDate || '—',
                         interviewer: schedule.interviewer || schedule.interviewerName || item.interviewer || '—',
                         type: schedule.type || schedule.mode || item.interviewType || 'Video Call',
                         status: schedule.status || item.interviewStatus || item.status || 'Upcoming',
-                        avatar: item.avatar || item.profilePicture || `https://i.pravatar.cc/150?u=${encodeURIComponent(item.email || item.name || index)}`
+                        avatar: item.profileImage || item.avatar || item.profilePicture || `https://i.pravatar.cc/150?u=${encodeURIComponent(item.email || item.applicantName || item.name || index)}`
                     };
                 }).filter((item) => item.dateTime !== '—' || item.status !== '—');
 
@@ -109,7 +109,7 @@ const Interviews = () => {
                     setInterviews(mapped);
                 }
             } catch (err) {
-                // debug error removed
+                console.error('Failed to load interviews:', err);
             }
         };
 

@@ -59,13 +59,13 @@ const Applications = () => {
                 const payload = Array.isArray(res.data?.data) ? res.data.data : [];
                 const mapped = payload.map((item, index) => ({
                     id: item.id || item.candidateId || item._id || item.code || `CAN-${index + 1}`,
-                    name: item.name || item.fullName || item.candidateName || `Candidate ${index + 1}`,
-                    role: item.role || item.jobTitle || item.position || 'Role Pending',
+                    name: item.applicantName || item.name || item.fullName || item.candidateName || `Candidate ${index + 1}`,
+                    role: item.jobTitle || item.role || item.position || 'Role Pending',
                     dept: item.department || item.dept || item.team || '—',
                     location: item.location || item.city || item.workLocation || '—',
-                    appliedAt: formatDate(item.appliedAt || item.createdAt || item.submittedAt),
+                    appliedAt: formatDate(item.appliedAt || item.appliedDate || item.createdAt || item.submittedAt),
                     status: item.status || item.stage || 'New',
-                    avatar: item.avatar || item.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || item.fullName || 'C')}&background=random`
+                    avatar: item.profileImage || item.avatar || item.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.applicantName || item.name || item.fullName || 'C')}&background=random`
                 }));
 
                 if (isMounted) {

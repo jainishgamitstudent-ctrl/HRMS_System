@@ -220,10 +220,17 @@ export const AdminDashboardProvider = ({ children }) => {
       
       let mapped = allTeams.map(normalizeTeam);
       if (!isAdmin && hrDepartmentId) {
-        mapped = mapped.filter(t =>
+        const filtered = mapped.filter(t =>
           String(t.departmentId) === String(hrDepartmentId) ||
           String(t.departmentName).toLowerCase() === String(hrDepartmentName).toLowerCase()
         );
+        // Safety fallback: if filtering wipes everything, show all teams
+        // so the page isn't blank (likely a data mismatch)
+        if (filtered.length === 0 && mapped.length > 0) {
+          console.warn('[fetchTeams] HR filter returned 0 teams. Falling back to all.');
+        } else {
+          mapped = filtered;
+        }
       }
       setTeams(mapped);
       return mapped;

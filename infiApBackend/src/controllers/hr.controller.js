@@ -1471,11 +1471,12 @@ exports.getCandidateTrackingList = async (req, res) => {
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const candidates = await Candidate.find(filter)
-            .select("applicantName profileImage jobTitle yearsOfExperience appliedDate status")
+            .select("applicantName profileImage jobTitle yearsOfExperience appliedDate status technicalInterview")
             .sort({ appliedDate: -1 })
             .skip(skip).limit(parseInt(limit));
         
         const total = await Candidate.countDocuments(filter);
+        console.log('[getCandidateTrackingList] Found', total, 'candidates, returning', candidates.length);
 
         res.status(200).json({
             success: true,

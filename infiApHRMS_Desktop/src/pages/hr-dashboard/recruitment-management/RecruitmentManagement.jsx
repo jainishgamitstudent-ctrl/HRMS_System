@@ -12,7 +12,8 @@ import {
   LayoutDashboard,
   UserPlus,
   ShieldCheck,
-  Briefcase
+  Briefcase,
+  Zap
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -39,7 +40,7 @@ const getCandidateStatus = (candidate) => (
 );
 
 const hasInterviewSchedule = (candidate) => {
-  const schedule = candidate.interview || candidate.interviewSchedule || candidate.nextInterview || {};
+  const schedule = candidate.technicalInterview || candidate.interview || candidate.interviewSchedule || candidate.nextInterview || {};
   return Boolean(
     schedule.dateTime ||
     schedule.scheduledAt ||
@@ -50,7 +51,7 @@ const hasInterviewSchedule = (candidate) => {
 };
 
 const normalizeCandidateAction = (candidate, index) => {
-  const schedule = candidate.interview || candidate.interviewSchedule || candidate.nextInterview || {};
+  const schedule = candidate.technicalInterview || candidate.interview || candidate.interviewSchedule || candidate.nextInterview || {};
   const status = getCandidateStatus(candidate);
   const interviewDate = schedule.dateTime || schedule.scheduledAt || schedule.date || candidate.interviewDate || candidate.scheduledAt;
   const isSelected = ['selected', 'hired', 'offer', 'offered'].includes(String(status).toLowerCase());
@@ -58,8 +59,8 @@ const normalizeCandidateAction = (candidate, index) => {
 
   return {
     id: candidate.id || candidate.candidateId || candidate._id || candidate.code || `CAN-${index + 1}`,
-    title: candidate.name || candidate.fullName || candidate.candidateName || `Candidate ${index + 1}`,
-    role: candidate.role || candidate.jobTitle || candidate.position || 'Role Pending',
+    title: candidate.applicantName || candidate.name || candidate.fullName || candidate.candidateName || `Candidate ${index + 1}`,
+    role: candidate.jobTitle || candidate.role || candidate.position || 'Role Pending',
     department: candidate.department || candidate.dept || candidate.team || 'Recruitment',
     date: formatDate(interviewDate || candidate.appliedAt || candidate.appliedDate || candidate.createdAt, scheduled ? 'Scheduled' : 'Applied'),
     category: scheduled ? (schedule.stage || candidate.stage || 'Interview Scheduled') : 'Candidate Application',
@@ -119,6 +120,10 @@ const RecruitmentManagement = () => {
           getRecruitmentJobs()
         ]);
 
+        console.log('[Recruitment] candidateRes:', candidateRes);
+        console.log('[Recruitment] candidateRes.data:', candidateRes.data);
+        console.log('[Recruitment] candidateRes.data?.data:', candidateRes.data?.data);
+
         const candidates = Array.isArray(candidateRes.data?.data) ? candidateRes.data.data : [];
         const jobsData = Array.isArray(jobRes.data?.data) ? jobRes.data.data : [];
         setJobs(jobsData);
@@ -143,13 +148,54 @@ const RecruitmentManagement = () => {
           setCurrentActions(actions);
         }
       } catch (err) {
-        // debug error removed
+        console.error('Failed to load recruitment pipeline:', err);
+        showNotification(err?.response?.data?.message || 'Failed to load recruitment data.');
       }
     };
 
     loadPipeline();
     return () => { isMounted = false; };
   }, []);
+
+  const handleSeedDemoData = async () => {
+    const demoCandidates = [
+      { applicantName: 'Alex Rivera', jobTitle: 'Senior React Developer', email: 'alex@example.com', status: 'Applied' },
+      { applicantName: 'Sarah Chen', jobTitle: 'Product Designer', email: 'sarah@example.com', status: 'Shortlisted' },
+      { applicantName: 'Michael Torres', jobTitle: 'DevOps Engineer', email: 'michael@example.com', status: 'Technical Interview', technicalInterview: { date: new Date().toISOString(), interviewer: 'Jane HR' } },
+    ];
+    try {
+      for (const c of demoCandidates) {
+        await createCandidate(c);
+      }
+      showNotification('Demo candidates seeded successfully.');
+      // Refresh
+      const [candidateRes, jobRes] = await Promise.all([
+        getCandidateTracking(),
+        getRecruitmentJobs()
+      ]);
+      const candidates = Array.isArray(candidateRes.data?.data) ? candidateRes.data.data : [];
+      const jobsData = Array.isArray(jobRes.data?.data) ? jobRes.data.data : [];
+      setJobs(jobsData);
+      const stageCounts = candidates.reduce((acc, item) => {
+        const stage = getCandidateStatus(item);
+        acc[stage] = (acc[stage] || 0) + 1;
+        return acc;
+      }, {});
+      const mapped = Object.entries(stageCounts).map(([name, value]) => ({ name, value }));
+      const actions = candidates.map(normalizeCandidateAction);
+      const scheduledCount = actions.filter((c) => c.scheduled).length;
+      const selectedCount = actions.filter((c) => c.selected).length;
+      if (mapped.length) setPipelineData(mapped);
+      setApplicantTotal(candidates.length);
+      setInterviewTotal(scheduledCount);
+      setSelectedTotal(selectedCount);
+      setUnscheduledTotal(Math.max(candidates.length - scheduledCount - selectedCount, 0));
+      setCurrentActions(actions);
+    } catch (err) {
+      console.error('Seed failed:', err);
+      showNotification(err?.response?.data?.message || 'Failed to seed demo data.');
+    }
+  };
 
   const handleAddCandidate = async (e) => {
     e.preventDefault();
@@ -311,6 +357,13 @@ const RecruitmentManagement = () => {
           >
             <Download size={16} className="text-slate-400" />
             Export CSV
+          </button>
+          <button
+            onClick={handleSeedDemoData}
+            className="px-4 py-2.5 bg-white border border-slate-200 text-slate-800 text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center gap-2 shadow-sm active:scale-95"
+          >
+            <Zap size={16} className="text-amber-500" />
+            Seed Demo
           </button>
           <button
             onClick={() => setShowAddModal(true)}
@@ -485,13 +538,42 @@ const RecruitmentManagement = () => {
             </div>
           ))}
 
+          {/* Open Vacancies */}
+          <div className="bg-white p-4 rounded-xl border border-slate-100">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-slate-400 font-medium">Open Vacancies</p>
+              <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{jobs.filter(j => j.status === 'Open' || j.status === 'Active').length}</span>
+            </div>
+            <div className="space-y-2">
+              {jobs.filter(j => j.status === 'Open' || j.status === 'Active').length === 0 ? (
+                <p className="text-xs text-slate-400">No open vacancies.</p>
+              ) : (
+                jobs.filter(j => j.status === 'Open' || j.status === 'Active').map((job, idx) => (
+                  <div key={idx} className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => navigate('/recruitment/active-jobs')}>
+                    <Briefcase size={14} className="text-indigo-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-slate-700 leading-tight">{job.title}</p>
+                      <p className="text-[10px] text-slate-400">{job.department} &middot; {job.type}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <button
+              onClick={() => navigate('/recruitment/post-job')}
+              className="w-full mt-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+            >
+              + Post New Job
+            </button>
+          </div>
+
           {/* Alert Card */}
           <div className="bg-slate-900 p-5 rounded-xl text-white mt-auto">
             <AlertCircle className="mb-2 text-indigo-400" size={20} />
             <h4 className="text-sm font-semibold mb-1">Hiring Alert</h4>
             <p className="text-xs text-slate-400 mb-3">{unscheduledTotal} candidates need scheduling or review.</p>
             <button onClick={() => navigate('/recruitment/applications')} className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors">
-              Review Pipeline
+              Review Hiring
             </button>
           </div>
         </div>
@@ -538,50 +620,58 @@ const RecruitmentManagement = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filteredActions.map((act, idx) => (
-                  <tr key={`${activeTab}-${idx}`} onClick={() => navigate(act.path)} className="group hover:bg-slate-50/60 transition-colors cursor-pointer">
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2.5 rounded-lg ${act.bg} ${act.color}`}>
-                          {act.icon ? <act.icon size={18} /> : <div className="w-4 h-4 bg-slate-200 rounded-full" />}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-slate-800 group-hover:text-primary-600 transition-colors">{act.title}</p>
-                          <p className="text-xs text-slate-400">{act.role} &middot; {act.interviewer}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                        <Calendar size={13} className="text-slate-400" />
-                        {act.date}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full ${
-                        act.selected
-                          ? 'bg-emerald-50 text-emerald-600'
-                          : act.status === 'Priority' || act.status === 'Required'
-                            ? 'bg-orange-50 text-orange-600'
-                            : act.status === 'Live'
-                              ? 'bg-indigo-50 text-indigo-600'
-                              : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {act.selected ? 'Selected' : act.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={(e) => { e.stopPropagation(); handleExportCandidate(act); }} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-                          <Download size={16} />
-                        </button>
-                        <button className="p-2 text-slate-400 hover:text-primary-600 hover:bg-slate-100 rounded-lg transition-colors">
-                          <ArrowRight size={16} />
-                        </button>
-                      </div>
+                {filteredActions.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="px-5 py-12 text-center">
+                      <p className="text-sm text-slate-400">No candidates found. Add a candidate or adjust filters.</p>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredActions.map((act, idx) => (
+                    <tr key={`${activeTab}-${idx}`} onClick={() => navigate(act.path)} className="group hover:bg-slate-50/60 transition-colors cursor-pointer">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2.5 rounded-lg ${act.bg} ${act.color}`}>
+                            {act.icon ? <act.icon size={18} /> : <div className="w-4 h-4 bg-slate-200 rounded-full" />}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-slate-800 group-hover:text-primary-600 transition-colors">{act.title}</p>
+                            <p className="text-xs text-slate-400">{act.role} &middot; {act.interviewer}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Calendar size={13} className="text-slate-400" />
+                          {act.date}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full ${
+                          act.selected
+                            ? 'bg-emerald-50 text-emerald-600'
+                            : act.status === 'Priority' || act.status === 'Required'
+                              ? 'bg-orange-50 text-orange-600'
+                              : act.status === 'Live'
+                                ? 'bg-indigo-50 text-indigo-600'
+                                : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {act.selected ? 'Selected' : act.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); handleExportCandidate(act); }} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                            <Download size={16} />
+                          </button>
+                          <button className="p-2 text-slate-400 hover:text-primary-600 hover:bg-slate-100 rounded-lg transition-colors">
+                            <ArrowRight size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
