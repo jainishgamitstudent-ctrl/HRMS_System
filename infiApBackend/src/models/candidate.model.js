@@ -56,16 +56,20 @@ const candidateSchema = new mongoose.Schema({
     // Technical Interview details
     technicalInterview: {
         date: Date,
+        time: String,
         interviewer: String,
+        stage: String,
         mode: {
             type: String,
-            enum: ["Online", "Offline"],
+            enum: ["Online", "Offline", "Phone"],
             default: "Online"
         },
         meetingLink: String,
         venue: String,
+        phoneNumber: String,
         score: Number,
         feedback: String,
+        assignedHRs: [{ type: String }],
         status: { type: String, enum: ["Pending", "Passed", "Failed"], default: "Pending" }
     },
 

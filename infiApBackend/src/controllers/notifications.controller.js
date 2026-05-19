@@ -19,6 +19,9 @@ const getAudienceFilters = (user) => {
 const formatNotification = (n, userId) => {
   const isPersonal = !!n.recipient;
   const isRead = isPersonal ? !!n.readAt : hasUserReadBroadcast(n, userId);
+  const sentBy = n.sentBy && typeof n.sentBy === 'object'
+    ? { id: n.sentBy._id, name: n.sentBy.name || n.sentBy.fullName, role: n.sentBy.role }
+    : n.sentBy ? { id: n.sentBy } : null;
   return {
     id: n._id,
     category: n.category,
@@ -31,13 +34,18 @@ const formatNotification = (n, userId) => {
     isRead,
     createdAt: n.createdAt,
     relatedRoomId: n.relatedRoomId || null,
+    sentBy,
   };
 };
 
 exports.getNotifications = async (req, res) => {
   try {
     // For simplicity, return most recent 50 notifications
-    const notifications = await Notification.find({ isActive: true }).sort({ createdAt: -1 }).limit(50);
+    const notifications = await Notification.find({ isActive: true })
+      .populate("sentBy", "name fullName role")
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
     return res.status(200).json({ status: "Success", data: notifications.map((n) => formatNotification(n)) });
   } catch (error) {
     return res.status(500).json({ status: "Error", message: "Failed to fetch notifications", error: error.message });
@@ -68,6 +76,7 @@ exports.getMyNotifications = async (req, res) => {
       isActive: true,
       $or: orFilters,
     })
+      .populate("sentBy", "name fullName role")
       .sort({ createdAt: -1 })
       .limit(100)
       .lean();

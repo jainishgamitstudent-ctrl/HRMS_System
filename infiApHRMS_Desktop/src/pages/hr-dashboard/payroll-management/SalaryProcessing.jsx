@@ -49,11 +49,6 @@ const SalaryProcessing = () => {
             setEmployees(formatted);
         } catch (err) {
             // debug error removed
-            // Fallback
-            setEmployees([
-                { id: 'EMP-001', name: 'Mark Wilson', dept: 'Engineering', gross: 145000, tax: 18500, pf: 12000, net: 114500, status: 'Pending' },
-                { id: 'EMP-002', name: 'Sarah Chen', dept: 'Design', gross: 125000, tax: 15400, pf: 10500, net: 99100, status: 'Pending' },
-            ]);
         } finally {
             setLoading(false);
         }
@@ -112,11 +107,11 @@ const SalaryProcessing = () => {
                         <div className="flex items-center gap-4 text-left">
                             <span className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase tracking-widest text-left font-sans">
                                 <DollarSign size={12} />
-                                Disbursement Lock: Oct 28
+                                Disbursement Lock: {new Date().toLocaleString('default', { month: 'short' })} {new Date().getDate()}
                             </span>
                             <span className="flex items-center gap-2 px-3 py-1 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-black uppercase tracking-widest text-left font-sans text-[10px]">
                                 <AlertCircle size={12} />
-                                12 Flagged Discrepancies
+                                {employees.filter(e => e.status === 'Pending').length} Pending Verifications
                             </span>
                         </div>
                     </div>
@@ -236,12 +231,12 @@ const SalaryProcessing = () => {
                     <div className="px-10 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-left shrink-0">
                         <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-2 text-left">
                             <Clock size={14} />
-                            Cycle: October 2023 • Disbursement Window Open
+                            Cycle: {new Date().toLocaleString('default', { month: 'long' })} {new Date().getFullYear()} • Disbursement Window Open
                         </p>
                         <div className="flex items-center gap-6 text-right">
                             <div className="text-right">
                                 <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest text-left">Total Process Volume</p>
-                                <p className="text-sm font-black text-slate-800 tracking-tighter text-left">₹4,86,200.00</p>
+                                <p className="text-sm font-black text-slate-800 tracking-tighter text-left">₹{employees.reduce((sum, e) => sum + (e.net || 0), 0).toLocaleString()}</p>
                             </div>
                         </div>
                     </div>
@@ -257,11 +252,11 @@ const SalaryProcessing = () => {
                             <div className="space-y-4 text-left">
                                 <div className="flex justify-between py-4 border-b border-white/10 text-left">
                                     <span className="text-[11px] font-black uppercase tracking-[0.2em]">Net Total</span>
-                                    <span className="text-[10px] font-black uppercase text-right tracking-widest">₹1.14 Cr</span>
+                                    <span className="text-[10px] font-black uppercase text-right tracking-widest">₹{employees.reduce((sum, e) => sum + (e.net || 0), 0).toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between py-4 border-b border-white/10 text-left">
                                     <span className="text-[11px] font-black uppercase tracking-[0.2em]">Tax Nodes</span>
-                                    <span className="text-[10px] font-black uppercase text-right tracking-widest">₹12.4 L</span>
+                                    <span className="text-[10px] font-black uppercase text-right tracking-widest">₹{employees.reduce((sum, e) => sum + (e.tax || 0), 0).toLocaleString()}</span>
                                 </div>
                             </div>
                         </div>

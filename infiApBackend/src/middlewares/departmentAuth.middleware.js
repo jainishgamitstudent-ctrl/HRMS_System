@@ -1,11 +1,8 @@
-const User = require("../models/user.model");
-
 /**
  * Middleware to enforce department-based access control.
- * 
+ *
  * Rules:
- * - Admin / Main Admin / SuperAdmin: full access to all employees
- * - HR: can only access employees within their own department
+ * - Admin / Main Admin / SuperAdmin / HR: full access to all employees
  * - Others: denied
  */
 const verifyDepartmentAccess = async (req, res, next) => {
@@ -17,36 +14,9 @@ const verifyDepartmentAccess = async (req, res, next) => {
 
         const normalizedRole = String(user.role || "").toLowerCase().trim();
 
-        // Admin roles have unrestricted access
-        const adminRoles = ["admin", "main_admin", "superadmin"];
+        // Admin and HR roles have unrestricted access
+        const adminRoles = ["admin", "main_admin", "superadmin", "hr"];
         if (adminRoles.includes(normalizedRole)) {
-            return next();
-        }
-
-        // HR can only manage employees in their own department
-        if (normalizedRole === "hr") {
-            const employeeId = req.params.id;
-            if (!employeeId) {
-                return res.status(400).json({ success: false, message: "Employee ID is required" });
-            }
-
-            const employee = await User.findById(employeeId).select("department").lean();
-            if (!employee) {
-                return res.status(404).json({ success: false, message: "Employee not found" });
-            }
-
-            const hrDepartment = String(user.department || "").trim();
-            const employeeDepartment = String(employee.department || "").trim();
-
-            if (hrDepartment !== employeeDepartment) {
-                return res.status(403).json({
-                    success: false,
-                    message: "Access denied: Cannot manage employees from other departments"
-                });
-            }
-
-            // Attach employee to request for downstream use
-            req.employee = employee;
             return next();
         }
 

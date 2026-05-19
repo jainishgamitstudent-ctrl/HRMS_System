@@ -12,6 +12,7 @@ import {
    BadgeCheck
 } from 'lucide-react';
 import { useEmployeeContext } from '../../../context/EmployeeContext';
+import { useAuth } from '../../../context/AuthContext';
 import { getEmployeeProfile } from '../../../services/hrApi';
 
 const formatDate = (value) => {
@@ -53,6 +54,7 @@ const normalizeProfileData = (payload, fallbackId) => {
       id: profile.employeeId || data.employeeId || data._id || data.id || fallbackId,
       name: profile.name || data.name || 'Unnamed employee',
       role: job.role || data.designation || data.role || 'Employee',
+      systemRole: data.role || 'employee',
       email: personal.email || data.email || '',
       phone: personal.phone || data.phone || '',
       location: data.address || data.location || '',
@@ -67,11 +69,26 @@ const normalizeProfileData = (payload, fallbackId) => {
    };
 };
 
+const getSystemRoleBadgeStyle = (systemRole) => {
+  const role = (systemRole || '').toLowerCase();
+  if (role === 'admin' || role === 'superadmin') return 'bg-rose-100 text-rose-700 border-rose-200';
+  if (role === 'hr') return 'bg-violet-100 text-violet-700 border-violet-200';
+  return 'bg-slate-100 text-slate-600 border-slate-200';
+};
+
+const formatSystemRole = (systemRole) => {
+  const role = (systemRole || '').toLowerCase();
+  if (role === 'admin' || role === 'superadmin') return 'Admin';
+  if (role === 'hr') return 'HR';
+  return 'Employee';
+};
+
 const EmployeeProfiles = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const basePath = location.pathname.startsWith('/admin') ? '/admin' : '';
+  const { user } = useAuth();
   const { employees } = useEmployeeContext();
 
   const [employee, setEmployee] = useState(null);
@@ -95,6 +112,7 @@ const EmployeeProfiles = () => {
                   id: ctxEmp.employeeId || ctxEmp.id,
                   name: ctxEmp.name || 'Unnamed employee',
                   role: ctxEmp.role || 'Employee',
+                  systemRole: ctxEmp.systemRole || 'employee',
                   email: ctxEmp.email || '',
                   phone: ctxEmp.phone || '',
                   location: ctxEmp.location || '',
@@ -194,19 +212,21 @@ const EmployeeProfiles = () => {
               </div>
               <h2 className="text-xl font-semibold text-slate-800 mb-1">{employee.name}</h2>
               <p className="text-sm text-indigo-600 font-medium">{employee.role}</p>
-              <div className="flex gap-2 mt-3">
+              <div className="flex flex-wrap gap-2 mt-3 justify-center">
                 <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">{employee.status}</span>
                 {employee.employeeType && (
                   <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full">{employee.employeeType}</span>
+                )}
+                <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getSystemRoleBadgeStyle(employee.systemRole)}`}>
+                  {formatSystemRole(employee.systemRole)}
+                </span>
+                {(user?._id === id || user?.id === id) && (
+                  <span className="px-3 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-700 border border-amber-200">You</span>
                 )}
               </div>
             </div>
 
             <div className="space-y-3">
-              <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                <span className="text-xs text-slate-500 uppercase tracking-wide">Employee ID</span>
-                <span className="text-sm font-medium text-slate-800">{employee.id || 'N/A'}</span>
-              </div>
               {employee.salary && (
                 <div className="flex justify-between items-center py-2 border-b border-slate-100">
                   <span className="text-xs text-slate-500 uppercase tracking-wide">Annual Salary</span>
@@ -282,7 +302,6 @@ const EmployeeProfiles = () => {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { label: 'Employee ID', value: employee.id },
                   { label: 'Department', value: employee.department },
                   { label: 'Manager', value: employee.manager },
                   { label: 'Location', value: employee.location },

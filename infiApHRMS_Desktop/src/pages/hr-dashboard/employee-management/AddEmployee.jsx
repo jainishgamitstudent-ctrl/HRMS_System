@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, Loader2, Plus } from 'lucide-react';
 import { useEmployeeContext } from '../../../context/EmployeeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { getCompanyDepartments } from '../../../services/adminApi';
+import { updateCandidate } from '../../../services/hrApi';
 
 const COUNTRY_CODES = [
   { code: '+91', label: 'IN (+91)' },
@@ -59,9 +60,47 @@ const AddEmployee = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  const candidateRef = location.state?.candidate;
+  const candidateId = candidateRef?.candidateId;
+
   useEffect(() => {
     fetchEmployees?.({ limit: 100 });
   }, [fetchEmployees]);
+
+  useEffect(() => {
+    if (!candidateRef) return;
+
+    // Parse phone into countryCode + phoneNumber
+    let countryCode = '+91';
+    let phoneNumber = '';
+    const rawPhone = String(candidateRef.phone || '').trim();
+    if (rawPhone) {
+      const matched = COUNTRY_CODES.find((c) => rawPhone.startsWith(c.code));
+      if (matched) {
+        countryCode = matched.code;
+        phoneNumber = rawPhone.slice(matched.code.length).replace(/\D/g, '').slice(0, 10);
+      } else if (rawPhone.startsWith('+')) {
+        countryCode = rawPhone.slice(0, 3);
+        phoneNumber = rawPhone.slice(3).replace(/\D/g, '').slice(0, 10);
+      } else {
+        phoneNumber = rawPhone.replace(/\D/g, '').slice(0, 10);
+      }
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+
+    setFormData((prev) => ({
+      ...prev,
+      name: candidateRef.name || prev.name,
+      email: candidateRef.email || prev.email,
+      countryCode,
+      phoneNumber,
+      role: candidateRef.role || prev.role,
+      joiningDate: today,
+      password: prev.password || 'Password@123',
+      status: 'Onboarding',
+    }));
+  }, [candidateRef]);
 
   useEffect(() => {
     let isMounted = true;
@@ -143,6 +182,15 @@ const AddEmployee = () => {
       return;
     }
 
+    // If created from a candidate, mark candidate as Hired
+    if (candidateId) {
+      try {
+        await updateCandidate(candidateId, { status: 'Hired' });
+      } catch (err) {
+        console.warn('Failed to update candidate status:', err);
+      }
+    }
+
     setSuccessMessage(`${formData.name} was added to the employee directory.`);
     setFormData(emptyForm);
   };
@@ -173,13 +221,24 @@ const AddEmployee = () => {
               <CheckCircle2 size={16} />
               {successMessage}
             </span>
-            <button
-              type="button"
-              onClick={() => navigate(`${basePath}/employees`)}
-              className="font-medium text-emerald-900 hover:underline"
-            >
-              View directory
-            </button>
+            <div className="flex items-center gap-3">
+              {candidateId && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin/recruitment-control/candidates')}
+                  className="font-medium text-emerald-900 hover:underline"
+                >
+                  Back to candidates
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => navigate(`${basePath}/employees`)}
+                className="font-medium text-emerald-900 hover:underline"
+              >
+                View directory
+              </button>
+            </div>
           </div>
         )}
 
@@ -388,7 +447,7 @@ const AddEmployee = () => {
           <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
             <button
               type="button"
-              onClick={() => navigate('/employees')}
+              onClick={() => navigate(`${basePath}/employees`)}
               className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Cancel

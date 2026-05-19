@@ -54,7 +54,7 @@ const AddCandidateModal = ({ isOpen, onClose, onRefresh }) => {
                                 <input 
                                     required
                                     type="text" 
-                                    placeholder="e.g. Alex Rivers"
+                                    placeholder="e.g. John Doe"
                                     className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-12 pr-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all"
                                     value={formData.applicantName}
                                     onChange={(e) => setFormData({...formData, applicantName: e.target.value})}
@@ -68,7 +68,7 @@ const AddCandidateModal = ({ isOpen, onClose, onRefresh }) => {
                                 <input 
                                     required
                                     type="email" 
-                                    placeholder="alex@work.com"
+                                    placeholder="candidate@email.com"
                                     className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-12 pr-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all"
                                     value={formData.email}
                                     onChange={(e) => setFormData({...formData, email: e.target.value})}

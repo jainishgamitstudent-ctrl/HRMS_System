@@ -9,6 +9,7 @@ import {
    Loader2
 } from 'lucide-react';
 import { useEmployeeContext } from '../../../context/EmployeeContext';
+import { useAuth } from '../../../context/AuthContext';
 
 const nameToColor = (name = '') => {
    const colors = [
@@ -36,8 +37,23 @@ const formatDate = (dateStr) => {
    } catch { return null; }
 };
 
+const getSystemRoleBadgeStyle = (systemRole) => {
+  const role = (systemRole || '').toLowerCase();
+  if (role === 'admin' || role === 'superadmin') return 'bg-rose-100 text-rose-700 border-rose-200';
+  if (role === 'hr') return 'bg-violet-100 text-violet-700 border-violet-200';
+  return 'bg-slate-100 text-slate-600 border-slate-200';
+};
+
+const formatSystemRole = (systemRole) => {
+  const role = (systemRole || '').toLowerCase();
+  if (role === 'admin' || role === 'superadmin') return 'Admin';
+  if (role === 'hr') return 'HR';
+  return 'Employee';
+};
+
 const EmployeeProfilesHub = () => {
    const navigate = useNavigate();
+   const { user } = useAuth();
    const { employees, loading } = useEmployeeContext();
    const [searchQuery, setSearchQuery] = useState('');
    const [imgErrors, setImgErrors] = useState({});
@@ -59,6 +75,12 @@ const EmployeeProfilesHub = () => {
       }
 
       if (isStrictNewHire) return false;
+
+      // Management Hub: hide regular employees; show only HR, Admin, and own profile
+      const sysRole = (emp.systemRole || '').toLowerCase();
+      const isRegularEmployee = sysRole === 'employee';
+      const isOwnProfile = user?._id === emp._id || user?.id === emp.id;
+      if (isRegularEmployee && !isOwnProfile) return false;
 
       return emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (emp.role || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -144,6 +166,14 @@ const EmployeeProfilesHub = () => {
                               </td>
                               <td className="px-4 py-3 hidden lg:table-cell">
                                  <span className="text-xs px-2 py-1 rounded-md" style={{ color: textColor, backgroundColor: bannerBg }}>{emp.role || '-'}</span>
+                                 <div className="flex items-center gap-1 mt-1">
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${getSystemRoleBadgeStyle(emp.systemRole)}`}>
+                                       {formatSystemRole(emp.systemRole)}
+                                    </span>
+                                    {(user?._id === emp._id || user?.id === emp.id) && (
+                                       <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold bg-amber-100 text-amber-700 border-amber-200">You</span>
+                                    )}
+                                 </div>
                               </td>
                               <td className="px-4 py-3 hidden sm:table-cell">
                                  <div className="text-xs text-slate-500">{emp.email || '-'}</div>

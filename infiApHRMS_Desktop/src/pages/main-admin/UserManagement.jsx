@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
    Users,
    ShieldCheck,
@@ -39,7 +39,8 @@ import {
    RefreshCw,
    Check,
    X as CloseIcon,
-   Clock
+   Clock,
+   Loader2
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -324,7 +325,7 @@ const PermissionsView = ({ setView, selectedUser, togglePermission, showNotifica
    </div>
 );
 
-const ProfileView = ({ setView, selectedUser, handleDeleteUser, showNotification }) => (
+const ProfileView = ({ setView, selectedUser, handleDeleteUser, showNotification, onEditNode }) => (
    <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in slide-in-from-right-8 duration-1000 pb-40">
       {/* Profile Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 border-b border-slate-50 pb-12 px-4">
@@ -368,7 +369,10 @@ const ProfileView = ({ setView, selectedUser, handleDeleteUser, showNotification
                   </div>
                </div>
                <div className="flex items-center justify-center gap-4 pt-6">
-                  <button className="flex-1 py-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl hover:bg-indigo-600 transition-all flex items-center justify-center gap-3 active:scale-95">
+                  <button
+                     onClick={onEditNode}
+                     className="flex-1 py-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl hover:bg-indigo-600 transition-all flex items-center justify-center gap-3 active:scale-95"
+                  >
                      <Edit3 size={16} /> Edit Node Identity
                   </button>
                   <button className="flex-1 py-4 bg-white border border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-50 transition-all flex items-center justify-center gap-3 active:scale-95">
@@ -522,12 +526,148 @@ const AddHRView = ({ setView, hrForm, setHrForm, handleCreateHR }) => (
 );
 
 
+const EditNodeView = ({ setView, editForm, setEditForm, selectedUser, handleUpdateHR, performUpdateHR, showOtpModal, setShowOtpModal, otp, setOtp, otpError, setOtpError, otpLoading, devOtp, handleOtpChange, handleOtpKeyDown, handleOtpPaste, otpInputRefs }) => (
+   <div className="max-w-xl mx-auto space-y-12 animate-in fade-in slide-in-from-right-8 duration-1000 pb-40">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 border-b border-slate-50 pb-12">
+         <div className="flex items-center gap-6">
+            <button onClick={() => setView('profile')} className="w-12 h-12 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center">
+               <ChevronLeft size={24} />
+            </button>
+            <div>
+               <h1 className="text-3xl font-black text-slate-800 tracking-tighter uppercase leading-none mb-2">Edit Node Identity</h1>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] leading-none">{selectedUser?.name}</p>
+            </div>
+         </div>
+         <button onClick={() => setView('profile')} className="p-3 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all active:scale-90">
+            <CloseIcon size={20} />
+         </button>
+      </div>
+
+      <form onSubmit={(e) => { e.preventDefault(); performUpdateHR(); }} className="bg-white p-12 rounded-[48px] border border-slate-100 shadow-soft space-y-10">
+         <div className="p-6 bg-indigo-50/50 rounded-3xl border border-dashed border-indigo-200">
+            <p className="text-[10px] font-black text-indigo-600 leading-relaxed uppercase tracking-[0.2em] text-center">OTP will be sent to the HR's registered email for verification.</p>
+         </div>
+         <div className="space-y-8">
+            {[
+              { label: 'Full Institution Name', name: 'fullName', type: 'text', icon: UserPlus, placeholder: 'e.g. Jane Doe' },
+              { label: 'Master Access Email', name: 'email', type: 'email', icon: Mail, placeholder: 'hr@infiap.com' },
+              { label: 'Direct Protocol Node (Phone)', name: 'phone', type: 'text', icon: Phone, placeholder: 'Direct Contact Number' }
+            ].map((field) => (
+               <div key={field.name} className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-800 uppercase tracking-[0.25em] ml-1">{field.label}</label>
+                  <div className="relative group">
+                     <field.icon className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" size={20} />
+                     <input
+                        type={field.type}
+                        value={editForm[field.name]}
+                        onChange={(e) => setEditForm({...editForm, [field.name]: e.target.value})}
+                        placeholder={field.placeholder}
+                        autoComplete="off"
+                        className="w-full bg-slate-50/50 border border-slate-100 rounded-2xl pl-16 pr-8 py-5 text-sm font-bold focus:ring-4 focus:ring-indigo-500/5 focus:bg-white outline-none transition-all tracking-tight"
+                     />
+                  </div>
+               </div>
+            ))}
+            <div className="grid grid-cols-2 gap-6 pt-6">
+               <button type="submit" className="flex-1 py-6 bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.4em] rounded-[24px] shadow-3xl hover:bg-indigo-600 transition-all flex items-center justify-center gap-4 border border-slate-800">
+                  Save Changes <ArrowRight size={18} />
+               </button>
+               <button type="button" onClick={() => setView('profile')} className="px-8 py-6 bg-white border border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-[0.25em] rounded-[24px] hover:bg-slate-50 transition-all">
+                  Abort
+               </button>
+            </div>
+         </div>
+      </form>
+
+      {/* OTP Modal */}
+      {showOtpModal && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"></div>
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full relative z-10 shadow-xl border border-slate-200 animate-in zoom-in-95 duration-300 text-center">
+               <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto mb-6">
+                  <ShieldCheck size={32} strokeWidth={2} />
+               </div>
+               <h2 className="text-xl font-semibold text-slate-800 mb-2">Profile Update Verification</h2>
+               <p className="text-slate-500 text-sm mb-6">
+                  A verification code has been sent to the HR's registered email. Please enter it below to confirm the profile changes.
+               </p>
+               {devOtp && (
+                  <div className="mb-4 px-4 py-2 bg-amber-50 border border-amber-100 rounded-xl inline-block">
+                     <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">
+                        Dev OTP: {devOtp}
+                     </p>
+                  </div>
+               )}
+               {otpError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2">
+                     <AlertCircle size={14} className="text-red-500 shrink-0" />
+                     <p className="text-xs font-semibold text-red-600">{otpError}</p>
+                  </div>
+               )}
+               <div className="flex justify-between gap-2 mb-6">
+                  {otp.map((data, index) => (
+                     <input
+                        key={index}
+                        type="text"
+                        maxLength="1"
+                        ref={el => otpInputRefs.current[index] = el}
+                        value={data}
+                        onChange={e => handleOtpChange(e.target, index)}
+                        onKeyDown={e => handleOtpKeyDown(e, index)}
+                        onPaste={index === 0 ? handleOtpPaste : undefined}
+                        className="w-full aspect-square max-w-12 bg-slate-50 border border-slate-200 rounded-xl text-center text-2xl font-black text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white focus:border-indigo-500 outline-none transition-all"
+                     />
+                  ))}
+               </div>
+               <div className="flex flex-col gap-3">
+                  <button
+                     onClick={handleUpdateHR}
+                     disabled={otpLoading || otp.some(v => v === '')}
+                     className={`w-full py-3 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                        otpLoading || otp.some(v => v === '')
+                           ? 'bg-slate-300 cursor-not-allowed'
+                           : 'bg-indigo-600 hover:bg-indigo-700'
+                     }`}
+                  >
+                     {otpLoading ? (
+                        <>
+                           <Loader2 size={16} className="animate-spin" />
+                           Verifying...
+                        </>
+                     ) : (
+                        <>
+                           <ShieldCheck size={16} />
+                           Verify & Save
+                        </>
+                     )}
+                  </button>
+                  <button
+                     onClick={performUpdateHR}
+                     disabled={otpLoading}
+                     className="w-full py-2.5 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                     <RefreshCw size={14} className={otpLoading ? 'animate-spin' : ''} />
+                     {otpLoading ? 'Sending...' : 'Resend Code'}
+                  </button>
+                  <button
+                     onClick={() => { setShowOtpModal(false); setOtpError(''); setOtp(['','','','','','']); }}
+                     className="text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                     Cancel
+                  </button>
+               </div>
+            </div>
+         </div>
+      )}
+   </div>
+);
+
 const UserManagement = () => {
    const navigate = useNavigate();
    const [searchParams, setSearchParams] = useSearchParams();
    const viewParam = searchParams.get('view') || 'hub';
 
-   const { fetchAllUsers, deleteUser, createAdmin, createHR, createEmployee, loading: authLoading } = useAuth();
+   const { fetchAllUsers, deleteUser, createAdmin, createHR, updateHR, verifyHRProfileUpdate, createEmployee, requestEditOTP, loading: authLoading } = useAuth();
    
    const [view, setViewInternal] = useState(viewParam);
    const [notification, setNotification] = useState(null);
@@ -591,6 +731,15 @@ const UserManagement = () => {
 
    const [adminForm, setAdminForm] = useState({ fullName: '', email: '', phone: '', company: '', role: 'Full Admin' });
    const [hrForm, setHrForm] = useState({ fullName: '', email: '', phone: '', department: 'HR', role: 'HR Director' });
+   const [editForm, setEditForm] = useState({ fullName: '', email: '', phone: '', department: 'HR', role: 'HR Director' });
+
+   // OTP modal state for editing HR
+   const [showOtpModal, setShowOtpModal] = useState(false);
+   const [otp, setOtp] = useState(['', '', '', '', '', '']);
+   const [otpError, setOtpError] = useState('');
+   const [otpLoading, setOtpLoading] = useState(false);
+   const [devOtp, setDevOtp] = useState(null);
+   const otpInputRefs = useRef([]);
 
    const filteredUsers = users.filter(user => {
       const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -672,6 +821,104 @@ const UserManagement = () => {
       }
    };
 
+   const handleEditNodeClick = () => {
+      if (!selectedUser) return;
+      setEditForm({
+         fullName: selectedUser.name || '',
+         email: selectedUser.email || '',
+         phone: selectedUser.phone || '',
+         department: selectedUser.dept || 'HR',
+         role: selectedUser.role || 'HR Director'
+      });
+      setView('edit-node');
+   };
+
+   const handleOtpChange = (element, index) => {
+      if (isNaN(element.value)) return;
+      const newOtp = [...otp.map((d, idx) => (idx === index ? element.value : d))];
+      setOtp(newOtp);
+      setOtpError('');
+      if (element.nextSibling && element.value !== '') {
+         element.nextSibling.focus();
+      }
+   };
+
+   const handleOtpKeyDown = (e, index) => {
+      if (e.key === 'Backspace' && !otp[index] && index > 0) {
+         otpInputRefs.current[index - 1].focus();
+      }
+   };
+
+   const handleOtpPaste = (e) => {
+      e.preventDefault();
+      const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+      if (pasted.length === 6) {
+         setOtp(pasted.split(''));
+         otpInputRefs.current[5]?.focus();
+      }
+   };
+
+   const performUpdateHR = async () => {
+      setOtpLoading(true);
+      setOtpError('');
+
+      const res = await updateHR(selectedUser.id, {
+         name: editForm.fullName,
+         email: editForm.email,
+         phone: editForm.phone,
+         department: editForm.department
+      });
+
+      setOtpLoading(false);
+
+      if (res?.otpRequired) {
+         setShowOtpModal(true);
+         if (res.devOtp) setDevOtp(res.devOtp);
+         return false;
+      }
+
+      if (res.success) {
+         showNotification('Identity Protocol: HR Node identity updated successfully.');
+         setShowOtpModal(false);
+         setOtp(['', '', '', '', '', '']);
+         setDevOtp(null);
+         loadUsers();
+         setView('profile');
+         return true;
+      } else {
+         setOtpError(res.error || 'Failed to update HR profile');
+         return false;
+      }
+   };
+
+   const handleUpdateHR = async (e) => {
+      e.preventDefault();
+      const otpString = otp.join('');
+      if (otpString.length !== 6) {
+         setOtpError('Please enter all 6 digits');
+         return;
+      }
+      setOtpLoading(true);
+      setOtpError('');
+
+      const res = await verifyHRProfileUpdate(selectedUser.id, otpString);
+
+      setOtpLoading(false);
+
+      if (res.success) {
+         showNotification('Identity Protocol: HR Node identity updated successfully.');
+         setShowOtpModal(false);
+         setOtp(['', '', '', '', '', '']);
+         setDevOtp(null);
+         loadUsers();
+         setView('profile');
+      } else {
+         setOtpError(res.error || 'Failed to verify OTP');
+         setOtp(['', '', '', '', '', '']);
+         otpInputRefs.current[0]?.focus();
+      }
+   };
+
    return (
       <div className="min-h-screen relative">
          {/* Premium Notification Toast */}
@@ -695,35 +942,58 @@ const UserManagement = () => {
                />
             )}
             {view === 'profile' && (
-               <ProfileView 
-                  setView={setView} 
-                  selectedUser={selectedUser} 
-                  handleDeleteUser={handleDeleteUser} 
-                  showNotification={showNotification} 
+               <ProfileView
+                  setView={setView}
+                  selectedUser={selectedUser}
+                  handleDeleteUser={handleDeleteUser}
+                  showNotification={showNotification}
+                  onEditNode={handleEditNodeClick}
                />
             )}
             {view === 'add-admin' && (
-               <AddAdminView 
-                  setView={setView} 
-                  adminForm={adminForm} 
-                  setAdminForm={setAdminForm} 
-                  handleCreateAdmin={handleCreateAdmin} 
+               <AddAdminView
+                  setView={setView}
+                  adminForm={adminForm}
+                  setAdminForm={setAdminForm}
+                  handleCreateAdmin={handleCreateAdmin}
                />
             )}
             {view === 'add-hr' && (
-               <AddHRView 
-                  setView={setView} 
-                  hrForm={hrForm} 
-                  setHrForm={setHrForm} 
-                  handleCreateHR={handleCreateHR} 
+               <AddHRView
+                  setView={setView}
+                  hrForm={hrForm}
+                  setHrForm={setHrForm}
+                  handleCreateHR={handleCreateHR}
+               />
+            )}
+            {view === 'edit-node' && (
+               <EditNodeView
+                  setView={setView}
+                  editForm={editForm}
+                  setEditForm={setEditForm}
+                  selectedUser={selectedUser}
+                  handleUpdateHR={handleUpdateHR}
+                  performUpdateHR={performUpdateHR}
+                  showOtpModal={showOtpModal}
+                  setShowOtpModal={setShowOtpModal}
+                  otp={otp}
+                  setOtp={setOtp}
+                  otpError={otpError}
+                  setOtpError={setOtpError}
+                  otpLoading={otpLoading}
+                  devOtp={devOtp}
+                  handleOtpChange={handleOtpChange}
+                  handleOtpKeyDown={handleOtpKeyDown}
+                  handleOtpPaste={handleOtpPaste}
+                  otpInputRefs={otpInputRefs}
                />
             )}
             {view === 'permissions' && (
-               <PermissionsView 
-                  setView={setView} 
-                  selectedUser={selectedUser} 
-                  togglePermission={togglePermission} 
-                  showNotification={showNotification} 
+               <PermissionsView
+                  setView={setView}
+                  selectedUser={selectedUser}
+                  togglePermission={togglePermission}
+                  showNotification={showNotification}
                />
             )}
          </div>

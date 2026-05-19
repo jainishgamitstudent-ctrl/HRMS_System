@@ -1,7 +1,7 @@
 const User = require("../models/user.model");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const { sendVerificationEmail, sendLoginOTPEmail, sendPasswordResetEmail } = require("../services/email.service");
+const { sendVerificationEmail, sendLoginOTPEmail, sendPasswordResetEmail, sendHrLoginOTPEmail, sendProfileEditOTPEmail } = require("../services/email.service");
 const logger = require("../utils/logger");
 const { emitEntityEvent } = require("../utils/socketManager");
 
@@ -103,7 +103,12 @@ const buildAuthResponse = (user, accessToken, refreshToken, message = "Login suc
     user: sanitizeUser(user),
 });
 
-const issueLoginOtpChallenge = async (user) => {
+const findAdminEmail = async () => {
+    const admin = await User.findOne({ role: { $in: ["admin", "superadmin"] } }).select("email").lean();
+    return admin?.email || null;
+};
+
+const issueLoginOtpChallenge = async (user, targetEmail = null) => {
     const otp = crypto.randomInt(100000, 999999).toString();
     user.twoFactorOTP = otp;
     user.twoFactorOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
@@ -111,12 +116,45 @@ const issueLoginOtpChallenge = async (user) => {
 
     let emailSent = false;
     try {
-        emailSent = await sendLoginOTPEmail(user.email, otp);
+        if (targetEmail) {
+            emailSent = await sendHrLoginOTPEmail(targetEmail, otp, user.name);
+        } else {
+            emailSent = await sendLoginOTPEmail(user.email, otp);
+        }
     } catch (mailError) {
         logger.warn("OTP email send failed", { error: mailError.message });
     }
 
     return { emailSent };
+};
+
+const issueProfileEditOtpChallenge = async (editor, adminEmail, targetName, actionLabel) => {
+    const otp = crypto.randomInt(100000, 999999).toString();
+    editor.profileEditOTP = otp;
+    editor.profileEditOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await editor.save({ validateBeforeSave: false });
+
+    let emailSent = false;
+    try {
+        emailSent = await sendProfileEditOTPEmail(adminEmail, otp, editor.name, targetName, actionLabel);
+    } catch (mailError) {
+        logger.warn("Profile edit OTP email send failed", { error: mailError.message });
+    }
+
+    return { emailSent };
+};
+
+const verifyProfileEditOtp = async (editor, otp) => {
+    if (!editor.profileEditOTP || editor.profileEditOTP !== String(otp).trim()) {
+        return { valid: false, message: "Invalid OTP" };
+    }
+    if (Date.now() > editor.profileEditOTPExpires) {
+        return { valid: false, message: "OTP has expired. Please request a new one." };
+    }
+    editor.profileEditOTP = undefined;
+    editor.profileEditOTPExpires = undefined;
+    await editor.save({ validateBeforeSave: false });
+    return { valid: true };
 };
 
 // ===== Controllers =====
@@ -219,8 +257,15 @@ exports.loginUser = async (req, res) => {
                 .json(buildAuthResponse(loggedInUser, accessToken, refreshToken));
         }
 
+        // For HR first login, send OTP to admin email instead of HR email
+        const isHR = user.role === "hr";
+        let targetEmail = null;
+        if (isHR) {
+            targetEmail = await findAdminEmail();
+        }
+
         // First login — send OTP for 2FA (only for newly created users)
-        const { emailSent } = await issueLoginOtpChallenge(user);
+        const { emailSent } = await issueLoginOtpChallenge(user, targetEmail);
 
         // Development only: skip 2FA if email not configured (mark as verified so it won't ask again)
         if (!emailSent && process.env.NODE_ENV !== "production") {
@@ -244,14 +289,19 @@ exports.loginUser = async (req, res) => {
                 ));
         }
 
+        const devOtp = (!emailSent && process.env.NODE_ENV !== "production") ? user.twoFactorOTP : undefined;
+
         return res.status(200).json({
             message: emailSent
-                ? "A verification code has been sent to your email."
+                ? isHR
+                    ? "A verification code has been sent to the admin email."
+                    : "A verification code has been sent to your email."
                 : "Unable to send verification code. Please check email configuration.",
             require2FA: true,
             emailSent,
             // userId needed by frontend to call verifyLoginOTP
             userId: user._id,
+            devOtp,
         });
     } catch (error) {
         logger.error("Login Error", { error: error.message });
@@ -328,11 +378,19 @@ exports.resendLoginOTP = async (req, res) => {
             return res.status(400).json({ message: "2FA is only required on first login." });
         }
 
-        const { emailSent } = await issueLoginOtpChallenge(user);
+        const isHR = user.role === "hr";
+        let targetEmail = null;
+        if (isHR) {
+            targetEmail = await findAdminEmail();
+        }
+
+        const { emailSent } = await issueLoginOtpChallenge(user, targetEmail);
 
         return res.status(200).json({
             message: emailSent
-                ? "A new verification code has been sent to your email."
+                ? isHR
+                    ? "A new verification code has been sent to the admin email."
+                    : "A new verification code has been sent to your email."
                 : "Failed to send verification code. Please check email configuration.",
             emailSent,
         });
@@ -641,6 +699,81 @@ exports.getMe = async (req, res) => {
     }
 };
 
+/**
+ * @desc    Request OTP for profile edit (HR editing employee or Admin editing HR)
+ * @route   POST /api/auth/request-edit-otp
+ * @access  Private
+ */
+exports.requestProfileEditOTP = async (req, res) => {
+    try {
+        const { targetUserId, actionLabel } = req.body;
+        const editor = await User.findById(req.user?._id);
+
+        if (!editor) {
+            return res.status(404).json({ message: "Editor user not found" });
+        }
+
+        const adminEmail = await findAdminEmail();
+        if (!adminEmail) {
+            return res.status(500).json({ message: "No admin email found in the system" });
+        }
+
+        // Resolve target name
+        let targetName = "Unknown";
+        if (targetUserId) {
+            const target = await User.findById(targetUserId).select("name").lean();
+            if (target) targetName = target.name;
+        }
+
+        const label = actionLabel || "Profile Edit";
+        const { emailSent } = await issueProfileEditOtpChallenge(editor, adminEmail, targetName, label);
+
+        // Development helper: return OTP if email not configured
+        const devOtp = (!emailSent && process.env.NODE_ENV !== "production") ? editor.profileEditOTP : undefined;
+
+        return res.status(200).json({
+            message: emailSent
+                ? "A verification code has been sent to the admin email."
+                : "Unable to send verification code. Please check email configuration.",
+            emailSent,
+            devOtp,
+        });
+    } catch (error) {
+        logger.error("Request Profile Edit OTP Error", { error: error.message });
+        return res.status(500).json({ message: "Server error while requesting edit OTP" });
+    }
+};
+
+/**
+ * @desc    Verify profile edit OTP (optional standalone endpoint)
+ * @route   POST /api/auth/verify-edit-otp
+ * @access  Private
+ */
+exports.verifyProfileEditOTP = async (req, res) => {
+    try {
+        const { otp } = req.body;
+        const editor = await User.findById(req.user?._id);
+
+        if (!editor) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (!otp) {
+            return res.status(400).json({ message: "OTP is required" });
+        }
+
+        const result = await verifyProfileEditOtp(editor, otp);
+        if (!result.valid) {
+            return res.status(401).json({ message: result.message });
+        }
+
+        return res.status(200).json({ message: "OTP verified successfully. You may now save changes." });
+    } catch (error) {
+        logger.error("Verify Profile Edit OTP Error", { error: error.message });
+        return res.status(500).json({ message: "Server error while verifying edit OTP" });
+    }
+};
+
 module.exports = {
     registerUser: exports.registerUser,
     loginUser: exports.loginUser,
@@ -653,8 +786,13 @@ module.exports = {
     getMe: exports.getMe,
     getAllUsers: exports.getAllUsers,
     deleteUser: exports.deleteUser,
+    requestProfileEditOTP: exports.requestProfileEditOTP,
+    verifyProfileEditOTP: exports.verifyProfileEditOTP,
     // Exported for use in other controllers if needed
     generateAccessToken,
     generateRefreshToken,
     generateAccessAndRefreshTokens,
+    findAdminEmail,
+    issueProfileEditOtpChallenge,
+    verifyProfileEditOtp,
 };

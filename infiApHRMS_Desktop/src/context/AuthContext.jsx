@@ -189,6 +189,31 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ── Profile Edit OTP ───────────────────────────────────────────────────
+  const requestEditOTP = async (targetUserId, actionLabel) => {
+    try {
+      setError(null);
+      const data = await authService.requestEditOTP(targetUserId, actionLabel);
+      return { success: true, devOtp: data.devOtp, emailSent: data.emailSent };
+    } catch (err) {
+      const message = err.response?.data?.message || err.response?.data?.error || 'Failed to request OTP';
+      setError(message);
+      return { success: false, error: message };
+    }
+  };
+
+  const verifyEditOTP = async (otp) => {
+    try {
+      setError(null);
+      const data = await authService.verifyEditOTP(otp);
+      return { success: true, message: data.message };
+    } catch (err) {
+      const message = err.response?.data?.message || err.response?.data?.error || 'OTP verification failed';
+      setError(message);
+      return { success: false, error: message };
+    }
+  };
+
   // ── User management (admin) ─────────────────────────────────────────────
   const fetchAllUsers = async () => {
     try {
@@ -235,6 +260,40 @@ export const AuthProvider = ({ children }) => {
       return { success: true, data: res.data?.user || res.data };
     } catch (err) {
       const message = err.response?.data?.message || err.response?.data?.error || 'Failed to create HR account';
+      setError(message);
+      return { success: false, error: message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateHR = async (hrId, userData) => {
+    try {
+      setError(null);
+      setLoading(true);
+      const res = await apiClient.patch(`/admin-dashboard/hr-staff/${hrId}`, userData);
+      return { success: true, data: res.data?.data || res.data };
+    } catch (err) {
+      const responseData = err.response?.data;
+      const message = responseData?.message || responseData?.error || 'Failed to update HR account';
+      if (responseData?.otpRequired) {
+        return { success: false, otpRequired: true, error: message, devOtp: responseData?.devOtp };
+      }
+      setError(message);
+      return { success: false, error: message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyHRProfileUpdate = async (hrId, otp) => {
+    try {
+      setError(null);
+      setLoading(true);
+      const res = await apiClient.post(`/admin-dashboard/hr-staff/${hrId}/verify-update`, { otp });
+      return { success: true, data: res.data?.data || res.data };
+    } catch (err) {
+      const message = err.response?.data?.message || err.response?.data?.error || 'Failed to verify OTP';
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -294,13 +353,18 @@ export const AuthProvider = ({ children }) => {
     deleteUser,
     createAdmin,
     createHR,
+    updateHR,
+    verifyHRProfileUpdate,
     createEmployee,
+    requestEditOTP,
+    verifyEditOTP,
     setError,
   }), [
     user, role, token, loading, error, pending2FA,
     login, verify2FA, register, logout, switchRole,
     fetchProfile, fetchAllUsers, deleteUser,
-    createAdmin, createHR, createEmployee
+    createAdmin, createHR, updateHR, verifyHRProfileUpdate, createEmployee,
+    requestEditOTP, verifyEditOTP
   ]);
 
   return (

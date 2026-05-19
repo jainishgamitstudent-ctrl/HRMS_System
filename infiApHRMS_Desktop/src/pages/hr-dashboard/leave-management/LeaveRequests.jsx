@@ -53,11 +53,6 @@ const LeaveRequests = () => {
             setRequests(formatted);
         } catch (error) {
             // debug error removed
-            // Fallback mock data
-            setRequests([
-                { id: 'LR-9021', name: 'Sarah Chen', dept: 'Engineering', type: 'Sick Leave', range: 'Oct 12 - Oct 14', days: 3, status: 'Pending', reason: 'Medical - Requires surgery recovery time following minor procedure.', avatar: 'https://i.pravatar.cc/150?u=sarah' },
-                { id: 'LR-9022', name: 'Marcus Thompson', dept: 'Design', type: 'Annual Leave', range: 'Oct 20 - Oct 25', days: 6, status: 'Pending', reason: 'Family vacation planned long ago. Handover document shared with the lead.', avatar: 'https://i.pravatar.cc/150?u=marcus' },
-            ]);
         } finally {
             setLoading(false);
         }

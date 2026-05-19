@@ -32,10 +32,26 @@ import {
 } from 'recharts';
 import { useEmployeeContext } from '../../../context/EmployeeContext';
 import { useAdminDashboard } from '../../../context/AdminDashboardContext';
+import { useAuth } from '../../../context/AuthContext';
+
+const getRoleBadgeStyle = (systemRole) => {
+  const role = (systemRole || '').toLowerCase();
+  if (role === 'admin' || role === 'superadmin') return 'bg-rose-100 text-rose-700 border-rose-200';
+  if (role === 'hr') return 'bg-violet-100 text-violet-700 border-violet-200';
+  return 'bg-slate-100 text-slate-600 border-slate-200';
+};
+
+const formatSystemRole = (systemRole) => {
+  const role = (systemRole || '').toLowerCase();
+  if (role === 'admin' || role === 'superadmin') return 'Admin';
+  if (role === 'hr') return 'HR';
+  return 'Employee';
+};
 
 const EmployeeDirectory = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const { employees = [], loading, fetchEmployees, deleteEmployee, pagination } = useEmployeeContext();
   const { departments = [], fetchDepartments, silentRefreshAll } = useAdminDashboard();
@@ -119,7 +135,7 @@ const EmployeeDirectory = () => {
 
       return matchesSearch && matchesDept && matchesStatus;
     });
-  }, [searchQuery, filters, employees]);
+  }, [searchQuery, filters, employees, user]);
 
   // --- HANDLERS ---
   const showNotification = (msg) => {
@@ -350,9 +366,6 @@ const EmployeeDirectory = () => {
                                      )}
                                   </div>
                                    <div className="flex flex-col">
-                                      <span className="inline-flex items-center w-fit px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-widest border border-slate-200 mb-1">
-                                         {emp.employeeId || 'EMP-NEW'}
-                                      </span>
                                       <p className="text-sm font-semibold text-slate-900 leading-tight">{emp.name}</p>
                                       <p className="text-xs text-slate-500 leading-none">{emp.email}</p>
                                    </div>
@@ -361,6 +374,14 @@ const EmployeeDirectory = () => {
                             <td className="px-6 py-4">
                                <p className="text-sm font-medium text-slate-800">{emp.role}</p>
                                <p className="text-xs text-slate-500">{emp.department}</p>
+                               <div className="flex items-center gap-1.5 mt-1.5">
+                                  <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border ${getRoleBadgeStyle(emp.systemRole)}`}>
+                                     {formatSystemRole(emp.systemRole)}
+                                  </span>
+                                  {(user?._id === emp._id || user?.id === emp.id) && (
+                                     <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-200">You</span>
+                                  )}
+                               </div>
                             </td>
                             <td className="px-6 py-4">
                                <div className="flex items-center justify-center">

@@ -43,6 +43,7 @@ const WFHPermissions = () => {
   const [notes, setNotes] = useState('');
   const [granting, setGranting] = useState(false);
   const [editingPermission, setEditingPermission] = useState(null);
+  const [modalSearch, setModalSearch] = useState('');
 
   const fetchData = async () => {
     try {
@@ -152,6 +153,7 @@ const WFHPermissions = () => {
     setSelectedDepartmentId('');
     setNotes('');
     setEditingPermission(null);
+    setModalSearch('');
   };
 
   const filteredPermissions = useMemo(() => {
@@ -421,12 +423,35 @@ const WFHPermissions = () => {
                 </div>
               </div>
 
+              {/* Modal Search */}
+              {selectedLevel !== 'global' && (
+                <div className="relative">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder={`Search ${selectedLevel}...`}
+                    className="w-full bg-white border border-slate-200 focus:border-indigo-300 outline-none rounded-xl pl-9 pr-3 py-2 text-sm text-slate-700 transition-colors"
+                    value={modalSearch}
+                    onChange={(e) => setModalSearch(e.target.value)}
+                  />
+                </div>
+              )}
+
               {/* Employee Selector */}
               {selectedLevel === 'employee' && (
                 <div>
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 block">Select Employee</label>
                   <div className="bg-slate-50 rounded-2xl border border-slate-100 p-2 max-h-[200px] overflow-y-auto">
-                    {employees.map((emp) => (
+                    {employees
+                      .filter(emp => {
+                        const q = modalSearch.toLowerCase();
+                        return !q ||
+                          (emp.staffName || '').toLowerCase().includes(q) ||
+                          (emp.staffDepartment || '').toLowerCase().includes(q) ||
+                          (emp.staffJobRole || '').toLowerCase().includes(q) ||
+                          (emp.contactInfo?.email || '').toLowerCase().includes(q);
+                      })
+                      .map((emp) => (
                       <button
                         key={emp.id}
                         onClick={() => setSelectedEmployeeId(emp.id)}
@@ -461,7 +486,12 @@ const WFHPermissions = () => {
                 <div>
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 block">Select Team</label>
                   <div className="bg-slate-50 rounded-2xl border border-slate-100 p-2 max-h-[200px] overflow-y-auto">
-                    {teams.map((t) => (
+                    {teams
+                      .filter(t => {
+                        const q = modalSearch.toLowerCase();
+                        return !q || (t.name || '').toLowerCase().includes(q);
+                      })
+                      .map((t) => (
                       <button
                         key={t._id}
                         onClick={() => setSelectedTeamId(t._id)}
@@ -482,7 +512,12 @@ const WFHPermissions = () => {
                 <div>
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 block">Select Department</label>
                   <div className="bg-slate-50 rounded-2xl border border-slate-100 p-2 max-h-[200px] overflow-y-auto">
-                    {departments.map((d) => (
+                    {departments
+                      .filter(d => {
+                        const q = modalSearch.toLowerCase();
+                        return !q || (d.name || '').toLowerCase().includes(q);
+                      })
+                      .map((d) => (
                       <button
                         key={d._id}
                         onClick={() => setSelectedDepartmentId(d._id)}

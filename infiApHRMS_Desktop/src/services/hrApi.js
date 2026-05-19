@@ -71,10 +71,12 @@ export const updateEmployee = (id, data) => {
     // Use JSON for regular updates (no file) - use the /json route to bypass upload middleware
     // Remove profilePicture if it's not a file
     const { profilePicture, ...jsonData } = data;
+    // Pass editOtp if present for HR profile edit verification
     return api.put(`${HR_BASE}/employees/${id}/json`, jsonData);
   }
 };
 export const getEmployeeProfile = (id) => get(`/employees/${id}/profile`);
+export const verifyEmployeeProfileUpdate = (id, otp) => api.post(`${HR_BASE}/employees/${id}/verify-update`, { otp });
 export const deleteEmployee = (id) => api.delete(`${HR_BASE}/employees/${id}`);
 
 // ─── 3. Attendance ───────────────────────────────────────────────────────────
@@ -110,6 +112,7 @@ export const rejectCandidate = (id, data) => put(`/recruitment/candidates/${id}/
 export const updateCandidateInterview = (id, data) => put(`/recruitment/candidates/${id}/interview`, data);
 export const selectCandidate = (id) => put(`/recruitment/candidates/${id}/select`);
 export const sendCandidateOffer = (id, data) => post(`/recruitment/candidates/${id}/offer`, data);
+export const convertCandidateToEmployee = (id) => post(`/recruitment/candidates/${id}/convert-to-employee`);
 export const getRecruitmentJobs = (params) => get('/recruitment/jobs', params);
 export const createRecruitmentJob = (data) => post('/recruitment/jobs', data);
 export const updateRecruitmentJob = (id, data) => put(`/recruitment/jobs/${id}`, data);
@@ -181,6 +184,7 @@ export default {
     updateCandidateInterview,
     selectCandidate,
     sendCandidateOffer,
+    convertCandidateToEmployee,
     getRecruitmentJobs,
     createRecruitmentJob,
     updateRecruitmentJob,

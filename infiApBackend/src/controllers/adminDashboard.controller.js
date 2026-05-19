@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const User = require("../models/user.model");
 const Department = require("../models/department.model");
 const Team = require("../models/team.model");
@@ -13,8 +14,12 @@ const Notification = require("../models/notification.model");
 const Performance = require("../models/performance.model");
 const Resignation = require("../models/resignation.model");
 const RequestRoom = require("../models/requestRoom.model");
-const { notifyUser, notifyRoleUsers } = require("../utils/notifier");
-const { emitEntityEvent } = require("../utils/socketManager");
+const DepartmentDeletionRequest = require("../models/departmentDeletionRequest.model");
+const { notifyUser, notifyUsers, notifyRoleUsers } = require("../utils/notifier");
+const { emitEntityEvent, emitToRoles } = require("../utils/socketManager");
+const { verifyProfileEditOtp } = require("../controllers/auth.controller");
+const { sendProfileEditOTPEmail } = require("../services/email.service");
+const crypto = require("crypto");
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const DEPARTMENT_CATEGORIES = ["tech", "ui/ux", "social media", "developers", "rnd"];
@@ -494,20 +499,100 @@ exports.getAdminAccountSettings = async (req, res) => {
 
 exports.updateAdminProfile = async (req, res) => {
     try {
-        const result = await updateAdminProfileFields(req.user?._id, req.body);
+        const adminId = req.user?._id;
+        const payload = req.body;
 
-        if (result.error) {
-            return res.status(400).json({ success: false, message: result.error });
+        // Collect provided updates
+        const updates = {};
+        ADMIN_PROFILE_UPDATABLE_FIELDS.forEach((field) => {
+            if (payload[field] !== undefined) updates[field] = payload[field];
+        });
+
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ success: false, message: "No valid profile fields provided" });
         }
 
-        if (!result.data) {
+        if (updates.email !== undefined) {
+            updates.email = String(updates.email).trim().toLowerCase();
+            const existing = await User.findOne({ email: updates.email, _id: { $ne: adminId } }).select("_id");
+            if (existing) {
+                return res.status(400).json({ success: false, message: "Email already exists" });
+            }
+        }
+
+        const admin = await User.findById(adminId).select("name email pendingProfileUpdates profileEditOTP profileEditOTPExpires");
+        if (!admin) {
             return res.status(404).json({ success: false, message: "Admin not found" });
         }
+
+        // Generate OTP and store pending updates
+        const otp = crypto.randomInt(100000, 999999).toString();
+        admin.profileEditOTP = otp;
+        admin.profileEditOTPExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        admin.pendingProfileUpdates = updates;
+        await admin.save();
+
+        await sendProfileEditOTPEmail(admin.email, admin.name, otp, { isSelfEdit: true });
+
+        return res.status(200).json({
+            success: false,
+            otpRequired: true,
+            message: "A verification code has been sent to your registered email",
+            devOtp: process.env.NODE_ENV !== 'production' ? otp : undefined
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.verifyAdminProfileUpdate = async (req, res) => {
+    try {
+        const adminId = req.user?._id;
+        const { otp } = req.body;
+
+        const admin = await User.findById(adminId).select("name email pendingProfileUpdates profileEditOTP profileEditOTPExpires");
+        if (!admin) {
+            return res.status(404).json({ success: false, message: "Admin not found" });
+        }
+
+        if (!admin.profileEditOTP || !admin.profileEditOTPExpires || new Date() > admin.profileEditOTPExpires) {
+            return res.status(400).json({ success: false, message: "OTP expired. Please request a new one." });
+        }
+
+        if (admin.profileEditOTP !== String(otp).trim()) {
+            return res.status(400).json({ success: false, message: "Invalid OTP" });
+        }
+
+        const updates = admin.pendingProfileUpdates || {};
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ success: false, message: "No pending updates found" });
+        }
+
+        const updatedAdmin = await User.findByIdAndUpdate(
+            adminId,
+            { $set: updates, $unset: { pendingProfileUpdates: "", profileEditOTP: "", profileEditOTPExpires: "" } },
+            { new: true, runValidators: true }
+        )
+            .populate("companyId", "companyName")
+            .select("-password -refreshToken")
+            .lean();
+
+        // Notify admin of successful update
+        const changeLog = Object.entries(updates)
+            .map(([field, value]) => `${field}: ${value}`)
+            .join(", ");
+        await notifyUser({
+            recipient: adminId,
+            category: "Profile",
+            headline: "Your profile has been updated",
+            details: `Changes: ${changeLog}`,
+            sentBy: adminId
+        });
 
         res.status(200).json({
             success: true,
             message: "Profile updated successfully",
-            data: formatAdminPersonalInformation(result.data)
+            data: formatAdminPersonalInformation(updatedAdmin)
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -1079,14 +1164,207 @@ exports.updateDepartment = async (req, res) => {
 exports.deleteDepartment = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.user && req.user._id;
+        const approverName = req.user?.name || "Admin";
         const normalizedRole = String(req.user?.role || "").toLowerCase().trim();
 
         if (!["admin", "main_admin", "superadmin"].includes(normalizedRole)) {
             return res.status(403).json({ success: false, message: "Access denied: Only Admin can delete departments" });
         }
 
+        const department = await Department.findById(id);
+        if (!department) {
+            return res.status(404).json({ success: false, message: "Department not found" });
+        }
+
+        const deptName = department.name;
         await Department.findByIdAndDelete(id);
+
+        // Notify employees in that department
+        const employeesInDept = await User.find({ department: deptName, status: "Active" }).select("_id").lean();
+        const employeeIds = employeesInDept.map(u => String(u._id));
+        if (employeeIds.length > 0) {
+            await notifyUsers({
+                recipients: employeeIds,
+                category: "alert",
+                headline: `Department Removed: ${deptName}`,
+                details: `The department "${deptName}" has been deleted by ${approverName}. Please contact HR for reassignment.`,
+                sentBy: userId
+            });
+        }
+
+        emitEntityEvent('department', 'deleted', { id, name: deptName }, {
+            targetRoles: ['admin', 'superadmin', 'hr']
+        });
+
         res.status(200).json({ success: true, message: "Department deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.requestDepartmentDelete = async (req, res) => {
+    try {
+        const userId = req.user && req.user._id;
+        const userName = req.user?.name || "Unknown";
+        const { id } = req.params;
+        const normalizedRole = String(req.user?.role || "").toLowerCase().trim();
+
+        if (!["admin", "superadmin", "hr"].includes(normalizedRole)) {
+            return res.status(403).json({ success: false, message: "Access denied" });
+        }
+
+        const department = await Department.findById(id);
+        if (!department) {
+            return res.status(404).json({ success: false, message: "Department not found" });
+        }
+
+        const existing = await DepartmentDeletionRequest.findOne({ departmentId: id, status: "pending", isActive: true });
+        if (existing) {
+            return res.status(409).json({ success: false, message: "A deletion request for this department is already pending admin approval" });
+        }
+
+        const request = await DepartmentDeletionRequest.create({
+            departmentId: id,
+            departmentName: department.name,
+            requestedBy: userId,
+            requesterName: userName,
+            status: "pending"
+        });
+
+        await notifyRoleUsers({
+            roles: ["admin", "superadmin"],
+            category: "alert",
+            headline: "Department Deletion Requested",
+            details: `${userName} requested deletion of department "${department.name}".`,
+            sentBy: userId
+        });
+
+        emitToRoles(["admin", "superadmin"], "toast", {
+            type: "warning",
+            message: `${userName} wants to delete ${department.name}`,
+            details: "Review pending department deletion requests."
+        });
+
+        res.status(201).json({ success: true, message: "Deletion request submitted for admin approval", data: request });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.getDepartmentDeletionRequests = async (req, res) => {
+    try {
+        const normalizedRole = String(req.user?.role || "").toLowerCase().trim();
+        if (!["admin", "superadmin"].includes(normalizedRole)) {
+            return res.status(403).json({ success: false, message: "Access denied" });
+        }
+
+        const requests = await DepartmentDeletionRequest.find({ isActive: true, status: "pending" })
+            .populate("requestedBy", "name email role department designation")
+            .populate("departmentId", "name head numberOfTeams")
+            .sort({ createdAt: -1 })
+            .lean();
+
+        res.status(200).json({ success: true, data: requests });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.approveDepartmentDeletion = async (req, res) => {
+    try {
+        const userId = req.user && req.user._id;
+        const approverName = req.user?.name || "Admin";
+        const { requestId } = req.params;
+        const normalizedRole = String(req.user?.role || "").toLowerCase().trim();
+
+        if (!["admin", "superadmin"].includes(normalizedRole)) {
+            return res.status(403).json({ success: false, message: "Access denied" });
+        }
+
+        const request = await DepartmentDeletionRequest.findById(requestId);
+        if (!request) {
+            return res.status(404).json({ success: false, message: "Request not found" });
+        }
+
+        if (request.status !== "pending") {
+            return res.status(400).json({ success: false, message: "Request already processed" });
+        }
+
+        const department = await Department.findById(request.departmentId);
+        const deptName = department?.name || request.departmentName;
+
+        await Department.findByIdAndDelete(request.departmentId);
+
+        request.status = "approved";
+        request.reviewedBy = userId;
+        request.reviewedAt = new Date();
+        await request.save();
+
+        await notifyUser({
+            recipient: request.requestedBy,
+            category: "alert",
+            headline: "Department Deletion Approved",
+            details: `Your request to delete department "${deptName}" was approved by ${approverName}.`,
+            sentBy: userId
+        });
+
+        const employeesInDept = await User.find({ department: deptName, status: "Active" }).select("_id").lean();
+        const employeeIds = employeesInDept.map(u => String(u._id));
+        if (employeeIds.length > 0) {
+            await notifyUsers({
+                recipients: employeeIds,
+                category: "alert",
+                headline: `Department Removed: ${deptName}`,
+                details: `The department "${deptName}" has been deleted by ${approverName}. Please contact HR for reassignment.`,
+                sentBy: userId
+            });
+        }
+
+        emitEntityEvent('department', 'deleted', { id: request.departmentId, name: deptName }, {
+            targetRoles: ['admin', 'superadmin', 'hr']
+        });
+
+        res.status(200).json({ success: true, message: "Department deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.rejectDepartmentDeletion = async (req, res) => {
+    try {
+        const userId = req.user && req.user._id;
+        const approverName = req.user?.name || "Admin";
+        const { requestId } = req.params;
+        const normalizedRole = String(req.user?.role || "").toLowerCase().trim();
+
+        if (!["admin", "superadmin"].includes(normalizedRole)) {
+            return res.status(403).json({ success: false, message: "Access denied" });
+        }
+
+        const request = await DepartmentDeletionRequest.findById(requestId);
+        if (!request) {
+            return res.status(404).json({ success: false, message: "Request not found" });
+        }
+
+        if (request.status !== "pending") {
+            return res.status(400).json({ success: false, message: "Request already processed" });
+        }
+
+        request.status = "rejected";
+        request.reviewedBy = userId;
+        request.reviewedAt = new Date();
+        await request.save();
+
+        await notifyUser({
+            recipient: request.requestedBy,
+            category: "alert",
+            headline: "Department Deletion Rejected",
+            details: `Your request to delete department "${request.departmentName}" was rejected by ${approverName}.`,
+            sentBy: userId
+        });
+
+        res.status(200).json({ success: true, message: "Request rejected" });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -1466,7 +1744,7 @@ exports.getPayrollDashboard = async (req, res) => {
 // --- 6. Recruitment Control ---
 exports.getCandidateTracking = async (req, res) => {
     try {
-        const { status, search, page = 1, limit = 10 } = req.query;
+        const { status, search, jobId, page = 1, limit = 10 } = req.query;
 
         const pageNumber = Math.max(1, Number(page) || 1);
         const limitNumber = Math.min(100, Math.max(1, Number(limit) || 10));
@@ -1483,6 +1761,10 @@ exports.getCandidateTracking = async (req, res) => {
 
         if (status && status !== "all") {
             filter = { status };
+        }
+
+        if (jobId) {
+            filter = { ...filter, jobId };
         }
 
         if (search) {
@@ -1622,8 +1904,25 @@ exports.getJobPostingForm = async (req, res) => {
 
 exports.getAllJobs = async (req, res) => {
     try {
-        const jobs = await Job.find().sort({ createdAt: -1 });
-        res.status(200).json({ success: true, data: jobs });
+        const jobs = await Job.find().sort({ createdAt: -1 }).lean();
+        const jobIds = jobs.map(j => j._id.toString());
+
+        const applicantCounts = await Candidate.aggregate([
+            { $match: { jobId: { $in: jobIds.map(id => new mongoose.Types.ObjectId(id)) } } },
+            { $group: { _id: "$jobId", count: { $sum: 1 } } }
+        ]);
+
+        const countMap = new Map();
+        applicantCounts.forEach(item => {
+            countMap.set(item._id.toString(), item.count);
+        });
+
+        const jobsWithApplicants = jobs.map(job => ({
+            ...job,
+            applicants: countMap.get(job._id.toString()) || 0
+        }));
+
+        res.status(200).json({ success: true, data: jobsWithApplicants });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -1798,7 +2097,7 @@ exports.getInterviewManagement = async (req, res) => {
         const [candidates, total, onlineCount, offlineCount] = await Promise.all([
             Candidate.find(filter)
                 .populate("jobId", "title department type")
-                .select("applicantName profileImage email phone jobTitle status technicalInterview appliedDate yearsOfExperience")
+                .select("_id applicantName profileImage email phone jobTitle status technicalInterview appliedDate yearsOfExperience")
                 .sort({ "technicalInterview.date": 1, appliedDate: -1 })
                 .skip(skip)
                 .limit(limitNumber)
@@ -2472,6 +2771,7 @@ exports.createHR = async (req, res) => {
             phone,
             isEmailVerified: true,
             firstLogin2FAVerified: false,
+            createdBy: req.user?._id,
         });
         const userObj = user.toObject();
         delete userObj.password;
@@ -2617,6 +2917,159 @@ exports.updateHRPermissions = async (req, res) => {
         const { hrId, permissions } = req.body;
         const hr = await User.findByIdAndUpdate(hrId, { permissions }, { new: true });
         res.status(200).json({ success: true, data: hr });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.updateHRStaff = async (req, res) => {
+    try {
+        const { hrId } = req.params;
+        const updates = req.body;
+        delete updates.editOtp;
+        delete updates.password;
+
+        const hr = await User.findById(hrId);
+        if (!hr) {
+            return res.status(404).json({ success: false, message: "HR user not found" });
+        }
+        if (hr.role !== "hr") {
+            return res.status(400).json({ success: false, message: "Target user is not an HR account" });
+        }
+
+        const allowedFields = ["name", "email", "phone", "department", "designation", "status", "profileImage", "joiningDate", "annualSalary", "employmentType", "doubleShiftAllowed", "shiftType", "shiftPermission"];
+        const filteredUpdates = {};
+        allowedFields.forEach((field) => {
+            if (updates[field] !== undefined && updates[field] !== null && updates[field] !== '') {
+                // Ignore unchanged values
+                if (JSON.stringify(updates[field]) !== JSON.stringify(hr[field])) {
+                    filteredUpdates[field] = updates[field];
+                }
+            }
+        });
+
+        if (Object.keys(filteredUpdates).length === 0) {
+            return res.status(400).json({ success: false, message: "No valid fields provided for update" });
+        }
+
+        if (filteredUpdates.email) {
+            filteredUpdates.email = String(filteredUpdates.email).trim().toLowerCase();
+            const existing = await User.findOne({ email: filteredUpdates.email, _id: { $ne: hrId } }).select("_id");
+            if (existing) {
+                return res.status(409).json({ success: false, message: "Email already exists" });
+            }
+        }
+
+        const shiftFields = ['doubleShiftAllowed', 'shiftType', 'shiftPermission'];
+        const updateKeys = Object.keys(filteredUpdates).filter(k => k !== 'profileImage');
+        const isOnlyShiftUpdate = updateKeys.length > 0 && updateKeys.every(k => shiftFields.includes(k));
+
+        if (isOnlyShiftUpdate) {
+            // Shift-only changes bypass OTP
+            const updatedHR = await User.findByIdAndUpdate(hrId, filteredUpdates, { new: true, runValidators: false });
+            res.status(200).json({ success: true, message: "HR profile updated successfully", data: updatedHR });
+            return;
+        }
+
+        // Non-shift changes: store pending updates and send OTP to HR's email
+        const otp = crypto.randomInt(100000, 999999).toString();
+        const editorName = req.user?.name || req.user?.role || "Admin";
+        const isSelfEdit = String(req.user?._id) === String(hrId);
+
+        hr.profileEditOTP = otp;
+        hr.profileEditOTPExpires = Date.now() + 10 * 60 * 1000;
+        hr.pendingProfileUpdates = { ...filteredUpdates };
+        await hr.save({ validateBeforeSave: false });
+
+        try {
+            await sendProfileEditOTPEmail(
+                hr.email,
+                otp,
+                editorName,
+                hr.name || "Your Profile",
+                isSelfEdit
+            );
+        } catch (emailErr) {
+            console.warn("[updateHRStaff] Failed to send OTP email:", emailErr.message);
+        }
+
+        return res.status(403).json({
+            success: false,
+            otpRequired: true,
+            message: "OTP verification required. A verification code has been sent to the HR's registered email.",
+            devOtp: process.env.NODE_ENV === "development" ? otp : undefined
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.verifyHRProfileUpdate = async (req, res) => {
+    try {
+        const { hrId } = req.params;
+        const { otp } = req.body;
+
+        const hr = await User.findById(hrId);
+        if (!hr) return res.status(404).json({ success: false, message: "HR user not found" });
+        if (hr.role !== "hr") return res.status(400).json({ success: false, message: "Target user is not an HR account" });
+
+        if (!hr.profileEditOTP || hr.profileEditOTP !== String(otp) || hr.profileEditOTPExpires < Date.now()) {
+            return res.status(401).json({ success: false, message: "Invalid or expired OTP" });
+        }
+
+        const updates = hr.pendingProfileUpdates || {};
+        if (!updates || Object.keys(updates).length === 0) {
+            return res.status(400).json({ success: false, message: "No pending profile updates found" });
+        }
+
+        const oldHr = hr.toObject();
+
+        // Apply pending updates
+        Object.keys(updates).forEach(key => {
+            if (key !== 'password' && key !== 'editOtp') hr[key] = updates[key];
+        });
+
+        hr.profileEditOTP = undefined;
+        hr.profileEditOTPExpires = undefined;
+        hr.pendingProfileUpdates = undefined;
+        await hr.save({ validateBeforeSave: false });
+
+        res.status(200).json({ success: true, message: "HR profile updated successfully", data: hr });
+
+        // Notify HR about profile changes
+        try {
+            const fieldLabels = {
+                name: 'Name', email: 'Email', phone: 'Phone', department: 'Department',
+                designation: 'Designation', status: 'Status', joiningDate: 'Joining Date',
+                annualSalary: 'Annual Salary', employmentType: 'Employment Type', profileImage: 'Profile Image',
+            };
+            const changedFields = Object.keys(updates).filter(f => {
+                if (updates[f] === undefined || f === 'profileImage') return false;
+                const oldVal = oldHr[f] !== undefined && oldHr[f] !== null ? String(oldHr[f]) : '';
+                const newVal = String(updates[f]);
+                return oldVal !== newVal;
+            });
+            if (changedFields.length > 0 || updates.profileImage) {
+                const actorName = req.user?.name || req.user?.role || "Admin";
+                const changeList = changedFields.map(f => {
+                    const label = fieldLabels[f] || f;
+                    const oldVal = oldHr[f] !== undefined && oldHr[f] !== null ? String(oldHr[f]) : '—';
+                    const newVal = String(updates[f]);
+                    return `${label}: ${oldVal} → ${newVal}`;
+                });
+                if (updates.profileImage) changeList.push('Profile Image: updated');
+                const detailsText = changeList.join(' | ');
+                await notifyUser({
+                    recipient: hrId,
+                    category: "system",
+                    headline: `Profile Updated by ${actorName}`,
+                    details: `Your HR profile was updated by ${actorName} at ${new Date().toLocaleString()}. Changes: ${detailsText}`,
+                    sentBy: req.user?._id,
+                });
+            }
+        } catch (notifyErr) {
+            console.warn("[verifyHRProfileUpdate] notifyUser failed (non-blocking):", notifyErr.message);
+        }
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

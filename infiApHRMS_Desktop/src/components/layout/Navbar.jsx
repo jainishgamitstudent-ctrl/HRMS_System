@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Search, Bell, User, Check, X, Clock, Shield, Key, Settings, LogOut, Menu, Mail, ChevronRight } from 'lucide-react';
+import { Search, Bell, User, Check, X, Clock, Shield, Settings, LogOut, Menu, Mail, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { getHrProfile } from '../../services/hrApi';
@@ -281,7 +281,6 @@ const Navbar = ({ setMobileMenuOpen }) => {
                 {[
                   { label: 'View Profile', icon: User, path: user?.role === 'Employee' ? '/employee/profile' : '/profile' },
                   { label: 'Edit Profile', icon: Settings, path: user?.role === 'Employee' ? '/employee/profile/edit' : '/profile/edit' },
-                  { label: 'Reset Password', icon: Key, path: user?.role === 'Employee' ? '/employee/profile/change-password' : '/profile/change-password' },
                 ].map((item) => (
                   <button
                     key={item.label}

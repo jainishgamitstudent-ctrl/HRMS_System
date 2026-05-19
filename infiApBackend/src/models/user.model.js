@@ -48,6 +48,16 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false
         },
+        createdBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        },
+        profileEditOTP: String,
+        profileEditOTPExpires: Date,
+        pendingProfileUpdates: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null
+        },
         dob: {
             type: Date
         },

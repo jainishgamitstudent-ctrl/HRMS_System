@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Building2,
@@ -7,50 +7,50 @@ import {
   Plus,
   Search,
   ChevronRight,
-  MoreVertical,
   Trash2,
-  Edit2
+  Edit2,
+  Bell,
+  AlertCircle,
+  X,
+  CheckCircle,
+  ShieldAlert
 } from 'lucide-react';
 import { useAdminDashboard } from '../../context/AdminDashboardContext';
 import { useAuth } from '../../context/AuthContext';
-const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, openMenuId, setOpenMenuId, navigate }) => {
-  const isMenuOpen = openMenuId === dept.id;
-  const menuRef = useRef(null);
+
+const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, requestDepartmentDelete, openMenuId, setOpenMenuId, navigate }) => {
   const normalizedRole = (role || '').toString().toLowerCase();
   const isAdmin = ['admin', 'superadmin'].includes(normalizedRole);
   const canEdit = isAdmin || normalizedRole === 'hr';
-  const canDelete = isAdmin;
+  const canDelete = isAdmin || normalizedRole === 'hr';
   const canViewTeams = isAdmin || normalizedRole === 'hr';
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setOpenMenuId(null);
-      }
-    };
-    if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isMenuOpen, setOpenMenuId]);
-
   const handleDelete = async () => {
-    if (window.confirm(`Are you sure you want to delete the ${dept.name} department? This action cannot be undone.`)) {
+    if (!window.confirm(`Are you sure you want to delete the ${dept.name} department? This action cannot be undone.`)) return;
+
+    if (isAdmin) {
       const result = await deleteDepartment(dept.id);
       if (result.success) {
         fetchDepartments();
       } else {
         alert(result.error || 'Failed to delete department');
       }
+    } else {
+      const result = await requestDepartmentDelete(dept.id);
+      if (result.success) {
+        alert(`Deletion request for ${dept.name} submitted for admin approval.`);
+      } else {
+        alert(result.error || 'Failed to request department deletion');
+      }
     }
   };
 
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
-  
+
   const editRoute = isAdminRoute ? `/admin/department-management/edit/${dept.id}` : `/departments/edit/${dept.id}`;
-  const specificTeamRoute = isAdminRoute 
-    ? `/admin/department-management/teams/view/${dept.id || dept._id}` 
+  const specificTeamRoute = isAdminRoute
+    ? `/admin/department-management/teams/view/${dept.id || dept._id}`
     : `/departments/teams/view/${dept.id || dept._id}`;
 
   return (
@@ -62,7 +62,7 @@ const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, openMe
         <div className="px-2.5 py-1 rounded-lg text-[9px] font-black tracking-wider uppercase bg-slate-50 text-slate-600 border border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-700 group-hover:border-indigo-100 transition-all duration-500 shadow-sm truncate max-w-[120px]">
           {dept.departmentCode || dept.sub || 'DEP-NEW'}
         </div>
-        
+
         {canEdit && (
           <div className="flex items-center gap-2">
             <button
@@ -76,7 +76,7 @@ const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, openMe
               <button
                 onClick={handleDelete}
                 className="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 border border-slate-100 hover:border-red-100 transition-all duration-300 group/del"
-                title="Delete Department"
+                title={isAdmin ? 'Delete Department' : 'Request Department Deletion'}
               >
                 <Trash2 size={14} className="group-hover/del:scale-110 transition-transform" />
               </button>
@@ -120,9 +120,25 @@ const DepartmentCard = ({ dept, role, fetchDepartments, deleteDepartment, openMe
 const Departments = () => {
   const navigate = useNavigate();
   const { role } = useAuth();
-  const { departments, summary, fetchDepartments, loading, deleteDepartment } = useAdminDashboard();
+  const {
+    departments,
+    summary,
+    fetchDepartments,
+    loading,
+    deleteDepartment,
+    requestDepartmentDelete,
+    fetchDepartmentDeletionRequests,
+    approveDepartmentDeletion,
+    rejectDepartmentDeletion
+  } = useAdminDashboard();
   const [searchQuery, setSearchQuery] = useState('');
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+
+  const normalizedRole = (role || '').toString().toLowerCase();
+  const isAdmin = ['admin', 'superadmin'].includes(normalizedRole);
 
   const filteredDepartments = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -144,6 +160,45 @@ const Departments = () => {
     fetchDepartments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadPendingRequests = async () => {
+    if (!isAdmin) return;
+    setRequestsLoading(true);
+    try {
+      const result = await fetchDepartmentDeletionRequests();
+      if (result.success) {
+        setPendingRequests(result.data);
+      }
+    } catch (e) {
+      console.warn('Failed to load pending requests', e);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPendingRequests();
+    const interval = setInterval(() => {
+      loadPendingRequests();
+    }, 15000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  const handleApprove = async (requestId) => {
+    const result = await approveDepartmentDeletion(requestId);
+    if (result.success) {
+      await loadPendingRequests();
+      await fetchDepartments();
+    }
+  };
+
+  const handleReject = async (requestId) => {
+    const result = await rejectDepartmentDeletion(requestId);
+    if (result.success) {
+      await loadPendingRequests();
+    }
+  };
 
   const overviewStats = useMemo(() => ([
     { label: 'Departments', value: String(departments.length), icon: Building2 },
@@ -188,6 +243,20 @@ const Departments = () => {
               className="bg-white border border-slate-100 rounded-2xl pl-12 pr-6 py-3.5 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all w-[300px] shadow-soft"
             />
           </div>
+          {isAdmin && (
+            <button
+              onClick={() => setShowRequestsModal(true)}
+              className="relative flex items-center gap-2 px-5 py-3.5 bg-white border border-slate-100 rounded-2xl hover:border-indigo-200 hover:shadow-md transition-all text-xs font-black uppercase tracking-widest text-slate-600"
+            >
+              <Bell size={16} className="text-indigo-500" />
+              Approvals
+              {pendingRequests.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full shadow-sm">
+                  {pendingRequests.length}
+                </span>
+              )}
+            </button>
+          )}
           <button
             onClick={() => navigate(createDepartmentRoute)}
             style={{ background: 'linear-gradient(135deg, #4E63F0, #6855E8)' }}
@@ -235,9 +304,9 @@ const Departments = () => {
                 key={idx}
                 dept={dept}
                 role={role}
-                teamRoute={teamRoute}
                 fetchDepartments={fetchDepartments}
                 deleteDepartment={deleteDepartment}
+                requestDepartmentDelete={requestDepartmentDelete}
                 openMenuId={openMenuId}
                 setOpenMenuId={setOpenMenuId}
                 navigate={navigate}
@@ -279,6 +348,73 @@ const Departments = () => {
           <Plus size={24} strokeWidth={3} className="group-hover:rotate-90 transition-transform duration-500" />
         </button>
       </section>
+
+      {/* Admin Approval Modal */}
+      {showRequestsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-xl max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <ShieldAlert size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-800 tracking-tight">Pending Deletion Requests</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Review and approve department removals</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRequestsModal(false)}
+                className="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
+              {requestsLoading ? (
+                <div className="text-center py-12 text-sm font-bold text-slate-400">Loading requests...</div>
+              ) : pendingRequests.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <CheckCircle size={40} className="text-emerald-400 mb-4" />
+                  <p className="text-sm font-bold uppercase tracking-widest">No pending deletion requests</p>
+                </div>
+              ) : (
+                pendingRequests.map((req) => (
+                  <div key={req._id} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <AlertCircle size={14} className="text-amber-500 shrink-0" />
+                        <span className="text-sm font-black text-slate-800 truncate">{req.departmentName}</span>
+                      </div>
+                      <p className="text-[11px] font-bold text-slate-500 truncate">
+                        Requested by {req.requesterName || req.requestedBy?.name || 'Unknown'}
+                      </p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                        {req.departmentId?.numberOfTeams || 0} teams
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleReject(req._id)}
+                        className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => handleApprove(req._id)}
+                        className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all"
+                      >
+                        Approve
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

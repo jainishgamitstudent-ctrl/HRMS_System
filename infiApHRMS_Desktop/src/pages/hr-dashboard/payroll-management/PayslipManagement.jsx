@@ -44,10 +44,6 @@ const PayslipManagement = () => {
             setPayslips(formatted);
         } catch (err) {
             // debug error removed
-            setPayslips([
-                { id: 'PS-1024-001', name: 'Mark Wilson', date: `${new Date().toLocaleString('default', { month: 'short' })} ${new Date().getFullYear()}`, amount: 114500, status: 'Generated', type: 'Monthly' },
-                { id: 'PS-1024-002', name: 'Sarah Chen', date: `${new Date().toLocaleString('default', { month: 'short' })} ${new Date().getFullYear()}`, amount: 99100, status: 'Generated', type: 'Monthly' },
-            ]);
         } finally {
             setLoading(false);
         }
@@ -181,7 +177,7 @@ const PayslipManagement = () => {
                     <div className="px-10 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-left shrink-0">
                         <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] flex items-center gap-2 text-left">
                             <ShieldCheck size={14} className="text-emerald-500" />
-                            All 348 archives cryptographically signed and verified.
+                            {payslips.length} archives cryptographically signed and verified.
                         </p>
                         <div className="flex items-center gap-6 text-right">
                             <div className="text-right">
@@ -202,11 +198,11 @@ const PayslipManagement = () => {
                             <div className="space-y-4 text-left">
                                 <div className="flex justify-between py-4 border-b border-white/10 text-left">
                                     <span className="text-[10px] font-black uppercase text-left tracking-[0.2em]">Current Node</span>
-                                    <span className="text-[10px] font-black uppercase text-right tracking-[0.2em]">Oct 2023</span>
+                                    <span className="text-[10px] font-black uppercase text-right tracking-[0.2em]">{new Date().toLocaleString('default', { month: 'short' })} {new Date().getFullYear()}</span>
                                 </div>
                                 <div className="flex justify-between py-4 border-b border-white/10 text-left text-right">
                                     <span className="text-[10px] font-black uppercase text-left tracking-[0.2em]">Total Records</span>
-                                    <span className="text-[10px] font-black uppercase text-right tracking-[0.2em]">348</span>
+                                    <span className="text-[10px] font-black uppercase text-right tracking-[0.2em]">{payslips.length}</span>
                                 </div>
                             </div>
                         </div>

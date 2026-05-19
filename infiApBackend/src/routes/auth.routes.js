@@ -11,7 +11,9 @@ const {
     logout,
     getMe,
     getAllUsers,
-    deleteUser
+    deleteUser,
+    requestProfileEditOTP,
+    verifyProfileEditOTP
 } = require("../controllers/auth.controller");
 const { verifyJWT } = require("../middlewares/auth.middleware");
 const { authLimiter } = require("../middlewares/security.middleware");
@@ -32,5 +34,7 @@ router.post("/logout", verifyJWT, logout);
 router.get("/me", verifyJWT, getMe);
 router.get("/users", verifyJWT, getAllUsers);
 router.delete("/users/:id", verifyJWT, deleteUser);
+router.post("/request-edit-otp", verifyJWT, requestProfileEditOTP);
+router.post("/verify-edit-otp", verifyJWT, verifyProfileEditOTP);
 
 module.exports = router;

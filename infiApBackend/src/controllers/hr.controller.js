@@ -14,6 +14,9 @@ const DoubleShiftRequest = require("../models/doubleShiftRequest.model");
 const logger = require("../utils/logger");
 const { notifyUser, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
 const { emitToRoles, emitEntityEvent } = require("../utils/socketManager");
+const { verifyProfileEditOtp } = require("../controllers/auth.controller");
+const { sendProfileEditOTPEmail, sendInterviewScheduledEmail } = require("../services/email.service");
+const crypto = require("crypto");
 
 // ---> Welcome Page Greeting <---
 exports.getDashboardSummary = async (req, res) => {
@@ -172,9 +175,10 @@ exports.editEmployee = async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body;
+        delete updates.editOtp;
         delete updates.password; // Forbid password update here
 
-        // Validate phone if being updated (country code + number = >= 10 digits total)
+        // Validate phone if being updated
         if (updates.phone) {
             const digitsOnly = String(updates.phone).replace(/\D/g, '');
             if (digitsOnly.length < 10) {
@@ -187,78 +191,174 @@ exports.editEmployee = async (req, res) => {
             delete updates.reportingManager;
         }
 
-        // Log for debugging
-        logger.info('Edit Employee', { id });
-        logger.info('Edit Employee updates', { updates: Object.keys(updates) });
-
         // Handle file upload if present
         if (req.file) {
-            // Convert buffer to base64 for storage (or use cloud storage in production)
             const base64Image = req.file.buffer.toString('base64');
             const mimeType = req.file.mimetype;
             updates.profileImage = `data:${mimeType};base64,${base64Image}`;
         }
 
-        // Fetch old employee to compare actual changes
-        const oldEmployee = await User.findById(id).lean();
-        if (!oldEmployee) return res.status(404).json({ success: false, message: "Employee not found" });
+        // Fetch target employee
+        const targetEmployee = await User.findById(id).lean();
+        if (!targetEmployee) return res.status(404).json({ success: false, message: "Employee not found" });
 
-        const employee = await User.findByIdAndUpdate(id, updates, { new: true, runValidators: false });
+        const shiftFields = ['doubleShiftAllowed', 'shiftType', 'shiftPermission'];
+        // Only consider fields that have a real value and are actually different from current
+        const updateKeys = Object.keys(updates).filter(k => {
+            if (k === 'profileImage' || k === 'editOtp' || k === 'password') return false;
+            const v = updates[k];
+            if (v === undefined || v === null || v === '') return false;
+            // Compare with current value; ignore if unchanged
+            const currentVal = targetEmployee[k];
+            if (JSON.stringify(v) === JSON.stringify(currentVal)) return false;
+            return true;
+        });
+        const isOnlyShiftUpdate = updateKeys.length > 0 && updateKeys.every(k => shiftFields.includes(k));
 
-        // Emit real-time event
-        emitEntityEvent('employee', 'updated', employee.toObject(), {
-            targetRoles: ['HR', 'Admin', 'Employee']
+        if (isOnlyShiftUpdate) {
+            // Shift-only changes bypass OTP and apply immediately
+            const employee = await User.findByIdAndUpdate(id, updates, { new: true, runValidators: false });
+            emitEntityEvent('employee', 'updated', employee.toObject(), { targetRoles: ['HR', 'Admin', 'Employee'] });
+            res.status(200).json({ success: true, message: "Employee updated successfully", data: employee });
+
+            // Notify about shift change
+            try {
+                const actorName = req.user?.name || req.user?.role || "System";
+                const employeeName = employee?.name || targetEmployee?.name || "an employee";
+                await notifyRoleUsers({
+                    roles: ["hr", "admin", "superadmin"],
+                    category: "attendance",
+                    headline: "Shift Permission Updated",
+                    details: `${actorName} updated shift settings for ${employeeName} at ${new Date().toLocaleString()}.`,
+                    sentBy: req.user?._id,
+                    excludeUserId: req.user?._id,
+                });
+            } catch (notifyErr) {
+                console.warn("[EditEmployee] notifyUser failed (non-blocking):", notifyErr.message);
+            }
+            return;
+        }
+
+        // Non-shift changes: store pending updates and send OTP to target employee's email
+        const otp = crypto.randomInt(100000, 999999).toString();
+        const editorName = req.user?.name || req.user?.role || "System";
+        const isSelfEdit = String(req.user?._id) === String(id);
+
+        await User.findByIdAndUpdate(id, {
+            profileEditOTP: otp,
+            profileEditOTPExpires: Date.now() + 10 * 60 * 1000,
+            pendingProfileUpdates: { ...updates }
         });
 
-        res.status(200).json({ success: true, message: "Employee updated successfully", data: employee });
+        // Send OTP to employee's registered email
+        try {
+            await sendProfileEditOTPEmail(
+                targetEmployee.email,
+                otp,
+                editorName,
+                targetEmployee.name || "Your Profile",
+                isSelfEdit
+            );
+        } catch (emailErr) {
+            console.warn("[EditEmployee] Failed to send OTP email:", emailErr.message);
+        }
 
-        // Notify employee of significant changes (only if value actually changed)
+        return res.status(403).json({
+            success: false,
+            otpRequired: true,
+            message: "OTP verification required. A verification code has been sent to the employee's registered email.",
+            devOtp: process.env.NODE_ENV === "development" ? otp : undefined
+        });
+    } catch (error) {
+        logger.error('Edit Employee Error', { error: error.message });
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.verifyEmployeeProfileUpdate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { otp } = req.body;
+
+        const employee = await User.findById(id);
+        if (!employee) return res.status(404).json({ success: false, message: "Employee not found" });
+
+        if (!employee.profileEditOTP || employee.profileEditOTP !== String(otp) || employee.profileEditOTPExpires < Date.now()) {
+            return res.status(403).json({ success: false, message: "Invalid or expired OTP" });
+        }
+
+        const updates = employee.pendingProfileUpdates || {};
+        if (!updates || Object.keys(updates).length === 0) {
+            return res.status(400).json({ success: false, message: "No pending profile updates found" });
+        }
+
+        const oldEmployee = employee.toObject();
+
+        // Apply pending updates
+        Object.keys(updates).forEach(key => {
+            if (key !== 'password' && key !== 'editOtp') employee[key] = updates[key];
+        });
+
+        employee.profileEditOTP = undefined;
+        employee.profileEditOTPExpires = undefined;
+        employee.pendingProfileUpdates = undefined;
+        await employee.save({ validateBeforeSave: false });
+
+        emitEntityEvent('employee', 'updated', employee.toObject(), { targetRoles: ['HR', 'Admin', 'Employee'] });
+
+        res.status(200).json({ success: true, message: "Profile updated successfully", data: employee });
+
+        // Send notification about the profile update
         try {
             const fieldLabels = {
-                department: 'Department',
-                designation: 'Designation',
-                reportingManager: 'Reporting Manager',
-                doubleShiftAllowed: 'Double Shift Permission',
+                name: 'Name', email: 'Email', phone: 'Phone', department: 'Department',
+                designation: 'Designation', reportingManager: 'Reporting Manager',
+                doubleShiftAllowed: 'Double Shift Permission', status: 'Status',
+                address: 'Address', joiningDate: 'Joining Date', annualSalary: 'Annual Salary',
+                employmentType: 'Employment Type', profileImage: 'Profile Image',
             };
-            const fieldsToNotify = Object.keys(fieldLabels);
-            const changedFields = fieldsToNotify.filter(f => {
-                if (updates[f] === undefined) return false;
-                // Compare as strings for consistent matching
+            const changedFields = Object.keys(updates).filter(f => {
+                if (updates[f] === undefined || f === 'profileImage') return false;
                 const oldVal = oldEmployee[f] !== undefined && oldEmployee[f] !== null ? String(oldEmployee[f]) : '';
                 const newVal = String(updates[f]);
                 return oldVal !== newVal;
             });
-            if (changedFields.length > 0) {
-                const actorName = req.user?.name || "HR";
-                const labelText = changedFields.map(f => fieldLabels[f] || f).join(", ");
+            if (changedFields.length > 0 || updates.profileImage) {
+                const actorName = req.user?.name || req.user?.role || "System";
+                const changeList = changedFields.map(f => {
+                    const label = fieldLabels[f] || f;
+                    const oldVal = oldEmployee[f] !== undefined && oldEmployee[f] !== null ? String(oldEmployee[f]) : '—';
+                    const newVal = String(updates[f]);
+                    return `${label}: ${oldVal} → ${newVal}`;
+                });
+                if (updates.profileImage) changeList.push('Profile Image: updated');
+                const detailsText = changeList.join(' | ');
                 await notifyUser({
                     recipient: id,
                     category: "system",
-                    headline: "Profile Updated",
-                    details: `Your profile has been updated by ${actorName}. Changed: ${labelText}`,
+                    headline: `Profile Updated by ${actorName}`,
+                    details: `Your profile was updated by ${actorName} at ${new Date().toLocaleString()}. Changes: ${detailsText}`,
                     sentBy: req.user?._id,
                 });
 
-                // If doubleShiftAllowed changed, also send dedicated notification to other HR/Admin roles
                 if (changedFields.includes('doubleShiftAllowed')) {
-                    const actorRole = req.user?.role;
-                    const otherRoles = actorRole === "hr" ? ["admin", "superadmin"] : ["hr", "superadmin"];
+                    const otherRoles = req.user?.role === "hr" ? ["admin", "superadmin"] : ["hr", "superadmin"];
                     const employeeName = employee?.name || oldEmployee?.name || "an employee";
                     await notifyRoleUsers({
                         roles: otherRoles,
                         category: "attendance",
                         headline: String(updates.doubleShiftAllowed) === "true" ? "Double Shift Permission Granted" : "Double Shift Permission Revoked",
-                        details: `${actorName} ${String(updates.doubleShiftAllowed) === "true" ? "granted" : "revoked"} double shift permission for ${employeeName}.`,
+                        details: `${actorName} ${String(updates.doubleShiftAllowed) === "true" ? "granted" : "revoked"} double shift permission for ${employeeName} at ${new Date().toLocaleString()}.`,
                         sentBy: req.user?._id,
                         excludeUserId: req.user?._id,
                     });
                 }
             }
         } catch (notifyErr) {
-            console.warn("[EditEmployee] notifyUser failed (non-blocking):", notifyErr.message);
+            console.warn("[verifyEmployeeProfileUpdate] notifyUser failed (non-blocking):", notifyErr.message);
         }
     } catch (error) {
-        logger.error('Edit Employee Error', { error: error.message });
+        logger.error('Verify Employee Profile Update Error', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -362,15 +462,7 @@ exports.updateDoubleShiftPermission = async (req, res) => {
 exports.getAllEmployees = async (req, res) => {
     try {
         const { department, role, search, page = 1, limit = 20 } = req.query;
-        const requesterRole = String(req.user?.role || "").toLowerCase();
         const filter = {};
-
-        // HR should only see actual employees; Admin/SuperAdmin can see all non-admin staff
-        if (requesterRole === "hr") {
-            filter.role = "employee";
-        } else {
-            filter.role = { $nin: ["main_admin", "superadmin", "admin"] };
-        }
 
         // Optional department filter from query params for both HR and Admin
         if (department) {
@@ -1465,13 +1557,14 @@ exports.getRecruitmentDashboard = async (req, res) => {
 // 2. Candidate Tracking — List all candidates with filters
 exports.getCandidateTrackingList = async (req, res) => {
     try {
-        const { status, page = 1, limit = 10 } = req.query;
+        const { status, jobId, page = 1, limit = 10 } = req.query;
         const filter = {};
         if (status) filter.status = status;
+        if (jobId) filter.jobId = jobId;
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const candidates = await Candidate.find(filter)
-            .select("applicantName profileImage jobTitle yearsOfExperience appliedDate status technicalInterview")
+            .select("_id applicantName profileImage jobTitle jobId yearsOfExperience appliedDate status technicalInterview")
             .sort({ appliedDate: -1 })
             .skip(skip).limit(parseInt(limit));
         
@@ -1570,10 +1663,93 @@ exports.sendOfferLetter = async (req, res) => {
     try {
         const { id } = req.params;
         // Placeholder for logic (e.g., email service)
-        const candidate = await Candidate.findByIdAndUpdate(id, { 
+        const candidate = await Candidate.findByIdAndUpdate(id, {
+            status: "Hired",
             $push: { recruitmentProgress: { stage: "Offer Sent", remarks: "Offer letter sent via email" } }
         }, { new: true });
         res.status(200).json({ success: true, message: "Offer letter sent successfully", data: candidate });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// 8c. Convert Candidate to Employee
+exports.convertCandidateToEmployee = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const candidate = await Candidate.findById(id);
+        if (!candidate) {
+            return res.status(404).json({ success: false, message: "Candidate not found" });
+        }
+
+        const email = (candidate.email || "").trim().toLowerCase();
+        const name = candidate.applicantName || "New Employee";
+        if (!email) {
+            return res.status(400).json({ success: false, message: "Candidate has no email" });
+        }
+
+        const existing = await User.findOne({ email });
+        if (existing) {
+            return res.status(409).json({ success: false, message: "Employee with this email already exists" });
+        }
+
+        // Try to get department from the job
+        let department = "";
+        if (candidate.jobId) {
+            const job = await Job.findById(candidate.jobId).select("department");
+            if (job) department = job.department;
+        }
+
+        // Auto-generate employeeId
+        const latestUser = await User.findOne({ employeeId: { $regex: /^EMP-\d+$/ } })
+            .sort({ employeeId: -1 })
+            .select("employeeId")
+            .lean();
+        let nextNum = 1;
+        if (latestUser?.employeeId) {
+            const match = latestUser.employeeId.match(/EMP-(\d+)/);
+            if (match) nextNum = parseInt(match[1], 10) + 1;
+        }
+        const employeeId = `EMP-${String(nextNum).padStart(4, '0')}`;
+
+        const userData = {
+            name,
+            email,
+            phone: candidate.phone || "",
+            password: "Password@123",
+            role: "employee",
+            employeeId,
+            department: department || "General",
+            designation: candidate.jobTitle || "",
+            profileImage: candidate.profileImage || "",
+            status: "Active",
+            joiningDate: new Date(),
+            isEmailVerified: true
+        };
+
+        const newEmployee = new User(userData);
+        await newEmployee.save();
+
+        // Update candidate status to Hired
+        await Candidate.findByIdAndUpdate(id, {
+            status: "Hired",
+            $push: { recruitmentProgress: { stage: "Converted to Employee", remarks: `Employee ID: ${employeeId}` } }
+        });
+
+        // Welcome notification
+        try {
+            await notifyUser({
+                recipient: newEmployee._id,
+                category: "system",
+                headline: "Welcome to the Team!",
+                details: `Welcome ${name}! Your employee ID is ${employeeId}. Contact HR for login details.`,
+                sentBy: req.user?._id,
+            });
+        } catch (notifyErr) {
+            console.warn("[ConvertCandidate] notifyUser failed (non-blocking):", notifyErr.message);
+        }
+
+        res.status(201).json({ success: true, message: "Candidate converted to employee successfully", data: newEmployee });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -1585,7 +1761,7 @@ exports.getRecentCandidatesDetail = async (req, res) => {
         const candidates = await Candidate.find()
             .sort({ appliedDate: -1 })
             .limit(10)
-            .select("applicantName profileImage status jobTitle yearsOfExperience location appliedDate");
+            .select("_id applicantName profileImage status jobTitle yearsOfExperience location appliedDate");
 
         res.status(200).json({ success: true, data: candidates });
     } catch (error) {
@@ -1620,21 +1796,32 @@ exports.getReviewApplications = async (req, res) => {
 // 8b. Create a new candidate
 exports.createCandidate = async (req, res) => {
     try {
-        const { applicantName, jobTitle, email, phone, location, status, technicalInterview } = req.body;
+        const { applicantName, jobTitle, jobId, email, phone, location, status, technicalInterview } = req.body;
 
         if (!applicantName || !jobTitle) {
             return res.status(400).json({ success: false, message: "applicantName and jobTitle are required" });
         }
 
+        const normalizedEmail = email?.trim().toLowerCase();
+        const duplicateFilter = normalizedEmail
+            ? { email: normalizedEmail }
+            : { applicantName: applicantName.trim(), jobTitle: jobTitle.trim() };
+
+        const existingCandidate = await Candidate.findOne(duplicateFilter).lean();
+        if (existingCandidate) {
+            return res.status(409).json({ success: false, message: "Candidate already exists." });
+        }
+
         const candidateData = {
             applicantName,
             jobTitle,
-            email: email || `${applicantName.replace(/\s+/g, '.').toLowerCase()}@placeholder.com`,
+            email: normalizedEmail || `${applicantName.replace(/\s+/g, '.').toLowerCase()}@placeholder.com`,
             status: status || "Applied"
         };
 
         if (phone) candidateData.phone = phone;
         if (location) candidateData.location = location;
+        if (jobId) candidateData.jobId = jobId;
 
         if (technicalInterview) {
             candidateData.technicalInterview = {
@@ -1660,14 +1847,47 @@ exports.createCandidate = async (req, res) => {
 exports.scheduleTechnicalInterview = async (req, res) => {
     try {
         const { id } = req.params;
-        const { date, interviewer } = req.body;
+        const {
+            date, time, stage, interviewer,
+            type, meetLink, location, phoneNumber, assignedHRs
+        } = req.body;
 
-        const candidate = await Candidate.findByIdAndUpdate(id, { 
+        // Map frontend meeting type labels to backend mode enum
+        const modeMap = {
+            "Video Call": "Online",
+            "Google Meet": "Online",
+            "On-site": "Offline",
+            "Office Location": "Offline",
+            "Phone Call": "Phone"
+        };
+        const mode = modeMap[type] || "Online";
+
+        const candidate = await Candidate.findByIdAndUpdate(id, {
             status: "Technical Interview",
             "technicalInterview.date": date,
+            "technicalInterview.time": time,
+            "technicalInterview.stage": stage,
             "technicalInterview.interviewer": interviewer,
-            $push: { recruitmentProgress: { stage: "Interview Scheduled", remarks: `Technical interview scheduled with ${interviewer} on ${date}` } }
+            "technicalInterview.mode": mode,
+            "technicalInterview.meetingLink": meetLink || "",
+            "technicalInterview.venue": location || "",
+            "technicalInterview.phoneNumber": phoneNumber || "",
+            "technicalInterview.assignedHRs": Array.isArray(assignedHRs) ? assignedHRs : [],
+            $push: { recruitmentProgress: { stage: "Interview Scheduled", remarks: `${stage || "Interview"} scheduled with ${interviewer} on ${date}` } }
         }, { new: true });
+
+        if (!candidate) {
+            return res.status(404).json({ success: false, message: "Candidate not found" });
+        }
+
+        // Send email to candidate
+        try {
+            await sendInterviewScheduledEmail(candidate.email, candidate.applicantName, {
+                date, time, stage, mode, meetLink, location, phoneNumber, interviewer, assignedHRs
+            });
+        } catch (emailErr) {
+            logger.warn("Interview email failed", { error: emailErr.message, candidateId: id });
+        }
 
         res.status(200).json({ success: true, message: "Interview scheduled", data: candidate });
     } catch (error) {

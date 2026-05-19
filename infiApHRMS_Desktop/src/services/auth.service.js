@@ -42,6 +42,16 @@ export const authService = {
     return res.data;
   },
 
+  requestEditOTP: async (targetUserId, actionLabel) => {
+    const res = await apiClient.post("/auth/request-edit-otp", { targetUserId, actionLabel });
+    return res.data;
+  },
+
+  verifyEditOTP: async (otp) => {
+    const res = await apiClient.post("/auth/verify-edit-otp", { otp });
+    return res.data;
+  },
+
   logout: () => {
     tokenStore.clearToken();
   },

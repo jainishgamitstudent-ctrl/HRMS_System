@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Zap,
     Target,
@@ -31,26 +31,65 @@ import {
     Cell
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { getPerformanceList, getPerformanceReportSummary } from '../../../services/hrApi';
 
 const MonthlyPerformance = () => {
     const navigate = useNavigate();
-    const [timeRange, setTimeRange] = useState('October 2023');
+    const [timeRange, setTimeRange] = useState(`${new Date().toLocaleString('default', { month: 'long' })} ${new Date().getFullYear()}`);
+    const [radarData, setRadarData] = useState([]);
+    const [leaderboard, setLeaderboard] = useState([]);
+    const [summaryStats, setSummaryStats] = useState({ velocity: 0, quality: 0, innovation: 0, overall: 0 });
+    const [loading, setLoading] = useState(true);
 
-    const radarData = [
-        { subject: 'Velocity', A: 120, fullMark: 150 },
-        { subject: 'Quality', A: 98, fullMark: 150 },
-        { subject: 'Strategy', A: 86, fullMark: 150 },
-        { subject: 'Teamwork', A: 99, fullMark: 150 },
-        { subject: 'Reliability', A: 130, fullMark: 150 },
-        { subject: 'Innovation', A: 75, fullMark: 150 },
-    ];
+    useEffect(() => {
+        let isMounted = true;
+        const loadPerformance = async () => {
+            try {
+                const [listRes, summaryRes] = await Promise.all([
+                    getPerformanceList().catch(() => ({ data: { data: [] } })),
+                    getPerformanceReportSummary().catch(() => ({ data: { data: null } }))
+                ]);
+                const listData = Array.isArray(listRes.data?.data) ? listRes.data.data : [];
+                const summaryData = summaryRes.data?.data || {};
 
-    const leaderboard = [
-        { name: 'Alex Rivers', score: 98, trend: '+2', avatar: 'AR' },
-        { name: 'Sarah Chen', score: 95, trend: '+1', avatar: 'SC' },
-        { name: 'Mark Wilson', score: 92, trend: '-1', avatar: 'MW' },
-        { name: 'Elena Rodriguez', score: 89, trend: '+4', avatar: 'ER' },
-    ];
+                const mappedLeaderboard = listData
+                    .sort((a, b) => (b.overallScore || 0) - (a.overallScore || 0))
+                    .slice(0, 5)
+                    .map((emp, i) => ({
+                        name: emp.employeeName || emp.name || 'Unknown',
+                        score: emp.overallScore || 0,
+                        trend: emp.trend || '0',
+                        avatar: (emp.employeeName || emp.name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                    }));
+
+                const mappedRadar = [
+                    { subject: 'Velocity', A: summaryData.velocity || 0, fullMark: 150 },
+                    { subject: 'Quality', A: summaryData.quality || 0, fullMark: 150 },
+                    { subject: 'Strategy', A: summaryData.strategy || 0, fullMark: 150 },
+                    { subject: 'Teamwork', A: summaryData.teamwork || 0, fullMark: 150 },
+                    { subject: 'Reliability', A: summaryData.reliability || 0, fullMark: 150 },
+                    { subject: 'Innovation', A: summaryData.innovation || 0, fullMark: 150 },
+                ];
+
+                if (isMounted) {
+                    setLeaderboard(mappedLeaderboard);
+                    setRadarData(mappedRadar);
+                    setSummaryStats({
+                        velocity: summaryData.velocity || 0,
+                        quality: summaryData.quality || 0,
+                        innovation: summaryData.innovation || 0,
+                        overall: summaryData.overallAchievement || 0
+                    });
+                }
+            } catch (err) {
+                // debug error removed
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+        loadPerformance();
+        return () => { isMounted = false; };
+    }, []);
 
     return (
         <div className="flex flex-col min-h-[calc(100vh-120px)] w-full gap-10 animate-in fade-in slide-in-from-bottom-4 duration-700 relative pt-4 text-left pb-20">
@@ -69,7 +108,7 @@ const MonthlyPerformance = () => {
                         <div className="flex items-center gap-4">
                             <span className="flex items-center gap-2 px-3 py-1 bg-yellow-50 text-yellow-600 rounded-lg text-[10px] font-black uppercase tracking-widest text-left">
                                 <Zap size={12} />
-                                Cycle: Q3 Finalization
+                                Cycle: {new Date().toLocaleString('default', { month: 'short' })} {new Date().getFullYear()}
                             </span>
                             <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest text-left">Corporate Merit Engine Active</span>
                         </div>
@@ -153,13 +192,13 @@ const MonthlyPerformance = () => {
                 <div className="xl:col-span-4 card-soft bg-slate-900 p-10 border-none text-white flex flex-col min-h-[500px] relative overflow-hidden group text-left">
                     <div className="relative z-10 text-left">
                         <h3 className="text-xs font-black text-white/40 uppercase tracking-widest text-left">Strategic Goal Matrix</h3>
-                        <p className="text-xl font-black text-white tracking-tight mt-2 text-left leading-tight">94% Core Achievement across all nodes.</p>
+                        <p className="text-xl font-black text-white tracking-tight mt-2 text-left leading-tight">{summaryStats.overall}% Core Achievement across all nodes.</p>
 
                         <div className="mt-12 space-y-10 text-left">
                             {[
-                                { label: 'Velocity Node', value: 85, color: 'bg-indigo-400' },
-                                { label: 'Quality Threshold', value: 92, color: 'bg-emerald-400' },
-                                { label: 'Innovation Sprint', value: 68, color: 'bg-yellow-400' },
+                                { label: 'Velocity Node', value: summaryStats.velocity, color: 'bg-indigo-400' },
+                                { label: 'Quality Threshold', value: summaryStats.quality, color: 'bg-emerald-400' },
+                                { label: 'Innovation Sprint', value: summaryStats.innovation, color: 'bg-yellow-400' },
                             ].map((goal, i) => (
                                 <div key={i} className="space-y-3 text-left">
                                     <div className="flex justify-between text-left">

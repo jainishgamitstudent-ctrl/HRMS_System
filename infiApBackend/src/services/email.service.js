@@ -186,11 +186,149 @@ const sendMeetingLinkEmail = async (email, name, date, link) => {
     }
 };
 
+const sendHrLoginOTPEmail = async (adminEmail, otp, hrName) => {
+    try {
+        const emailSent = await sendEmail({
+            to: adminEmail,
+            subject: "HR Login Verification Code - InfiAP HRMS",
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
+                    <h1 style="color: #1f2937; font-size: 24px; margin-bottom: 16px;">HR Login Verification</h1>
+                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+                        An HR user <strong>${hrName}</strong> is attempting to log in for the first time.
+                    </p>
+                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+                        Please share this 6-digit verification code with them:
+                    </p>
+                    <h2 style="letter-spacing: 4px; color: #4f46e5; font-size: 32px; margin: 24px 0;">${otp}</h2>
+                    <p style="color: #6b7280; font-size: 14px; line-height: 1.5;">
+                        This code will expire in 10 minutes.
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+                    <p style="color: #9ca3af; font-size: 13px;">
+                        If you did not create this HR account, please review your admin dashboard immediately.
+                    </p>
+                </div>
+            `,
+        });
+
+        if (emailSent) {
+            logger.info("HR login OTP email sent to admin", { adminEmail, hrName });
+        }
+
+        return emailSent;
+    } catch (error) {
+        logger.error("Error sending HR login OTP email to admin", { error: error.message });
+        throw new Error("Could not send HR login OTP email");
+    }
+};
+
+const sendProfileEditOTPEmail = async (targetEmail, otp, editorName, targetName, isSelfEdit = false) => {
+    try {
+        const subject = isSelfEdit
+            ? "Profile Update Verification Code - InfiAP HRMS"
+            : `Profile Edit Verification - InfiAP HRMS`;
+        const actionText = isSelfEdit
+            ? "You have requested to update your profile."
+            : `<strong>${editorName}</strong> is attempting to edit your profile.`;
+        const emailSent = await sendEmail({
+            to: targetEmail,
+            subject,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
+                    <h1 style="color: #1f2937; font-size: 24px; margin-bottom: 16px;">Profile Update Verification</h1>
+                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+                        ${actionText}
+                    </p>
+                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+                        To authorize these changes, please use the following 6-digit verification code:
+                    </p>
+                    <h2 style="letter-spacing: 4px; color: #4f46e5; font-size: 32px; margin: 24px 0;">${otp}</h2>
+                    <p style="color: #6b7280; font-size: 14px; line-height: 1.5;">
+                        This code will expire in 10 minutes.
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+                    <p style="color: #9ca3af; font-size: 13px;">
+                        If you did not request this change, please contact your administrator immediately.
+                    </p>
+                </div>
+            `,
+        });
+
+        if (emailSent) {
+            logger.info("Profile edit OTP email sent to target user", { targetEmail, editorName, targetName, isSelfEdit });
+        }
+
+        return emailSent;
+    } catch (error) {
+        logger.error("Error sending profile edit OTP email", { error: error.message });
+        throw new Error("Could not send profile edit OTP email");
+    }
+};
+
+const sendInterviewScheduledEmail = async (email, name, details) => {
+    try {
+        const {
+            date, time, stage, mode,
+            meetLink, location, phoneNumber,
+            interviewer, assignedHRs
+        } = details;
+
+        const modeLabel = mode === "Online" ? "Google Meet (Online)" : mode === "Offline" ? "Office Location (On-site)" : "Phone Call";
+
+        const extraRows = [];
+        if (meetLink) {
+            extraRows.push(`<tr><td style="padding:8px 0;color:#6b7280;font-weight:600;width:40%;">Google Meet Link</td><td style="padding:8px 0;color:#1f2937;"><a href="${meetLink}" style="color:#4f46e5;text-decoration:none;">${meetLink}</a></td></tr>`);
+        }
+        if (location) {
+            extraRows.push(`<tr><td style="padding:8px 0;color:#6b7280;font-weight:600;">Office Location</td><td style="padding:8px 0;color:#1f2937;">${location}</td></tr>`);
+        }
+        if (phoneNumber) {
+            extraRows.push(`<tr><td style="padding:8px 0;color:#6b7280;font-weight:600;">Phone Number</td><td style="padding:8px 0;color:#1f2937;">${phoneNumber}</td></tr>`);
+        }
+        if (Array.isArray(assignedHRs) && assignedHRs.length) {
+            extraRows.push(`<tr><td style="padding:8px 0;color:#6b7280;font-weight:600;">Additional HRs</td><td style="padding:8px 0;color:#1f2937;">${assignedHRs.join(", ")}</td></tr>`);
+        }
+
+        const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px; background:#ffffff;">
+            <div style="text-align:center;margin-bottom:24px;">
+                <h1 style="color:#1f2937;font-size:22px;margin-bottom:8px;">Interview Scheduled</h1>
+                <p style="color:#6b7280;font-size:14px;margin:0;">Hi ${name}, your interview has been confirmed.</p>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                <tr><td style="padding:8px 0;color:#6b7280;font-weight:600;width:40%;">Interview Stage</td><td style="padding:8px 0;color:#1f2937;">${stage || "Technical Interview"}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;font-weight:600;">Date</td><td style="padding:8px 0;color:#1f2937;">${date}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;font-weight:600;">Time</td><td style="padding:8px 0;color:#1f2937;">${time || "—"}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;font-weight:600;">Meeting Mode</td><td style="padding:8px 0;color:#1f2937;">${modeLabel}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;font-weight:600;">Primary Interviewer</td><td style="padding:8px 0;color:#1f2937;">${interviewer || "—"}</td></tr>
+                ${extraRows.join("")}
+            </table>
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />
+            <p style="color:#9ca3af;font-size:12px;text-align:center;">
+                Please reply to confirm your availability. Good luck!<br/>
+                InfiAP HR Team
+            </p>
+        </div>
+        `;
+
+        const sent = await sendEmail({ to: email, subject: "Interview Scheduled - InfiAP HRMS", html });
+        if (sent) logger.info("Interview scheduled email sent", { email });
+        return sent;
+    } catch (error) {
+        logger.error("Error sending interview scheduled email", { error: error.message });
+        return false;
+    }
+};
+
 module.exports = {
     sendVerificationEmail,
     sendLoginOTPEmail,
     sendPasswordResetEmail,
     sendBookingConfirmationEmail,
     sendMeetingLinkEmail,
+    sendHrLoginOTPEmail,
+    sendProfileEditOTPEmail,
+    sendInterviewScheduledEmail,
     isConfiguredForEmail,
 };

@@ -157,8 +157,8 @@ const RecruitmentHub = () => {
                 </div>
 
                 <div className="flex items-center gap-2 mt-auto">
-                  <button 
-                    onClick={() => navigate('/admin/recruitment-control/tracking')}
+                  <button
+                    onClick={() => navigate(`/admin/recruitment-control/tracking?jobId=${job.id}`)}
                     className="flex-1 py-2.5 bg-slate-50 text-slate-600 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-900 hover:text-white transition-all"
                   >
                     Applicants
@@ -187,12 +187,6 @@ const RecruitmentHub = () => {
           </div>
         )}
 
-        <button 
-          onClick={() => navigate('/admin/recruitment-control/create')}
-          className="fixed bottom-10 right-10 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl hover:bg-indigo-700 hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center z-40 shadow-indigo-200"
-        >
-          <Plus size={24} strokeWidth={3} />
-        </button>
       </section>
     </div>
   );

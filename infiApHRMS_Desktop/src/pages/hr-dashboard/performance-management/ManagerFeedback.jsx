@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ClipboardList, 
   MessageSquare, 
@@ -17,6 +17,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getEmployees, submitPerformanceFeedback } from '../../../services/hrApi';
 
 const ManagerFeedback = () => {
     const navigate = useNavigate();
@@ -33,22 +34,50 @@ const ManagerFeedback = () => {
     });
 
     const [feedbackText, setFeedbackText] = useState('');
+    const [employees, setEmployees] = useState([]);
+    const [loading, setLoading] = useState(false);
 
-    const employees = [
-        { id: 'EMP-001', name: 'Mark Wilson', dept: 'Engineering', role: 'Senior Developer' },
-        { id: 'EMP-002', name: 'Sarah Chen', dept: 'Design', role: 'UI/UX Lead' },
-        { id: 'EMP-003', name: 'Alex Rivers', dept: 'Engineering', role: 'Frontend Architect' },
-        { id: 'EMP-004', name: 'Elena Rodriguez', dept: 'Operations', role: 'Ops Manager' },
-    ];
+    useEffect(() => {
+        let isMounted = true;
+        const loadEmployees = async () => {
+            try {
+                const res = await getEmployees();
+                const payload = Array.isArray(res.data?.data) ? res.data.data : [];
+                const mapped = payload.map(emp => ({
+                    id: emp._id || emp.id || '',
+                    name: emp.name || 'Unknown',
+                    dept: emp.department || emp.dept || 'General',
+                    role: emp.designation || emp.role || ''
+                }));
+                if (isMounted) setEmployees(mapped);
+            } catch (err) {
+                // debug error removed
+            }
+        };
+        loadEmployees();
+        return () => { isMounted = false; };
+    }, []);
 
     const handleRating = (metric, value) => {
         setRatings(prev => ({ ...prev, [metric]: value }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (!selectedEmployee) return;
-        setSubmitted(true);
+        try {
+            setLoading(true);
+            await submitPerformanceFeedback({
+                employeeId: selectedEmployee.id,
+                ratings,
+                feedback: feedbackText
+            });
+            setSubmitted(true);
+        } catch (err) {
+            alert('Failed to submit feedback');
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (submitted) {
@@ -219,11 +248,11 @@ const ManagerFeedback = () => {
                             
                             <button 
                                 type="submit"
-                                disabled={!selectedEmployee}
-                                className={`w-full py-6 mt-10 font-black rounded-[32px] transition-all shadow-2xl uppercase tracking-[0.3em] text-xs flex items-center justify-center gap-3 active:scale-95 group ${selectedEmployee ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200' : 'bg-slate-100 text-slate-300 cursor-not-allowed border border-slate-50 shadow-none'}`}
+                                disabled={!selectedEmployee || loading}
+                                className={`w-full py-6 mt-10 font-black rounded-[32px] transition-all shadow-2xl uppercase tracking-[0.3em] text-xs flex items-center justify-center gap-3 active:scale-95 group ${selectedEmployee && !loading ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200' : 'bg-slate-100 text-slate-300 cursor-not-allowed border border-slate-50 shadow-none'}`}
                             >
-                                <Send size={18} className={selectedEmployee ? 'group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform' : ''} />
-                                Synchronize Review
+                                <Send size={18} className={selectedEmployee && !loading ? 'group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform' : ''} />
+                                {loading ? 'Synchronizing...' : 'Synchronize Review'}
                             </button>
                         </div>
                     </div>

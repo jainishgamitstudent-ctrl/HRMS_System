@@ -2,6 +2,7 @@ import api from '../utils/axios';
 
 export const getAdminProfile = () => api.get('/admin-dashboard/profile');
 export const updateAdminProfile = (data) => api.patch('/admin-dashboard/profile', data);
+export const verifyAdminProfileUpdate = (otp) => api.post('/admin-dashboard/profile/verify-update', { otp });
 export const getAdminDashboardStats = () => api.get('/admin-dashboard/summary');
 export const getCompanyEmployees = () => api.get('/admin-dashboard/staff-directory');
 export const getCompanyDepartments = () => api.get('/admin-dashboard/departments');

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { getEmployees, createEmployee as apiCreateEmployee, updateEmployee as apiUpdateEmployee, getEmployeeProfile as apiGetEmployeeProfile, deleteEmployee as apiDeleteEmployee } from '../services/hrApi';
+import { getEmployees, createEmployee as apiCreateEmployee, updateEmployee as apiUpdateEmployee, getEmployeeProfile as apiGetEmployeeProfile, deleteEmployee as apiDeleteEmployee, verifyEmployeeProfileUpdate as apiVerifyEmployeeProfileUpdate } from '../services/hrApi';
 import { useAuth } from './AuthContext';
 
 const EmployeeContext = createContext();
@@ -48,6 +48,7 @@ export const EmployeeProvider = ({ children }) => {
         phone: emp.phone || '',
         // Backend stores job title as 'designation', not 'role'
         role: emp.designation || emp.role || 'Employee',
+        systemRole: emp.role || 'employee',
         department: emp.department || 'General',
         manager: emp.reportingManager?.name || emp.manager || '',
         status: emp.status || 'Active',
@@ -161,6 +162,10 @@ export const EmployeeProvider = ({ children }) => {
       if (updatedData.profilePicture !== undefined) {
         payload.profilePicture = updatedData.profilePicture;
       }
+      // Pass OTP for HR profile edit verification
+      if (updatedData.editOtp !== undefined) {
+        payload.editOtp = updatedData.editOtp;
+      }
 
       // Debug: updating employee
       const res = await apiUpdateEmployee(id, payload);
@@ -185,9 +190,35 @@ export const EmployeeProvider = ({ children }) => {
       }
       return { success: true, data: updated };
     } catch (err) {
-      const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update employee';
-      // Silent error
-      // Silent error
+      const responseData = err.response?.data;
+      const message = responseData?.message || responseData?.error || err.message || 'Failed to update employee';
+      // Check if OTP is required
+      if (responseData?.otpRequired) {
+        return { success: false, otpRequired: true, error: message, devOtp: responseData?.devOtp };
+      }
+      setError(message);
+      return { success: false, error: message };
+    }
+  };
+
+  // ── Verify employee profile update OTP ─────────────────────────────────
+  const verifyEmployeeProfileUpdate = async (id, otp) => {
+    setError(null);
+    try {
+      const res = await apiVerifyEmployeeProfileUpdate(id, otp);
+      const updated = res.data?.data;
+      if (updated) {
+        setEmployees(prev =>
+          prev.map(emp =>
+            (emp._id === id || emp.id === id)
+              ? { ...emp, ...updated, id: updated._id || updated.id, _id: updated._id }
+              : emp
+          )
+        );
+      }
+      return { success: true, data: updated };
+    } catch (err) {
+      const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to verify OTP';
       setError(message);
       return { success: false, error: message };
     }
@@ -231,6 +262,7 @@ export const EmployeeProvider = ({ children }) => {
     fetchEmployees,
     addEmployee,
     updateEmployee,
+    verifyEmployeeProfileUpdate,
     removeEmployee,
     deleteEmployee,
     getProfile,

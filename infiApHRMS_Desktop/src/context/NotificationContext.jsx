@@ -73,18 +73,22 @@ export const NotificationProvider = ({ children }) => {
     const processSwalQueue = useCallback(() => {
         if (swalShowingRef.current || swalQueueRef.current.length === 0) return;
         swalShowingRef.current = true;
-        const { title, text, type } = swalQueueRef.current.shift();
+        const { title, text, type, senderName, time } = swalQueueRef.current.shift();
         const iconMap = { info: 'info', success: 'success', error: 'error', warning: 'warning' };
+
+        const senderHtml = senderName ? `<div style="font-size:11px;color:#64748b;margin-bottom:4px;">By ${senderName}${time ? ` • ${time}` : ''}</div>` : '';
+        const htmlContent = `${senderHtml}<div style="font-size:13px;color:#334155;">${text || ''}</div>`;
+
         Swal.fire({
             toast: true,
             position: 'top-end',
             icon: iconMap[type] || 'info',
             title: title || 'Notification',
-            text: text || '',
+            html: htmlContent,
             showConfirmButton: false,
-            timer: 3500,
+            timer: 4500,
             timerProgressBar: true,
-            width: '380px',
+            width: '420px',
             padding: '0.75rem',
             customClass: { popup: 'swal-minimal-toast' },
             didOpen: (toast) => {
@@ -98,8 +102,8 @@ export const NotificationProvider = ({ children }) => {
         });
     }, []);
 
-    const showSwalNotification = useCallback((title, text, type = 'info') => {
-        swalQueueRef.current.push({ title, text, type });
+    const showSwalNotification = useCallback((title, text, type = 'info', senderName = null, time = null) => {
+        swalQueueRef.current.push({ title, text, type, senderName, time });
         processSwalQueue();
     }, [processSwalQueue]);
 
@@ -138,11 +142,19 @@ export const NotificationProvider = ({ children }) => {
                 return [normalized, ...prev];
             });
             setUnreadCount(prev => prev + 1);
-            // Show SweetAlert2 popup for incoming real-time notification
+
+            const senderName = normalized.sentBy?.name || normalized.sentBy?.role || null;
+            const timeText = normalized.createdAt
+                ? new Date(normalized.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : null;
+
+            // Show SweetAlert2 popup for incoming real-time notification with sender + time
             showSwalNotification(
                 normalized.headline || normalized.message || 'New notification',
                 normalized.details || normalized.message || '',
-                'info'
+                'info',
+                senderName,
+                timeText
             );
             // Also show internal toast
             addToast('info', normalized.headline || normalized.message || 'New notification', 5000);

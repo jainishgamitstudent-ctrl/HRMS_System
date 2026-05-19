@@ -30,6 +30,14 @@ async function notifyUser({ recipient, category, headline, details, sentBy, rela
 
         console.log(`[Notifier] Created notification ${doc._id} for user ${recipient}`);
 
+        let senderInfo = null;
+        if (sentBy) {
+            try {
+                const sender = await User.findById(sentBy).select("name role").lean();
+                if (sender) senderInfo = { id: String(sentBy), name: sender.name, role: sender.role };
+            } catch (e) { /* ignore */ }
+        }
+
         const payload = {
             id: String(doc._id),
             category: doc.category,
@@ -38,6 +46,7 @@ async function notifyUser({ recipient, category, headline, details, sentBy, rela
             relatedRoomId: doc.relatedRoomId ? String(doc.relatedRoomId) : null,
             createdAt: doc.createdAt,
             read: false,
+            sentBy: senderInfo,
         };
 
         emitToUser(recipient, "notification", payload);
@@ -61,6 +70,14 @@ async function notifyUsers({ recipients, category, headline, details, sentBy, re
             console.log("[Notifier] Skipped: missing recipients, category, or headline");
             return [];
         }
+        let senderInfo = null;
+        if (sentBy) {
+            try {
+                const sender = await User.findById(sentBy).select("name role").lean();
+                if (sender) senderInfo = { id: String(sentBy), name: sender.name, role: sender.role };
+            } catch (e) { /* ignore */ }
+        }
+
         const docs = [];
         for (const recipient of recipients) {
             try {
@@ -86,6 +103,7 @@ async function notifyUsers({ recipients, category, headline, details, sentBy, re
                     relatedRoomId: doc.relatedRoomId ? String(doc.relatedRoomId) : null,
                     createdAt: doc.createdAt,
                     read: false,
+                    sentBy: senderInfo,
                 };
                 emitToUser(recipient, "notification", payload);
             } catch (innerErr) {

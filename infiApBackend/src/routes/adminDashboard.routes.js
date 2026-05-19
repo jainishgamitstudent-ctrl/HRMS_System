@@ -18,6 +18,12 @@ router.post("/departments/add-employee", verifyRole(["admin", "superadmin", "hr"
 router.patch("/departments/:id", verifyRole(["admin", "superadmin", "hr"]), adminDashboardController.updateDepartment);
 router.delete("/departments/:id", verifyRole(["admin", "superadmin"]), adminDashboardController.deleteDepartment);
 
+// --- Department Deletion Approval Flow ---
+router.post("/departments/:id/request-delete", verifyRole(["admin", "superadmin", "hr"]), adminDashboardController.requestDepartmentDelete);
+router.get("/department-deletion-requests", verifyRole(["admin", "superadmin"]), adminDashboardController.getDepartmentDeletionRequests);
+router.post("/department-deletion-requests/:requestId/approve", verifyRole(["admin", "superadmin"]), adminDashboardController.approveDepartmentDeletion);
+router.post("/department-deletion-requests/:requestId/reject", verifyRole(["admin", "superadmin"]), adminDashboardController.rejectDepartmentDeletion);
+
 // --- Admin + HR role gate for remaining routes ---
 router.use(verifyRole(["admin", "superadmin", "hr"]));
 
@@ -29,6 +35,7 @@ router.get("/analytics/report", adminDashboardController.getAnalyticsReport);
 // --- Admin Profile & Account Settings ---
 router.get("/profile", adminDashboardController.getAdminProfile);
 router.patch("/profile", adminDashboardController.updateAdminProfile);
+router.post("/profile/verify-update", adminDashboardController.verifyAdminProfileUpdate);
 router.get("/account-settings", adminDashboardController.getAdminAccountSettings);
 router.patch("/account-settings/personal-information", adminDashboardController.updateAdminPersonalInformation);
 router.patch("/account-settings/security", adminDashboardController.updateAdminSecuritySettings);
@@ -86,6 +93,8 @@ router.post("/employees", adminDashboardController.createEmployee);
 // --- HR Management ---
 router.get("/staff-directory", adminDashboardController.getStaffDirectory);
 router.get("/hr-staff", adminDashboardController.getHRStaff);
+router.patch("/hr-staff/:hrId", adminDashboardController.updateHRStaff);
+router.post("/hr-staff/:hrId/verify-update", adminDashboardController.verifyHRProfileUpdate);
 router.patch("/hr-staff/permissions", adminDashboardController.updateHRPermissions);
 router.delete("/hr-staff/:hrId", adminDashboardController.deleteHRUser);
 

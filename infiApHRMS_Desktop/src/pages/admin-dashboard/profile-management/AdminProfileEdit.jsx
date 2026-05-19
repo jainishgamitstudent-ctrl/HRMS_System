@@ -14,10 +14,12 @@ import {
   AlertCircle,
   Loader2,
   Check,
-  Camera
+  Camera,
+  ShieldCheck,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-import { getAdminProfile, updateAdminProfile } from '../../../services/adminApi';
+import { getAdminProfile, updateAdminProfile, verifyAdminProfileUpdate } from '../../../services/adminApi';
 
 const formatDateTime = (value) => {
   if (!value) return 'Not available';
@@ -76,9 +78,18 @@ const AdminProfileEdit = () => {
     profileImage: ''
   });
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  // OTP modal state
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otpError, setOtpError] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [devOtp, setDevOtp] = useState(null);
+  const otpInputRefs = useRef([]);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
@@ -189,8 +200,15 @@ const AdminProfileEdit = () => {
       delete payload.employeeId;
 
       const response = await updateAdminProfile(payload);
-      const updatedProfile = response.data?.data || profile || {};
 
+      if (response?.data?.otpRequired) {
+        setShowOtpModal(true);
+        if (response?.data?.devOtp) setDevOtp(response.data.devOtp);
+        setSaving(false);
+        return;
+      }
+
+      const updatedProfile = response.data?.data || profile || {};
       setProfile(updatedProfile);
       setSuccess(true);
 
@@ -202,9 +220,72 @@ const AdminProfileEdit = () => {
         navigate('/admin/profile');
       }, 1500);
     } catch (err) {
-      setError(err.response?.data?.message || err.response?.data?.error || 'Failed to update admin profile');
+      const responseData = err.response?.data;
+      if (responseData?.otpRequired) {
+        setShowOtpModal(true);
+        if (responseData?.devOtp) setDevOtp(responseData.devOtp);
+      } else {
+        setError(responseData?.message || responseData?.error || 'Failed to update admin profile');
+      }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleOtpChange = (element, index) => {
+    if (isNaN(element.value)) return;
+    const newOtp = [...otp.map((d, idx) => (idx === index ? element.value : d))];
+    setOtp(newOtp);
+    setOtpError('');
+    if (element.nextSibling && element.value !== '') {
+      element.nextSibling.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (e, index) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpInputRefs.current[index - 1].focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length === 6) {
+      setOtp(pasted.split(''));
+      otpInputRefs.current[5]?.focus();
+    }
+  };
+
+  const handleVerifyAndSave = async () => {
+    const otpString = otp.join('');
+    if (otpString.length !== 6) {
+      setOtpError('Please enter all 6 digits');
+      return;
+    }
+    setOtpLoading(true);
+    setOtpError('');
+
+    try {
+      const res = await verifyAdminProfileUpdate(otpString);
+
+      if (res?.data?.success || res?.success) {
+        setShowOtpModal(false);
+        setOtp(['', '', '', '', '', '']);
+        setSuccess(true);
+        if (typeof fetchProfile === 'function') {
+          await fetchProfile();
+        }
+        setTimeout(() => {
+          navigate('/admin/profile');
+        }, 1500);
+      } else {
+        setOtpError('Invalid or expired OTP');
+      }
+    } catch (err) {
+      setOtpError(err.response?.data?.message || err.message || 'Failed to verify OTP');
+    } finally {
+      setOtpLoading(false);
     }
   };
 
@@ -482,6 +563,87 @@ const AdminProfileEdit = () => {
           </p>
         </div>
       </form>
+
+      {/* OTP Verification Modal */}
+      {showOtpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"></div>
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full relative z-10 shadow-xl border border-slate-200 animate-in zoom-in-95 duration-300 text-center">
+            <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto mb-6">
+              <ShieldCheck size={32} strokeWidth={2} />
+            </div>
+            <h2 className="text-xl font-semibold text-slate-800 mb-2">Profile Update Verification</h2>
+            <p className="text-slate-500 text-sm mb-6">
+              A verification code has been sent to your registered email. Please enter it below to confirm the profile changes.
+            </p>
+            {devOtp && (
+              <div className="mb-4 px-4 py-2 bg-amber-50 border border-amber-100 rounded-xl inline-block">
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">
+                  Dev OTP: {devOtp}
+                </p>
+              </div>
+            )}
+            {otpError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2">
+                <AlertCircle size={14} className="text-red-500 shrink-0" />
+                <p className="text-xs font-semibold text-red-600">{otpError}</p>
+              </div>
+            )}
+            <div className="flex justify-between gap-2 mb-6">
+              {otp.map((data, index) => (
+                <input
+                  key={index}
+                  type="text"
+                  maxLength="1"
+                  ref={el => otpInputRefs.current[index] = el}
+                  value={data}
+                  onChange={e => handleOtpChange(e.target, index)}
+                  onKeyDown={e => handleOtpKeyDown(e, index)}
+                  onPaste={index === 0 ? handleOtpPaste : undefined}
+                  className="w-full aspect-square max-w-12 bg-slate-50 border border-slate-200 rounded-xl text-center text-2xl font-black text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white focus:border-indigo-500 outline-none transition-all"
+                />
+              ))}
+            </div>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleVerifyAndSave}
+                disabled={otpLoading || otp.some(v => v === '')}
+                className={`w-full py-3 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                  otpLoading || otp.some(v => v === '')
+                    ? 'bg-slate-300 cursor-not-allowed'
+                    : 'bg-indigo-600 hover:bg-indigo-700'
+                }`}
+              >
+                {otpLoading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={16} />
+                    Verify & Save
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={otpLoading}
+                className="w-full py-2.5 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+              >
+                <RefreshCw size={14} className={otpLoading ? 'animate-spin' : ''} />
+                {otpLoading ? 'Sending...' : 'Resend Code'}
+              </button>
+              <button
+                onClick={() => { setShowOtpModal(false); setOtpError(''); setOtp(['','','','','','']); }}
+                className="text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

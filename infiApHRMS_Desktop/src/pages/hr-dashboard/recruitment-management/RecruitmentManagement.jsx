@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Download,
   Calendar,
@@ -22,7 +22,35 @@ import {
   Cell
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
-import { getCandidateTracking, getRecruitmentJobs, createCandidate } from '../../../services/hrApi';
+import {
+  getCandidateTracking,
+  getRecruitmentJobs,
+  createCandidate,
+  shortlistCandidate,
+  rejectCandidate,
+  updateCandidateInterview,
+  selectCandidate,
+  updateCandidate
+} from '../../../services/hrApi';
+
+const USER_ADDED_CANDIDATES_KEY = 'hr_user_added_candidates';
+
+const getUserAddedCandidateIds = () => {
+  try {
+    const stored = localStorage.getItem(USER_ADDED_CANDIDATES_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveUserAddedCandidateId = (id) => {
+  if (!id) return;
+  const ids = getUserAddedCandidateIds();
+  if (!ids.includes(id)) {
+    localStorage.setItem(USER_ADDED_CANDIDATES_KEY, JSON.stringify([...ids, id]));
+  }
+};
 
 const formatDate = (value, fallback = 'Pending') => {
   if (!value) return fallback;
@@ -62,7 +90,7 @@ const normalizeCandidateAction = (candidate, index) => {
     title: candidate.applicantName || candidate.name || candidate.fullName || candidate.candidateName || `Candidate ${index + 1}`,
     role: candidate.jobTitle || candidate.role || candidate.position || 'Role Pending',
     department: candidate.department || candidate.dept || candidate.team || 'Recruitment',
-    date: formatDate(interviewDate || candidate.appliedAt || candidate.appliedDate || candidate.createdAt, scheduled ? 'Scheduled' : 'Applied'),
+    date: scheduled ? formatDate(interviewDate) : 'Pending',
     category: scheduled ? (schedule.stage || candidate.stage || 'Interview Scheduled') : 'Candidate Application',
     status,
     selected: isSelected,
@@ -71,7 +99,11 @@ const normalizeCandidateAction = (candidate, index) => {
     path: scheduled ? '/recruitment/interviews' : '/recruitment/applications',
     icon: isSelected ? ShieldCheck : scheduled ? Calendar : UserPlus,
     color: isSelected ? 'text-emerald-600' : scheduled ? 'text-indigo-600' : 'text-primary-600',
-    bg: isSelected ? 'bg-emerald-50' : scheduled ? 'bg-indigo-50' : 'bg-primary-50'
+    bg: isSelected ? 'bg-emerald-50' : scheduled ? 'bg-indigo-50' : 'bg-primary-50',
+    email: candidate.email || '',
+    phone: candidate.phone || '',
+    yearsOfExperience: candidate.yearsOfExperience || 0,
+    jobId: candidate.jobId || candidate.job?._id || candidate.job?.id || null
   };
 };
 
@@ -102,100 +134,73 @@ const RecruitmentManagement = () => {
     interviewer: '',
     status: 'Applied',
     interviewDate: '',
+    jobId: '',
   });
   const [adding, setAdding] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState(null);
+  const [selectedJobTitle, setSelectedJobTitle] = useState('');
+  const [confirmModal, setConfirmModal] = useState({ open: false, candidateId: null, newStatus: '', candidateName: '', onConfirm: null });
+  const isMountedRef = useRef(true);
 
   const showNotification = (msg) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
   };
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadPipeline = async () => {
-      try {
-        const [candidateRes, jobRes] = await Promise.all([
-          getCandidateTracking(),
-          getRecruitmentJobs()
-        ]);
-
-        console.log('[Recruitment] candidateRes:', candidateRes);
-        console.log('[Recruitment] candidateRes.data:', candidateRes.data);
-        console.log('[Recruitment] candidateRes.data?.data:', candidateRes.data?.data);
-
-        const candidates = Array.isArray(candidateRes.data?.data) ? candidateRes.data.data : [];
-        const jobsData = Array.isArray(jobRes.data?.data) ? jobRes.data.data : [];
-        setJobs(jobsData);
-
-        const stageCounts = candidates.reduce((acc, item) => {
-          const stage = getCandidateStatus(item);
-          acc[stage] = (acc[stage] || 0) + 1;
-          return acc;
-        }, {});
-
-        const mapped = Object.entries(stageCounts).map(([name, value]) => ({ name, value }));
-        const actions = candidates.map(normalizeCandidateAction);
-        const scheduledCount = actions.filter((c) => c.scheduled).length;
-        const selectedCount = actions.filter((c) => c.selected).length;
-
-        if (isMounted) {
-          if (mapped.length) setPipelineData(mapped);
-          setApplicantTotal(candidates.length);
-          setInterviewTotal(scheduledCount);
-          setSelectedTotal(selectedCount);
-          setUnscheduledTotal(Math.max(candidates.length - scheduledCount - selectedCount, 0));
-          setCurrentActions(actions);
-        }
-      } catch (err) {
-        console.error('Failed to load recruitment pipeline:', err);
-        showNotification(err?.response?.data?.message || 'Failed to load recruitment data.');
-      }
-    };
-
-    loadPipeline();
-    return () => { isMounted = false; };
-  }, []);
-
-  const handleSeedDemoData = async () => {
-    const demoCandidates = [
-      { applicantName: 'Alex Rivera', jobTitle: 'Senior React Developer', email: 'alex@example.com', status: 'Applied' },
-      { applicantName: 'Sarah Chen', jobTitle: 'Product Designer', email: 'sarah@example.com', status: 'Shortlisted' },
-      { applicantName: 'Michael Torres', jobTitle: 'DevOps Engineer', email: 'michael@example.com', status: 'Technical Interview', technicalInterview: { date: new Date().toISOString(), interviewer: 'Jane HR' } },
-    ];
+  const refreshData = async (jobId = null) => {
     try {
-      for (const c of demoCandidates) {
-        await createCandidate(c);
-      }
-      showNotification('Demo candidates seeded successfully.');
-      // Refresh
       const [candidateRes, jobRes] = await Promise.all([
-        getCandidateTracking(),
+        getCandidateTracking(jobId ? { jobId } : undefined),
         getRecruitmentJobs()
       ]);
-      const candidates = Array.isArray(candidateRes.data?.data) ? candidateRes.data.data : [];
+
+      const userAddedIds = getUserAddedCandidateIds();
+      const rawCandidates = Array.isArray(candidateRes.data?.data) ? candidateRes.data.data : [];
+      const uniqueMap = new Map();
+      rawCandidates.forEach((c) => {
+        const key = c.id || c.candidateId || c._id || c.code;
+        if (key && !uniqueMap.has(key)) uniqueMap.set(key, c);
+        else if (!key) uniqueMap.set(`fallback-${Math.random()}`, c);
+      });
+      const candidates = Array.from(uniqueMap.values()).filter((c) => {
+        const key = c.id || c.candidateId || c._id || c.code;
+        return userAddedIds.includes(key);
+      });
       const jobsData = Array.isArray(jobRes.data?.data) ? jobRes.data.data : [];
       setJobs(jobsData);
+
       const stageCounts = candidates.reduce((acc, item) => {
         const stage = getCandidateStatus(item);
         acc[stage] = (acc[stage] || 0) + 1;
         return acc;
       }, {});
+
       const mapped = Object.entries(stageCounts).map(([name, value]) => ({ name, value }));
       const actions = candidates.map(normalizeCandidateAction);
       const scheduledCount = actions.filter((c) => c.scheduled).length;
       const selectedCount = actions.filter((c) => c.selected).length;
-      if (mapped.length) setPipelineData(mapped);
-      setApplicantTotal(candidates.length);
-      setInterviewTotal(scheduledCount);
-      setSelectedTotal(selectedCount);
-      setUnscheduledTotal(Math.max(candidates.length - scheduledCount - selectedCount, 0));
-      setCurrentActions(actions);
+
+      if (isMountedRef.current) {
+        if (mapped.length) setPipelineData(mapped);
+        setApplicantTotal(candidates.length);
+        setInterviewTotal(scheduledCount);
+        setSelectedTotal(selectedCount);
+        setUnscheduledTotal(Math.max(candidates.length - scheduledCount - selectedCount, 0));
+        setCurrentActions(actions);
+      }
     } catch (err) {
-      console.error('Seed failed:', err);
-      showNotification(err?.response?.data?.message || 'Failed to seed demo data.');
+      console.error('Failed to load recruitment pipeline:', err);
+      if (isMountedRef.current) {
+        showNotification(err?.response?.data?.message || 'Failed to load recruitment data.');
+      }
     }
   };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    refreshData();
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   const handleAddCandidate = async (e) => {
     e.preventDefault();
@@ -211,6 +216,7 @@ const RecruitmentManagement = () => {
         jobTitle: addForm.role,
         location: addForm.department || undefined,
         status: addForm.status,
+        jobId: addForm.jobId || undefined,
         technicalInterview: addForm.interviewDate || addForm.interviewer
           ? {
               date: addForm.interviewDate || undefined,
@@ -218,33 +224,14 @@ const RecruitmentManagement = () => {
             }
           : undefined,
       };
-      await createCandidate(payload);
+      const createRes = await createCandidate(payload);
+      const newCandidateId = createRes?.data?.data?._id || createRes?.data?.data?.id;
+      if (newCandidateId) saveUserAddedCandidateId(newCandidateId);
       showNotification('Candidate added successfully.');
-      setAddForm({ name: '', email: '', role: '', department: '', interviewer: '', status: 'Applied', interviewDate: '' });
+      setAddForm({ name: '', email: '', role: '', department: '', interviewer: '', status: 'Applied', interviewDate: '', jobId: '' });
       setShowAddModal(false);
       // refresh list
-      const [candidateRes, jobRes] = await Promise.all([
-        getCandidateTracking(),
-        getRecruitmentJobs()
-      ]);
-      const candidates = Array.isArray(candidateRes.data?.data) ? candidateRes.data.data : [];
-      const jobsData = Array.isArray(jobRes.data?.data) ? jobRes.data.data : [];
-      setJobs(jobsData);
-      const stageCounts = candidates.reduce((acc, item) => {
-        const stage = getCandidateStatus(item);
-        acc[stage] = (acc[stage] || 0) + 1;
-        return acc;
-      }, {});
-      const mapped = Object.entries(stageCounts).map(([name, value]) => ({ name, value }));
-      const actions = candidates.map(normalizeCandidateAction);
-      const scheduledCount = actions.filter((c) => c.scheduled).length;
-      const selectedCount = actions.filter((c) => c.selected).length;
-      if (mapped.length) setPipelineData(mapped);
-      setApplicantTotal(candidates.length);
-      setInterviewTotal(scheduledCount);
-      setSelectedTotal(selectedCount);
-      setUnscheduledTotal(Math.max(candidates.length - scheduledCount - selectedCount, 0));
-      setCurrentActions(actions);
+      await refreshData(selectedJobId);
     } catch (err) {
       showNotification(err?.response?.data?.message || 'Failed to add candidate.');
     } finally {
@@ -271,6 +258,62 @@ const RecruitmentManagement = () => {
     link.click();
     document.body.removeChild(link);
     showNotification(`Exported ${act.title}'s data.`);
+  };
+
+  const handleStatusUpdate = async (id, newStatus) => {
+    const original = currentActions.find(a => a.id === id);
+    if (!original) return;
+
+    setCurrentActions(prev => prev.map(a => a.id === id ? { ...a, status: newStatus, selected: ['selected', 'hired', 'offer', 'offered'].includes(String(newStatus).toLowerCase()) } : a));
+
+    try {
+      if (newStatus === 'Shortlisted') {
+        await shortlistCandidate(id);
+      } else if (newStatus === 'Technical Interview') {
+        await updateCandidateInterview(id, { status: newStatus });
+      } else if (newStatus === 'Selected') {
+        await selectCandidate(id);
+      } else if (newStatus === 'Hired') {
+        await updateCandidate(id, { status: newStatus });
+      } else if (newStatus === 'Rejected') {
+        await rejectCandidate(id, { reason: 'Candidate rejected' });
+      } else {
+        await updateCandidate(id, { status: newStatus });
+      }
+      await refreshData(selectedJobId);
+    } catch (err) {
+      console.error('Status update failed:', err);
+      showNotification(err?.response?.data?.message || 'Failed to update status');
+      await refreshData(selectedJobId);
+    }
+  };
+
+  const openConfirmModal = (candidateId, newStatus, candidateName) => {
+    setConfirmModal({ open: true, candidateId, newStatus, candidateName, onConfirm: () => handleStatusUpdate(candidateId, newStatus) });
+  };
+
+  const closeConfirmModal = () => {
+    setConfirmModal({ open: false, candidateId: null, newStatus: '', candidateName: '', onConfirm: null });
+  };
+
+  const getConfirmTitle = (status) => {
+    switch (status) {
+      case 'Shortlisted': return 'Shortlist Candidate';
+      case 'Technical Interview': return 'Schedule Technical Interview';
+      case 'Hired': return 'Hire Candidate';
+      case 'Rejected': return 'Reject Candidate';
+      default: return 'Update Status';
+    }
+  };
+
+  const getConfirmMessage = (name, status) => {
+    switch (status) {
+      case 'Shortlisted': return `Are you sure you want to shortlist ${name}?`;
+      case 'Technical Interview': return `Are you sure you want to schedule a technical interview for ${name}?`;
+      case 'Hired': return `Are you sure you want to hire ${name}?`;
+      case 'Rejected': return `Are you sure you want to reject ${name}?`;
+      default: return `Are you sure you want to update ${name}'s status?`;
+    }
   };
 
   const handleExportAll = () => {
@@ -359,14 +402,15 @@ const RecruitmentManagement = () => {
             Export CSV
           </button>
           <button
-            onClick={handleSeedDemoData}
-            className="px-4 py-2.5 bg-white border border-slate-200 text-slate-800 text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center gap-2 shadow-sm active:scale-95"
-          >
-            <Zap size={16} className="text-amber-500" />
-            Seed Demo
-          </button>
-          <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              if (selectedJobId) {
+                const job = jobs.find(j => (j._id || j.id) === selectedJobId);
+                setAddForm({ name: '', email: '', role: job?.title || '', department: job?.department || '', interviewer: '', status: 'Applied', interviewDate: '', jobId: selectedJobId });
+              } else {
+                setAddForm({ name: '', email: '', role: '', department: '', interviewer: '', status: 'Applied', interviewDate: '', jobId: '' });
+              }
+              setShowAddModal(true);
+            }}
             className="px-6 py-2.5 bg-white border border-slate-200 text-slate-800 text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center gap-2 shadow-sm active:scale-95"
           >
             <UserPlus size={16} className="text-indigo-600" />
@@ -416,14 +460,29 @@ const RecruitmentManagement = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Role</label>
-                  <input
-                    type="text"
-                    value={addForm.role}
-                    onChange={(e) => setAddForm((f) => ({ ...f, role: e.target.value }))}
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Job Post</label>
+                  <select
+                    required
+                    value={addForm.jobId}
+                    onChange={(e) => {
+                      const jobId = e.target.value;
+                      const job = jobs.find(j => (j._id || j.id) === jobId);
+                      setAddForm((f) => ({
+                        ...f,
+                        jobId,
+                        role: job ? job.title : '',
+                        department: job ? job.department : ''
+                      }));
+                    }}
                     className="w-full bg-white border border-slate-200 focus:border-primary-300 outline-none rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors"
-                    placeholder="e.g. Frontend Dev"
-                  />
+                  >
+                    <option value="">Select a job post</option>
+                    {jobs.map((job) => (
+                      <option key={job._id || job.id} value={job._id || job.id}>
+                        {job.title} — {job.department}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">Department</label>
@@ -521,7 +580,7 @@ const RecruitmentManagement = () => {
                 <p className="text-xs text-slate-400 mb-0.5">Active Applicants</p>
                 <p className="text-2xl font-bold text-slate-800">{applicantTotal}</p>
               </div>
-              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-xs font-medium rounded">94% eff</span>
+              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-xs font-medium rounded">{applicantTotal > 0 ? Math.round((selectedTotal / applicantTotal) * 100) : 0}% eff</span>
             </div>
           </div>
 
@@ -544,19 +603,37 @@ const RecruitmentManagement = () => {
               <p className="text-xs text-slate-400 font-medium">Open Vacancies</p>
               <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{jobs.filter(j => j.status === 'Open' || j.status === 'Active').length}</span>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
+              <button
+                onClick={() => { setSelectedJobId(null); setSelectedJobTitle(''); refreshData(null); }}
+                className={`w-full text-left px-2 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${!selectedJobId ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                All Vacancies
+              </button>
               {jobs.filter(j => j.status === 'Open' || j.status === 'Active').length === 0 ? (
-                <p className="text-xs text-slate-400">No open vacancies.</p>
+                <p className="text-xs text-slate-400 px-2 py-1">No open vacancies.</p>
               ) : (
-                jobs.filter(j => j.status === 'Open' || j.status === 'Active').map((job, idx) => (
-                  <div key={idx} className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => navigate('/recruitment/active-jobs')}>
-                    <Briefcase size={14} className="text-indigo-500 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold text-slate-700 leading-tight">{job.title}</p>
-                      <p className="text-[10px] text-slate-400">{job.department} &middot; {job.type}</p>
+                jobs.filter(j => j.status === 'Open' || j.status === 'Active').map((job, idx) => {
+                  const isActive = selectedJobId === (job._id || job.id);
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-start gap-2 p-2 rounded-lg transition-colors cursor-pointer ${isActive ? 'bg-indigo-50 border border-indigo-100' : 'hover:bg-slate-50'}`}
+                      onClick={() => {
+                        const id = job._id || job.id;
+                        setSelectedJobId(id);
+                        setSelectedJobTitle(job.title);
+                        refreshData(id);
+                      }}
+                    >
+                      <Briefcase size={14} className={`mt-0.5 shrink-0 ${isActive ? 'text-indigo-600' : 'text-indigo-500'}`} />
+                      <div>
+                        <p className={`text-xs font-semibold leading-tight ${isActive ? 'text-indigo-700' : 'text-slate-700'}`}>{job.title}</p>
+                        <p className="text-[10px] text-slate-400">{job.department} &middot; {job.type}</p>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
             <button
@@ -583,7 +660,7 @@ const RecruitmentManagement = () => {
 
           {/* Toolbar */}
           <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/30">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-wrap">
               {tabs.map((tab) => (
                 <button
                   key={tab}
@@ -595,6 +672,18 @@ const RecruitmentManagement = () => {
                   {tab}
                 </button>
               ))}
+              {selectedJobId && (
+                <span className="ml-2 inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-lg border border-indigo-100">
+                  <Briefcase size={12} />
+                  {selectedJobTitle}
+                  <button
+                    onClick={() => { setSelectedJobId(null); setSelectedJobTitle(''); refreshData(null); }}
+                    className="ml-1 p-0.5 hover:bg-indigo-100 rounded"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              )}
             </div>
             <div className="relative max-w-sm w-full sm:w-56">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -614,6 +703,7 @@ const RecruitmentManagement = () => {
               <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-100">
                 <tr>
                   <th className="px-5 py-3 text-xs font-medium text-slate-400">Candidate</th>
+                  <th className="px-4 py-3 text-xs font-medium text-slate-400">Job Post</th>
                   <th className="px-4 py-3 text-xs font-medium text-slate-400">Interview Date</th>
                   <th className="px-4 py-3 text-xs font-medium text-slate-400">Stage</th>
                   <th className="px-5 py-3 text-xs font-medium text-slate-400 text-right">Actions</th>
@@ -622,13 +712,13 @@ const RecruitmentManagement = () => {
               <tbody className="divide-y divide-slate-50">
                 {filteredActions.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="px-5 py-12 text-center">
+                    <td colSpan="5" className="px-5 py-12 text-center">
                       <p className="text-sm text-slate-400">No candidates found. Add a candidate or adjust filters.</p>
                     </td>
                   </tr>
                 ) : (
-                  filteredActions.map((act, idx) => (
-                    <tr key={`${activeTab}-${idx}`} onClick={() => navigate(act.path)} className="group hover:bg-slate-50/60 transition-colors cursor-pointer">
+                  filteredActions.map((act) => (
+                    <tr key={act.id} onClick={() => navigate(act.path)} className="group hover:bg-slate-50/60 transition-colors cursor-pointer">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <div className={`p-2.5 rounded-lg ${act.bg} ${act.color}`}>
@@ -636,9 +726,12 @@ const RecruitmentManagement = () => {
                           </div>
                           <div>
                             <p className="text-sm font-medium text-slate-800 group-hover:text-primary-600 transition-colors">{act.title}</p>
-                            <p className="text-xs text-slate-400">{act.role} &middot; {act.interviewer}</p>
+                            <p className="text-xs text-slate-400">{act.interviewer}</p>
                           </div>
                         </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="text-sm font-medium text-slate-700">{act.role}</p>
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -660,12 +753,59 @@ const RecruitmentManagement = () => {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          {act.status === 'Hired' ? (
+                            <button
+                              onClick={() => navigate('/employees/add', {
+                                state: {
+                                  candidate: {
+                                    candidateId: act.id,
+                                    name: act.title,
+                                    email: act.email,
+                                    phone: act.phone,
+                                    role: act.role,
+                                    yearsOfExperience: act.yearsOfExperience,
+                                    jobId: act.jobId
+                                  }
+                                }
+                              })}
+                              className="px-3 py-1.5 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1.5"
+                            >
+                              <UserPlus size={12} />
+                              Add Employee
+                            </button>
+                          ) : act.status === 'Rejected' ? (
+                            <span className="px-3 py-1.5 bg-rose-50 text-rose-400 text-[10px] font-black uppercase tracking-widest rounded-lg cursor-not-allowed">
+                              Rejected
+                            </span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  if (act.status === 'Applied') openConfirmModal(act.id, 'Shortlisted', act.title);
+                                  else if (act.status === 'Shortlisted') openConfirmModal(act.id, 'Technical Interview', act.title);
+                                  else if (act.status === 'Technical Interview') openConfirmModal(act.id, 'Hired', act.title);
+                                  else if (act.status === 'Selected') openConfirmModal(act.id, 'Hired', act.title);
+                                }}
+                                className="px-3 py-1.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-slate-800 transition-all flex items-center gap-1.5"
+                              >
+                                {act.status === 'Applied' ? 'Shortlist' :
+                                  act.status === 'Shortlisted' ? 'Schedule Interview' :
+                                  act.status === 'Technical Interview' ? 'Hire' :
+                                  act.status === 'Selected' ? 'Hire' : 'Advance'}
+                              </button>
+                              {act.status !== 'Rejected' && act.status !== 'Hired' && (
+                                <button
+                                  onClick={() => openConfirmModal(act.id, 'Rejected', act.title)}
+                                  className="px-3 py-1.5 bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-rose-100 transition-all"
+                                >
+                                  Reject
+                                </button>
+                              )}
+                            </>
+                          )}
                           <button onClick={(e) => { e.stopPropagation(); handleExportCandidate(act); }} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
                             <Download size={16} />
-                          </button>
-                          <button className="p-2 text-slate-400 hover:text-primary-600 hover:bg-slate-100 rounded-lg transition-colors">
-                            <ArrowRight size={16} />
                           </button>
                         </div>
                       </td>
@@ -692,6 +832,46 @@ const RecruitmentManagement = () => {
 
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[32px] border border-slate-100 shadow-2xl p-8 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200">
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <ChevronRight size={24} className="text-indigo-600" />
+              </div>
+              <h3 className="text-lg font-black text-slate-800 tracking-tight">
+                {getConfirmTitle(confirmModal.newStatus)}
+              </h3>
+              <p className="text-xs text-slate-400 font-medium mt-2">
+                {getConfirmMessage(confirmModal.candidateName, confirmModal.newStatus)}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={closeConfirmModal}
+                className="flex-1 py-3 bg-slate-50 text-slate-600 text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-slate-100 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (confirmModal.onConfirm) confirmModal.onConfirm();
+                  closeConfirmModal();
+                }}
+                className={`flex-1 py-3 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 ${
+                  confirmModal.newStatus === 'Rejected'
+                    ? 'bg-rose-600 hover:bg-rose-700 shadow-lg shadow-rose-100'
+                    : 'bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-100'
+                }`}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

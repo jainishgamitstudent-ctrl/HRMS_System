@@ -370,6 +370,53 @@ export const AdminDashboardProvider = ({ children }) => {
     }
   };
 
+  const requestDepartmentDelete = async (deptId) => {
+    try {
+      const res = await api.post(`/admin-dashboard/departments/${deptId}/request-delete`);
+      addToast('info', res.data?.message || 'Deletion request sent for admin approval');
+      return { success: true, data: res.data?.data };
+    } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to request department deletion';
+      addToast('error', msg);
+      return { success: false, error: msg };
+    }
+  };
+
+  const fetchDepartmentDeletionRequests = async () => {
+    try {
+      const res = await api.get('/admin-dashboard/department-deletion-requests');
+      return { success: true, data: res.data?.data || [] };
+    } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to fetch deletion requests';
+      return { success: false, error: msg };
+    }
+  };
+
+  const approveDepartmentDeletion = async (requestId) => {
+    try {
+      await api.post(`/admin-dashboard/department-deletion-requests/${requestId}/approve`);
+      await silentRefreshAll();
+      addToast('success', 'Department deletion approved and removed');
+      return { success: true };
+    } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to approve deletion';
+      addToast('error', msg);
+      return { success: false, error: msg };
+    }
+  };
+
+  const rejectDepartmentDeletion = async (requestId) => {
+    try {
+      await api.post(`/admin-dashboard/department-deletion-requests/${requestId}/reject`);
+      addToast('success', 'Department deletion request rejected');
+      return { success: true };
+    } catch (error) {
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to reject deletion';
+      addToast('error', msg);
+      return { success: false, error: msg };
+    }
+  };
+
   const addTeam = async (payload) => {
     const requestPayload = {
       name: payload.name,
@@ -615,6 +662,10 @@ export const AdminDashboardProvider = ({ children }) => {
     addDepartment,
     updateDepartment,
     deleteDepartment,
+    requestDepartmentDelete,
+    fetchDepartmentDeletionRequests,
+    approveDepartmentDeletion,
+    rejectDepartmentDeletion,
     addTeam,
     updateTeam,
     deleteTeam,

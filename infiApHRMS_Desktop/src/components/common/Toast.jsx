@@ -46,7 +46,16 @@ const Toast = ({ toast, onClose }) => {
             <div className={`p-1.5 rounded-lg ${style.iconBg}`}>
                 <Icon className={`w-4 h-4 ${style.icon}`} />
             </div>
-            <p className="flex-1 text-sm font-medium text-slate-700">{toast.message}</p>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-700">{toast.message}</p>
+                {(toast.senderName || toast.timestamp) && (
+                    <p className="text-[10px] text-slate-400 mt-1">
+                        {toast.senderName && `By ${toast.senderName}`}
+                        {toast.senderName && toast.timestamp && ' • '}
+                        {toast.timestamp}
+                    </p>
+                )}
+            </div>
             <button
                 onClick={() => onClose(toast.id)}
                 className="text-slate-400 hover:text-slate-600 transition-colors"
