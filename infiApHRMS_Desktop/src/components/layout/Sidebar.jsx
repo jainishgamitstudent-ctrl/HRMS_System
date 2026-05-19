@@ -37,11 +37,13 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
+import { useSettings } from '../../context/SettingsContext';
 
 const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { role, logout } = useAuth();
+  const { t } = useSettings();
 
   // Track open state for submenus
   const [openSubmenu, setOpenSubmenu] = useState(() => {
@@ -314,11 +316,11 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
   const filteredMenuItems = allMenuItems.filter(item => item.roles.includes(role));
 
   const getRoleLabel = () => {
-    if (role === 'Main Admin') return 'Super Admin';
-    if (role === 'Admin') return 'Company Admin';
-    if (role === 'HR') return 'HR Manager';
-    if (role === 'Employee') return 'Employee';
-    return 'User';
+    if (role === 'Main Admin') return t('Super Admin');
+    if (role === 'Admin') return t('Company Admin');
+    if (role === 'HR') return t('HR Manager');
+    if (role === 'Employee') return t('Employee');
+    return t('User');
   };
 
   const getRoleColor = () => {
@@ -352,7 +354,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 overflow-y-auto no-scrollbar pb-10">
-        <p className="px-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.22em] mb-3">Navigation</p>
+        <p className="px-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.22em] mb-3">{t('Navigation')}</p>
         <ul className="space-y-1">
           {filteredMenuItems.map((item) => (
             <li key={item.name}>
@@ -372,7 +374,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
                       }`}
                   >
                     <item.icon size={16} className="shrink-0" />
-                    <span className="font-semibold text-[13px] tracking-tight whitespace-nowrap">{item.name}</span>
+                    <span className="font-semibold text-[13px] tracking-tight whitespace-nowrap">{t(item.name)}</span>
                     <ChevronDown size={14} className={`ml-auto transition-transform duration-300 ${openSubmenu === item.key ? 'rotate-180' : ''}`} />
                   </button>
 
@@ -394,7 +396,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
                                 }
                               >
                                 <sub.icon size={14} className="group-hover:scale-110 transition-transform" />
-                                <span className="text-[12px] tracking-tight">{sub.name}</span>
+                                <span className="text-[12px] tracking-tight">{t(sub.name)}</span>
                               </NavLink>
                             </li>
                           ))}
@@ -414,7 +416,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
                   }
                 >
                   <item.icon size={16} className="shrink-0" />
-                  <span className="font-semibold text-[13px] tracking-tight">{item.name}</span>
+                  <span className="font-semibold text-[13px] tracking-tight">{t(item.name)}</span>
                 </NavLink>
               )}
             </li>
@@ -430,7 +432,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
               className="w-full flex items-center justify-center gap-2 py-3 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 active:scale-95 text-[11px] uppercase tracking-wider"
             >
               <PlusCircle size={14} />
-              Add Employee
+              {t('Add Employee')}
             </button>
           ) : role === 'Employee' ? (
             <button
@@ -439,7 +441,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
               className="w-full flex items-center justify-center gap-2 py-3 text-white font-bold rounded-xl shadow-lg shadow-blue-200 active:scale-95 text-[11px] uppercase tracking-wider"
             >
               <Users size={14} />
-              Edit Profile
+              {t('Edit Profile')}
             </button>
           ) : (
             <button
@@ -448,7 +450,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
               className="w-full flex items-center justify-center gap-2 py-3 text-white font-bold rounded-xl shadow-lg shadow-slate-200 active:scale-95 text-[11px] uppercase tracking-wider"
             >
               <Building2 size={14} />
-              New Department
+              {t('New Department')}
             </button>
           )}
         </div>
@@ -461,7 +463,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 font-semibold text-xs w-full text-left uppercase tracking-wider group"
         >
           <LogOut size={16} className="group-hover:-translate-x-0.5" />
-          <span>Sign Out</span>
+          <span>{t('Sign Out')}</span>
         </button>
       </div>
     </div>

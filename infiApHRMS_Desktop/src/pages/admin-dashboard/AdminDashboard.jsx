@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useAdminDashboard } from '../../context/AdminDashboardContext';
+import { useSettings } from '../../context/SettingsContext';
 import { getEmployees, processSalary } from '../../services/hrApi';
 import {
    Building2,
@@ -26,24 +27,12 @@ import {
    ShieldCheck
 } from 'lucide-react';
 
-const MONTHS = [
-   { value: 1, label: 'January' }, { value: 2, label: 'February' }, { value: 3, label: 'March' },
-   { value: 4, label: 'April' }, { value: 5, label: 'May' }, { value: 6, label: 'June' },
-   { value: 7, label: 'July' }, { value: 8, label: 'August' }, { value: 9, label: 'September' },
-   { value: 10, label: 'October' }, { value: 11, label: 'November' }, { value: 12, label: 'December' }
-];
-
-const formatCurrency = (value) => {
-   const num = Number(value || 0);
-   if (Number.isNaN(num)) return '₹0';
-   return `₹${num.toLocaleString('en-IN')}`;
-};
-
 const AdminDashboard = () => {
    const navigate = useNavigate();
-    const { user, role } = useAuth();
-    const isAdmin = role === 'Admin';
+   const { user, role } = useAuth();
+   const isAdmin = role === 'Admin';
    const { summary, insights, departments, teams, jobs, staffDirectory, pendingLeaves, activities, loading } = useAdminDashboard();
+   const { t, formatCurrency, translatedMonths } = useSettings();
 
    // Salary assignment state
    const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -105,7 +94,7 @@ const AdminDashboard = () => {
       if (!selectedEmployee) return;
       setProcessingId(selectedEmployee._id);
       try {
-         const monthLabel = MONTHS.find((m) => m.value === Number(assignForm.month))?.label || 'January';
+         const monthLabel = translatedMonths.find((m) => m.value === Number(assignForm.month))?.label || t('January');
          const payload = {
             userId: selectedEmployee._id,
             basicSalary: Number(assignForm.basicSalary),
@@ -129,7 +118,7 @@ const AdminDashboard = () => {
 
    const stats = useMemo(() => {
        const activeCount = staffDirectory.filter(e => e.status === 'Active').length || summary.activeEmployees || 0;
-       const onboardingCount = staffDirectory.filter(e => e.status === 'Onboarding' || e.status === 'New Hire' || e.status === 'Pending').length || 0;
+       const onboardingCount = summary.onboardingCount ?? staffDirectory.filter(e => e.status === 'Onboarding' || e.status === 'New Hire' || e.status === 'Pending').length ?? 0;
        
        const thirtyDaysAgo = new Date();
        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -141,60 +130,60 @@ const AdminDashboard = () => {
 
        return [
           {
-             label: 'Total Employees',
+             label: t('Total Employees'),
              value: String(staffDirectory.length > 0 ? staffDirectory.length : summary.totalEmployees || 0),
              icon: Users,
-             helper: 'Live directory',
+             helper: t('Live directory'),
              color: 'text-indigo-600',
              bg: 'bg-indigo-50',
              accent: 'from-indigo-500 to-indigo-400',
              onClick: () => navigate(isAdmin ? '/admin/employees' : '/employees')
           },
           {
-             label: 'New Hires',
+             label: t('New Hires'),
              value: String(summary.newHires ?? newHiresCount),
              icon: Sparkles,
-             helper: 'Recent & Onboarding',
+             helper: t('Recent & Onboarding'),
              color: 'text-violet-600',
              bg: 'bg-violet-50',
              accent: 'from-violet-500 to-violet-400',
              onClick: () => navigate(isAdmin ? '/admin/new-hires' : '/new-hires')
           },
           {
-             label: 'Active Employees',
+             label: t('Active Employees'),
              value: String(activeCount),
              icon: CheckCircle2,
-             helper: 'Currently active',
+             helper: t('Currently active'),
              color: 'text-emerald-600',
              bg: 'bg-emerald-50',
              accent: 'from-emerald-500 to-emerald-400',
              onClick: () => navigate(isAdmin ? '/admin/employees' : '/employees')
           },
           {
-             label: 'Pending Onboarding',
+             label: t('Pending Onboarding'),
              value: String(onboardingCount),
              icon: Clock3,
-             helper: 'Awaiting setup',
+             helper: t('Awaiting setup'),
              color: 'text-amber-600',
              bg: 'bg-amber-50',
              accent: 'from-amber-500 to-amber-400',
              onClick: () => navigate(isAdmin ? '/admin/new-hires' : '/new-hires')
           },
           {
-             label: 'Open Positions',
+             label: t('Open Positions'),
              value: String(summary.newHires !== undefined ? (summary.activeJobs ?? jobs.filter(j => j.status === 'Active').length) : (summary.activeJobs || jobs.length || 0)),
              icon: Briefcase,
-             helper: 'Active recruitments',
+             helper: t('Active recruitments'),
              color: 'text-sky-600',
              bg: 'bg-sky-50',
              accent: 'from-sky-500 to-sky-400',
              onClick: () => navigate(isAdmin ? '/admin/recruitment-control' : '/recruitment')
           },
           {
-             label: 'Resignations',
+             label: t('Resignations'),
              value: String(summary.resignations || 0),
              icon: DoorOpen,
-             helper: 'Active exit register',
+             helper: t('Active exit register'),
              color: 'text-rose-600',
              bg: 'bg-rose-50',
              accent: 'from-rose-500 to-rose-400',
@@ -207,19 +196,19 @@ const AdminDashboard = () => {
    const recentJobs = jobs.slice(0, 4);
    const recentActivity = activities.slice(0, 5);
    const quickActions = [
-      { label: 'Departments', path: isAdmin ? '/admin/departments' : '/departments' },
-      { label: 'Payroll', path: isAdmin ? '/admin/payroll-management' : '/payroll' },
-      { label: 'Settings', path: isAdmin ? '/admin/settings' : '/settings' }
+      { label: t('Departments'), path: isAdmin ? '/admin/departments' : '/departments' },
+      { label: t('Payroll'), path: isAdmin ? '/admin/payroll-management' : '/payroll' },
+      { label: t('Settings'), path: isAdmin ? '/admin/settings' : '/settings' }
    ];
 
    const payrollItems = [
-      { id: 1, name: 'Monthly Payroll', sub: 'Salary Processing', icon: Wallet, path: isAdmin ? '/admin/payroll-management' : '/payroll' },
-      { id: 2, name: 'Salary Slips', sub: 'Generate & Share', icon: CreditCard, path: isAdmin ? '/admin/payroll-management' : '/payroll' }
+      { id: 1, name: t('Monthly Payroll'), sub: t('Salary Processing'), icon: Wallet, path: isAdmin ? '/admin/payroll-management' : '/payroll' },
+      { id: 2, name: t('Salary Slips'), sub: t('Generate & Share'), icon: CreditCard, path: isAdmin ? '/admin/payroll-management' : '/payroll' }
    ];
 
    const settingItems = [
-      { id: 1, name: 'Profile Management', sub: 'User Access Control', icon: Users, path: isAdmin ? '/admin/profile-management' : '/profile' },
-      { id: 2, name: 'System Security', sub: 'WFH & Permissions', icon: ShieldCheck, path: isAdmin ? '/admin/wfh-permissions' : '/wfh-access' }
+      { id: 1, name: t('Profile Management'), sub: t('User Access Control'), icon: Users, path: isAdmin ? '/admin/profile-management' : '/profile' },
+      { id: 2, name: t('System Security'), sub: t('WFH & Permissions'), icon: ShieldCheck, path: isAdmin ? '/admin/wfh-permissions' : '/wfh-access' }
    ];
 
    return (
@@ -255,14 +244,14 @@ const AdminDashboard = () => {
                   </div>
                   <form onSubmit={handleAssignSalary} className="space-y-4">
                       <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Employee</label>
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('Select Employee')}</label>
                          <select
                             className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all text-slate-700"
                             value={assignForm.employeeId}
                             onChange={handleEmployeeSelect}
                             required
                          >
-                            <option value="">Choose employee...</option>
+                            <option value="">{t('Choose employee...')}</option>
                             {employeeList.map((emp) => (
                                <option key={emp._id} value={emp._id}>
                                   {emp.name} ({emp.employeeId || emp.designation || 'Employee'})
@@ -272,20 +261,20 @@ const AdminDashboard = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                          <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Month</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('Month')}</label>
                             <select
                                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all text-slate-700"
                                value={assignForm.month}
                                onChange={(e) => setAssignForm((prev) => ({ ...prev, month: Number(e.target.value) }))}
                                required
                             >
-                               {MONTHS.map((m) => (
+                               {translatedMonths.map((m) => (
                                   <option key={m.value} value={m.value}>{m.label}</option>
                                ))}
                             </select>
                          </div>
                          <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Year</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('Year')}</label>
                             <input
                                type="number" min={2000} max={2100}
                                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500/20 transition-all"
@@ -296,7 +285,7 @@ const AdminDashboard = () => {
                          </div>
                       </div>
                       <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Basic Salary (₹)</label>
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('Basic Salary')} ({formatCurrency(0).replace(/[0-9]/g, '').replace(/,/g, '')})</label>
                          <input
                             type="number" min={0}
                             placeholder="e.g. 50000"
@@ -307,7 +296,7 @@ const AdminDashboard = () => {
                          />
                       </div>
                       <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Deductions (₹)</label>
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('Deductions')} ({formatCurrency(0).replace(/[0-9]/g, '').replace(/,/g, '')})</label>
                          <input
                             type="number" min={0}
                             placeholder="e.g. 5000"
@@ -319,7 +308,7 @@ const AdminDashboard = () => {
                       </div>
                       <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 flex justify-between items-center">
                          <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400">Calculated Net Salary</p>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400">{t('Calculated Net Salary')}</p>
                             <p className="text-2xl font-black text-slate-900 mt-1">
                                {formatCurrency((Number(assignForm.basicSalary) || 0) - (Number(assignForm.deductions) || 0))}
                             </p>
@@ -330,7 +319,7 @@ const AdminDashboard = () => {
                          disabled={processingId || !selectedEmployee}
                          className="w-full py-5 bg-slate-900 text-white text-xs font-black uppercase tracking-[0.25em] rounded-2xl shadow-xl hover:bg-indigo-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-wait"
                       >
-                         {processingId ? 'Processing...' : 'Sync Payroll Entry'}
+                         {processingId ? t('Processing...') : t('Sync Payroll Entry')}
                       </button>
                   </form>
                </div>
@@ -339,13 +328,13 @@ const AdminDashboard = () => {
 
          <div className="flex flex-col gap-3 border-b border-slate-100 pb-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-               <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2 uppercase">{isAdmin ? 'Admin Dashboard' : 'Management Hub'}</h1>
-               <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] leading-none">{isAdmin ? 'Live operational data from the admin service' : 'HR operational overview and department insights'}</p>
+               <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2 uppercase">{isAdmin ? t('Admin Dashboard') : t('Management Hub')}</h1>
+               <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] leading-none">{isAdmin ? t('Live operational data from the admin service') : t('HR operational overview and department insights')}</p>
             </div>
             <div className="flex items-center gap-3">
                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700">
                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                  <span className="text-[10px] font-black uppercase tracking-widest">Connected</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">{t('Connected')}</span>
                </div>
             </div>
          </div>
@@ -354,7 +343,7 @@ const AdminDashboard = () => {
             <div className="lg:col-span-2 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
                <div className="flex items-center gap-3 mb-4 text-slate-400">
                   <Activity size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em]">Overview</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em]">{t('Overview')}</span>
                </div>
                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {stats.map((stat) => (
@@ -372,15 +361,15 @@ const AdminDashboard = () => {
                   <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 col-span-2 md:col-span-1 flex flex-col justify-between">
                      <div>
                         <Wallet size={16} className="text-indigo-500 mb-3" />
-                        <p className="text-base font-black text-slate-900 leading-none mb-1">Assign Salary</p>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400">Set payroll</p>
+                        <p className="text-base font-black text-slate-900 leading-none mb-1">{t('Assign Salary')}</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400">{t('Set payroll')}</p>
                      </div>
             <button
                         onClick={openAssignModal}
                         style={{ background: 'linear-gradient(135deg, #1e293b, #334155)' }}
                         className="mt-4 w-full py-2 text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:opacity-90"
                      >
-                        Assign
+                        {t('Assign')}
                      </button>
                   </div>
                </div>
@@ -388,23 +377,23 @@ const AdminDashboard = () => {
             <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm flex flex-col">
                <div className="flex items-center justify-between mb-6">
                   <div>
-                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Snapshot</p>
-                     <h2 className="text-lg font-black text-slate-900 mt-1">Current Month</h2>
+                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{t('Snapshot')}</p>
+                     <h2 className="text-lg font-black text-slate-900 mt-1">{t('Current Month')}</h2>
                   </div>
                   <Layers size={18} className="text-slate-300" />
                </div>
 
                <div className="space-y-3 text-sm text-slate-600 font-medium flex-1">
                   <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5">
-                     <span className="text-xs">Monthly payroll</span>
+                     <span className="text-xs">{t('Monthly payroll')}</span>
                      <span className="font-black text-slate-900">{formatCurrency(insights?.monthlyPayroll || 0)}</span>
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5">
-                     <span className="text-xs">Teams</span>
+                     <span className="text-xs">{t('Teams')}</span>
                      <span className="font-black text-slate-900">{String(teams.length || summary.teams || 0).padStart(2, '0')}</span>
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5">
-                     <span className="text-xs">Prepared by</span>
+                     <span className="text-xs">{t('Prepared by')}</span>
                      <span className="font-black text-slate-900 truncate max-w-[100px]">{user?.name || (isAdmin ? 'Admin' : 'HR')}</span>
                   </div>
                </div>
@@ -414,8 +403,8 @@ const AdminDashboard = () => {
          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Departments</h3>
-                  <button onClick={() => navigate(isAdmin ? '/admin/departments' : '/departments')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">{t('Departments')}</h3>
+                  <button onClick={() => navigate(isAdmin ? '/admin/departments' : '/departments')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">{t('View all')}</button>
                </div>
                <div className="space-y-2">
                   {recentDepartments.length > 0 ? recentDepartments.map((department) => (
@@ -423,20 +412,20 @@ const AdminDashboard = () => {
                         <p className="text-sm font-black text-slate-900">{department.name}</p>
                         <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400">{department.head}</p>
                         <div className="mt-2.5 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-slate-500">
-                           <span>{department.teams} teams</span>
-                           <span>{department.employees} members</span>
+                           <span>{department.teams} {t('teams')}</span>
+                           <span>{department.employees} {t('members')}</span>
                         </div>
                      </div>
                   )) : (
-                     <p className="text-xs text-slate-400 p-4 text-center border border-dashed rounded-xl">No departments loaded.</p>
+                     <p className="text-xs text-slate-400 p-4 text-center border border-dashed rounded-xl">{t('No departments loaded.')}</p>
                   )}
                </div>
             </div>
 
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Payroll</h3>
-                  <button onClick={() => navigate(isAdmin ? '/admin/payroll-management' : '/payroll')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">{t('Payroll')}</h3>
+                  <button onClick={() => navigate(isAdmin ? '/admin/payroll-management' : '/payroll')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">{t('View all')}</button>
                </div>
                <div className="space-y-2">
                   {payrollItems.map((item) => (
@@ -460,8 +449,8 @@ const AdminDashboard = () => {
 
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Settings</h3>
-                  <button onClick={() => navigate(isAdmin ? '/admin/settings' : '/settings')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View all</button>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">{t('Settings')}</h3>
+                  <button onClick={() => navigate(isAdmin ? '/admin/settings' : '/settings')} className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline">{t('View all')}</button>
                </div>
                <div className="space-y-2">
                   {settingItems.map((item) => (

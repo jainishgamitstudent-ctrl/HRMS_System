@@ -12,6 +12,7 @@ import { JobProvider } from './context/JobContext';
 import { EmployeeProvider } from './context/EmployeeContext';
 import { PolicyProvider } from './context/PolicyContext';
 import { AdminDashboardProvider } from './context/AdminDashboardContext';
+import { SettingsProvider } from './context/SettingsContext';
 
 import { AlertCircle, ShieldAlert } from 'lucide-react';
 
@@ -222,7 +223,7 @@ function AppContent() {
   const { toasts, removeToast } = useNotifications();
 
   return (
-    <>
+    <SettingsProvider>
       <ToastContainer toasts={toasts} onClose={removeToast} />
       <Router>
       <ScrollToTop />
@@ -455,7 +456,7 @@ function AppContent() {
         </DepartmentProvider>
       </EmployeeProvider>
     </Router>
-    </>
+    </SettingsProvider>
   );
 }
 

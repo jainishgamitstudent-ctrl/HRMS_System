@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useAdminDashboard } from '../../context/AdminDashboardContext';
+import { useSettings } from '../../context/SettingsContext';
 
 
 const AdminNavbar = ({ setMobileMenuOpen }) => {
@@ -13,6 +14,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
   const { user, logout } = useAuth();
   const { notifications, unreadCount, markAsRead, clearNotifications, markAllAsRead } = useNotifications();
   const { staffDirectory, departments, jobs } = useAdminDashboard();
+  const { t, formatRelativeTime, formatDateTime } = useSettings();
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,14 +63,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
   }, []);
 
   const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    const now = new Date();
-    const time = new Date(timestamp);
-    const diff = Math.floor((now - time) / 60000);
-    if (diff < 1) return 'Just now';
-    if (diff < 60) return `${diff}m ago`;
-    if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
-    return `${Math.floor(diff / 1440)}d ago`;
+    return formatRelativeTime(timestamp);
   };
 
   const getNotificationIcon = (type) => {
@@ -86,15 +81,15 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
 
   const getPageTitle = () => {
     const path = location.pathname;
-    if (path.includes('/dashboard')) return 'Dashboard';
-    if (path.includes('/department-management')) return 'Department Management';
-    if (path.includes('/payroll-management')) return 'Payroll';
-    if (path.includes('/recruitment-control')) return 'Recruitment';
-    if (path.includes('/policies')) return 'Company Policies';
-    if (path.includes('/settings')) return 'System Settings';
-    if (path.includes('/departments')) return 'Departments';
-    if (path.includes('/employees')) return 'Employees';
-    return 'Institutional Hub';
+    if (path.includes('/dashboard')) return t('Dashboard');
+    if (path.includes('/department-management')) return t('Department Management');
+    if (path.includes('/payroll-management')) return t('Payroll');
+    if (path.includes('/recruitment-control')) return t('Recruitment');
+    if (path.includes('/policies')) return t('Company Policies');
+    if (path.includes('/settings')) return t('System Settings');
+    if (path.includes('/departments')) return t('Departments');
+    if (path.includes('/employees')) return t('Employees');
+    return t('Institutional Hub');
   };
 
   const displayName = user?.name || 'Admin User';
@@ -118,7 +113,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
           <Menu size={22} />
         </button>
         <div className="min-w-0 hidden sm:block">
-          <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400">Admin Workspace</p>
+          <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400">{t('Admin Workspace')}</p>
           <h1 className="text-base font-black text-slate-900 tracking-tight truncate leading-tight">{getPageTitle()}</h1>
         </div>
       </div>
@@ -129,7 +124,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
           <input
             type="text"
-            placeholder="Search employees, departments..."
+            placeholder={t('Search employees, departments...')}
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setShowSearchResults(e.target.value.length > 0); }}
             onFocus={() => searchTerm && setShowSearchResults(true)}
@@ -182,9 +177,9 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
                     <Bell size={16} className="text-indigo-600" />
                   </div>
                   <div>
-                    <span className="font-black text-xs text-slate-800 uppercase tracking-tight">Notifications</span>
+                    <span className="font-black text-xs text-slate-800 uppercase tracking-tight">{t('Notifications')}</span>
                     {unreadCount > 0 && (
-                      <p className="text-[10px] text-indigo-600 font-bold">{unreadCount} new alerts</p>
+                      <p className="text-[10px] text-indigo-600 font-bold">{unreadCount} {t('new alerts')}</p>
                     )}
                   </div>
                 </div>
@@ -193,7 +188,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
                     onClick={markAllAsRead}
                     className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest bg-white px-2 py-1 rounded-md border border-indigo-100 transition-all"
                   >
-                    Clear All
+                    {t('Clear All')}
                   </button>
                 )}
               </div>
@@ -202,7 +197,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
                 {notifications.length === 0 ? (
                   <div className="px-4 py-8 text-center">
                     <Bell size={32} className="mx-auto text-slate-300 mb-2" />
-                    <p className="text-sm text-slate-500">No notifications yet</p>
+                    <p className="text-sm text-slate-500">{t('No notifications yet')}</p>
                   </div>
                 ) : (
                   notifications.slice(0, 10).map((notification) => (
@@ -272,7 +267,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
                     }}
                     className="w-full text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
                   >
-                    View all notifications
+                    {t('View all notifications')}
                   </button>
                 </div>
               )}
@@ -341,9 +336,9 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
               
               <div className="p-2">
                 {[
-                  { label: 'View Profile', icon: User, path: '/admin/profile' },
-                  { label: 'Edit Profile', icon: Settings, path: '/admin/profile/edit' },
-                  { label: 'Reset Password', icon: Key, path: '/admin/profile/change-password' },
+                  { label: t('View Profile'), icon: User, path: '/admin/profile' },
+                  { label: t('Edit Profile'), icon: Settings, path: '/admin/profile/edit' },
+                  { label: t('Reset Password'), icon: Key, path: '/admin/profile/change-password' },
                 ].map((item) => (
                   <button
                     key={item.label}
@@ -373,7 +368,7 @@ const AdminNavbar = ({ setMobileMenuOpen }) => {
                   <div className="w-8 h-8 rounded-lg bg-red-50/50 flex items-center justify-center group-hover:bg-white group-hover:shadow-sm transition-all text-red-500">
                     <LogOut size={16} />
                   </div>
-                  <span className="text-xs font-black text-red-600 uppercase tracking-widest group-hover:text-red-700 transition-colors">Logout Account</span>
+                  <span className="text-xs font-black text-red-600 uppercase tracking-widest group-hover:text-red-700 transition-colors">{t('Logout Account')}</span>
                 </button>
               </div>
             </div>

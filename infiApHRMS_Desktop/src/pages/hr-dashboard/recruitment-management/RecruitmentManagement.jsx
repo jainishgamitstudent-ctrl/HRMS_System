@@ -645,14 +645,14 @@ const RecruitmentManagement = () => {
           </div>
 
           {/* Alert Card */}
-          <div className="bg-slate-900 p-5 rounded-xl text-white mt-auto">
+          {/* <div className="bg-slate-900 p-5 rounded-xl text-white mt-auto">
             <AlertCircle className="mb-2 text-indigo-400" size={20} />
             <h4 className="text-sm font-semibold mb-1">Hiring Alert</h4>
             <p className="text-xs text-slate-400 mb-3">{unscheduledTotal} candidates need scheduling or review.</p>
             <button onClick={() => navigate('/recruitment/applications')} className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors">
               Review Hiring
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Main Table Area */}
@@ -824,9 +824,7 @@ const RecruitmentManagement = () => {
             </div>
             <div className="flex items-center gap-4">
               <p className="text-xs text-slate-500">Total Vacancies: {jobs.length}</p>
-              <button className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors">
-                Sync
-              </button>
+             
             </div>
           </div>
 

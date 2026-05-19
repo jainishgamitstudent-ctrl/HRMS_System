@@ -19,6 +19,7 @@ const normalizeSummary = (data = {}, fallbacks = {}) => ({
   monthlyPayroll: Number(data.monthlyPayroll ?? 0),
   openPositions: Number(data.openPositions ?? data.activeJobs ?? fallbacks.activeJobs ?? 0),
   newHires: Number(data.newHires ?? 0),
+  onboardingCount: Number(data.onboardingCount ?? 0),
   announcements: Number(data.announcements ?? 0),
   resignations: Number(data.resignations ?? data.totalResignations ?? fallbacks.resignations ?? 0)
 });

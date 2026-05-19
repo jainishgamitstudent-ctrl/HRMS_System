@@ -343,7 +343,8 @@ exports.getSummaryStats = async (req, res) => {
             activeJobs,
             pendingLeaves,
             resignations,
-            newHires
+            newHires,
+            onboardingCount
         ] = await Promise.all([
             Department.countDocuments(),
             Department.countDocuments({ isActive: true }),
@@ -361,6 +362,10 @@ exports.getSummaryStats = async (req, res) => {
                     { status: { $in: ["New Hire", "Onboarding", "Pending"] } },
                     { joiningDate: { $gte: sevenDaysAgo } }
                 ]
+            }),
+            User.countDocuments({
+                role: { $in: ["employee", "hr", "admin"] },
+                status: { $in: ["New Hire", "Onboarding", "Pending"] }
             })
         ]);
 
@@ -380,7 +385,8 @@ exports.getSummaryStats = async (req, res) => {
                 openJobs: activeJobs,
                 pendingLeaves,
                 resignations,
-                newHires
+                newHires,
+                onboardingCount
             }
         });
     } catch (error) {
