@@ -341,7 +341,7 @@ const Sidebar = ({ mobileMenuOpen, setMobileMenuOpen }) => {
           </div>
           <div className="flex flex-col">
             <span className="text-xl font-black text-slate-800 tracking-tighter leading-none">InfiAP</span>
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.18em] leading-none mt-0.5">HR Suite</span>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.18em] leading-none mt-0.5">HRMS</span>
           </div>
         </div>
 

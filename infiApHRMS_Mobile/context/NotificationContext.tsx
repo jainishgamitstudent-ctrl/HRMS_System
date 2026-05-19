@@ -17,7 +17,7 @@ import {
 import { useUser } from './UserContext';
 import { connectSocket, disconnectSocket } from '../services/socket';
 
-export type NotificationType = 'leave' | 'attendance' | 'payroll' | 'job' | 'system';
+export type NotificationType = 'leave' | 'attendance' | 'payroll' | 'job' | 'resignation' | 'system';
 
 export interface NotificationAttachment {
   name: string;
@@ -62,6 +62,7 @@ const getNotificationType = (category?: string): NotificationType => {
   if (normalized.includes('attendance')) return 'attendance';
   if (normalized.includes('payroll')) return 'payroll';
   if (normalized.includes('job')) return 'job';
+  if (normalized.includes('resignation')) return 'resignation';
   return 'system';
 };
 
@@ -70,6 +71,7 @@ const getNotificationRoute = (type: NotificationType) => {
   if (type === 'attendance') return '/(employee)/attendance';
   if (type === 'payroll') return '/(employee)/payroll';
   if (type === 'job') return '/(employee)/job-postings';
+  if (type === 'resignation') return '/(employee)/my-resignation';
   return undefined;
 };
 

@@ -11,6 +11,7 @@ const ICON_BY_TYPE: Record<NotificationType, { name: any; color: string; bg: str
   attendance: { name: 'time', color: '#ef4444', bg: '#fef2f2' },
   payroll: { name: 'cash', color: '#8b5cf6', bg: '#f5f3ff' },
   job: { name: 'briefcase', color: '#10b981', bg: '#ecfdf5' },
+  resignation: { name: 'exit', color: '#f43f5e', bg: '#fff1f2' },
   system: { name: 'megaphone', color: '#f59e0b', bg: '#fff7ed' },
 };
 

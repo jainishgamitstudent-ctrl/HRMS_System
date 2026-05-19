@@ -2390,6 +2390,35 @@ exports.processExit = async (req, res) => {
             update.actionedBy = req.user.name;
         }
         const exitData = await Resignation.findByIdAndUpdate(resignationId, update, { new: true });
+
+        // Notify employee about approval/rejection
+        if (exitData && exitData.userId) {
+            try {
+                const employeeName = exitData.employeeName || "An employee";
+                const headline = status === 'Approved'
+                    ? `Resignation Approved`
+                    : `Resignation Rejected`;
+                const details = status === 'Approved'
+                    ? `Your resignation request has been approved by ${req.user?.name || 'HR/Admin'}.${managerRemarks ? " Remarks: " + managerRemarks : ""}`
+                    : `Your resignation request has been rejected by ${req.user?.name || 'HR/Admin'}.${managerRemarks ? " Remarks: " + managerRemarks : ""}`;
+
+                await notifyUser({
+                    recipient: exitData.userId.toString(),
+                    category: status === 'Approved' ? 'success' : 'alert',
+                    headline,
+                    details,
+                    sentBy: req.user?._id?.toString() || null,
+                });
+
+                emitToastToUser(exitData.userId.toString(), status === 'Approved' ? 'success' : 'error', headline, {
+                    details,
+                    category: 'resignation',
+                });
+            } catch (notifyErr) {
+                console.warn("[processExit] Employee notification failed (non-blocking):", notifyErr.message);
+            }
+        }
+
         res.status(200).json({ success: true, message: "Exit Processed", data: exitData });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -2439,6 +2468,26 @@ exports.redirectResignationToAdmin = async (req, res) => {
             message: `Resignation redirected by ${hrName}: ${employeeName}`,
             category: "alert",
         });
+
+        // Notify employee that their resignation was forwarded to admin
+        if (resignation.userId) {
+            try {
+                await notifyUser({
+                    recipient: resignation.userId.toString(),
+                    category: "info",
+                    headline: "Resignation Forwarded to Admin",
+                    details: `${hrName} has forwarded your resignation request to the admin for further review.`,
+                    sentBy: hrUserId?.toString() || null,
+                });
+
+                emitToastToUser(resignation.userId.toString(), "info", "Resignation Forwarded to Admin", {
+                    details: `${hrName} forwarded your resignation to admin for review.`,
+                    category: "resignation",
+                });
+            } catch (notifyErr) {
+                console.warn("[redirectResignationToAdmin] Employee notification failed (non-blocking):", notifyErr.message);
+            }
+        }
 
         res.status(200).json({ success: true, message: "Resignation redirected to admin successfully", data: resignation });
     } catch (error) {

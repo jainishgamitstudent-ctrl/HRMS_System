@@ -280,7 +280,7 @@ const ResignationHub = () => {
                           onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); }}
                           className="px-6 py-2.5 bg-white border border-slate-100 rounded-xl text-[10px] font-black text-slate-400 hover:text-slate-900 hover:border-slate-900 transition-all uppercase tracking-widest active:scale-95 shadow-sm"
                         >
-                          Review Node
+                          {['Approved', 'Rejected', 'Completed'].includes(request.status) ? 'View Node' : 'Review Node'}
                         </button>
                       </td>
                     </tr>
@@ -383,12 +383,14 @@ const ResignationHub = () => {
                 >
                   Close
                 </button>
-                <button
-                  onClick={() => { setSelectedRequest(null); navigate(`${baseRoute}/resignation/requests`); }}
-                  className="px-8 py-3 bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md active:scale-95"
-                >
-                  Open Full Queue
-                </button>
+                {!['Approved', 'Rejected', 'Completed'].includes(selectedRequest.status) && (
+                  <button
+                    onClick={() => { setSelectedRequest(null); navigate(`${baseRoute}/resignation/requests`); }}
+                    className="px-8 py-3 bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md active:scale-95"
+                  >
+                    Open Full Queue
+                  </button>
+                )}
               </div>
             </div>
           </div>
