@@ -2385,9 +2385,19 @@ exports.getResignations = async (req, res) => {
 exports.processExit = async (req, res) => {
     try {
         const { resignationId, status, managerRemarks } = req.body;
+
+        const existing = await Resignation.findById(resignationId);
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Resignation not found" });
+        }
+        if (existing.status === 'Approved' || existing.status === 'Rejected') {
+            return res.status(400).json({ success: false, message: `This resignation request has already been ${existing.status.toLowerCase()}` });
+        }
+
         const update = { status, managerRemarks };
         if (req.user?.name && (status === 'Approved' || status === 'Rejected')) {
             update.actionedBy = req.user.name;
+            update.processedAt = new Date();
         }
         const exitData = await Resignation.findByIdAndUpdate(resignationId, update, { new: true });
 

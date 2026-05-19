@@ -70,6 +70,7 @@ const ResignationRequests = () => {
                 status: req.redirectedToAdmin ? 'Redirected to Admin' : (req.status || 'Submitted'),
                 risk: req.riskLevel || 'Low',
                 actionedBy: req.actionedBy || null,
+                processedAt: req.processedAt || null,
                 managerRemarks: req.managerRemarks || null,
                 redirectedToAdmin: req.redirectedToAdmin || false,
                 profileImage: req.userId?.profileImage || req.profileImage || null,
@@ -90,7 +91,14 @@ const ResignationRequests = () => {
         setTimeout(() => setNotification(null), 3000);
     };
 
+    const isFinalized = (status) => ['Approved', 'Rejected'].includes(status);
+
     const handleAction = async (id, action) => {
+        const req = requests.find(r => r.id === id);
+        if (req && isFinalized(req.status)) {
+            showNotification(`This resignation has already been ${req.status.toLowerCase()}.`);
+            return;
+        }
         try {
             await updateExitProcess({ resignationId: id, status: action });
             setRequests(prev => prev.map(r => r.id === id ? { ...r, status: action } : r));
@@ -150,10 +158,10 @@ const ResignationRequests = () => {
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 text-left">
                 {[
-                    { label: 'Submitted', value: String(requests.filter(r => r.status === 'Submitted').length).padStart(2,'0'), color: 'text-rose-500', bg: 'bg-rose-50' },
-                    { label: 'Approved', value: String(requests.filter(r => r.status === 'Approved').length).padStart(2,'0'), color: 'text-emerald-500', bg: 'bg-emerald-50' },
-                    { label: 'Under Review', value: String(requests.filter(r => r.status === 'Under Review').length).padStart(2,'0'), color: 'text-orange-500', bg: 'bg-orange-50' },
-                    { label: 'Redirected', value: String(requests.filter(r => r.status === 'Redirected to Admin').length).padStart(2,'0'), color: 'text-amber-500', bg: 'bg-amber-50' },
+                    { label: 'Submitted', value: String(requests.filter(r => r.originalStatus === 'Submitted' && !r.redirectedToAdmin).length).padStart(2,'0'), color: 'text-rose-500', bg: 'bg-rose-50' },
+                    { label: 'Approved', value: String(requests.filter(r => r.originalStatus === 'Approved').length).padStart(2,'0'), color: 'text-emerald-500', bg: 'bg-emerald-50' },
+                    { label: 'Rejected', value: String(requests.filter(r => r.originalStatus === 'Rejected').length).padStart(2,'0'), color: 'text-rose-500', bg: 'bg-rose-50' },
+                    { label: 'Redirected', value: String(requests.filter(r => r.redirectedToAdmin).length).padStart(2,'0'), color: 'text-amber-500', bg: 'bg-amber-50' },
                 ].map((stat, i) => (
                     <div key={i} className={`card-soft p-10 flex flex-col items-center justify-center text-center ${stat.bg} border-none shadow-none text-left`}>
                         <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 text-left opacity-60 text-slate-800">{stat.label}</p>
@@ -280,7 +288,7 @@ const ResignationRequests = () => {
                                 </div>
 
                                 <div className="mt-auto flex items-center gap-3 text-left">
-                                    {(!req.redirectedToAdmin || !isHR) && (
+                                    {(!req.redirectedToAdmin || !isHR) && !isFinalized(req.originalStatus) && (
                                         <>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleAction(req.id, 'Approved'); }}
@@ -305,13 +313,19 @@ const ResignationRequests = () => {
                                             )}
                                         </>
                                     )}
-                                    {req.redirectedToAdmin && (
-                                        <div className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 bg-amber-50 text-amber-700 font-black rounded-2xl uppercase tracking-widest text-[10px] text-center border border-amber-200">
-                                            {req.originalStatus === 'Approved' && req.actionedBy && (
-                                                <span className="text-[9px] text-emerald-600 font-black tracking-widest normal-case">
-                                                    Approved by HR: {req.actionedBy}
+                                    {isFinalized(req.originalStatus) && (
+                                        <div className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 font-black rounded-2xl uppercase tracking-widest text-[10px] text-center border ${req.originalStatus === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                                            {req.actionedBy && (
+                                                <span className={`text-[9px] font-black tracking-widest normal-case ${req.originalStatus === 'Approved' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {req.originalStatus} by: {req.actionedBy}
+                                                    {req.processedAt && ` • ${new Date(req.processedAt).toLocaleDateString()}`}
                                                 </span>
                                             )}
+                                            <span>{req.originalStatus}</span>
+                                        </div>
+                                    )}
+                                    {req.redirectedToAdmin && !isFinalized(req.originalStatus) && (
+                                        <div className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 bg-amber-50 text-amber-700 font-black rounded-2xl uppercase tracking-widest text-[10px] text-center border border-amber-200">
                                             <span>Redirected to Admin</span>
                                         </div>
                                     )}
@@ -384,12 +398,17 @@ const ResignationRequests = () => {
 
                         {/* Modal Body */}
                         <div className="p-8 overflow-y-auto space-y-6">
-                            {/* Previous Approval Banner */}
-                            {selectedRequest.redirectedToAdmin && selectedRequest.originalStatus === 'Approved' && selectedRequest.actionedBy && (
-                                <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100">
-                                    <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Previous Approval</p>
-                                    <p className="text-sm font-bold text-slate-700">Approved by HR: {selectedRequest.actionedBy}</p>
-                                    <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mt-2">Redirected to Admin for Re-approval</p>
+                            {/* Previous Approval/Rejection Banner */}
+                            {isFinalized(selectedRequest.originalStatus) && selectedRequest.actionedBy && (
+                                <div className={`p-5 rounded-2xl border ${selectedRequest.originalStatus === 'Approved' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'}`}>
+                                    <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${selectedRequest.originalStatus === 'Approved' ? 'text-emerald-400' : 'text-rose-400'}`}>Processed</p>
+                                    <p className="text-sm font-bold text-slate-700">{selectedRequest.originalStatus} by: {selectedRequest.actionedBy}</p>
+                                    {selectedRequest.processedAt && (
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">{new Date(selectedRequest.processedAt).toLocaleString()}</p>
+                                    )}
+                                    {selectedRequest.redirectedToAdmin && (
+                                        <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mt-2">Redirected to Admin for Re-approval</p>
+                                    )}
                                 </div>
                             )}
                             {/* Info Grid */}
@@ -480,7 +499,7 @@ const ResignationRequests = () => {
                             >
                                 Close
                             </button>
-                            {(!selectedRequest.redirectedToAdmin || !isHR) && (
+                            {(!selectedRequest.redirectedToAdmin || !isHR) && !isFinalized(selectedRequest.originalStatus) && (
                                 <>
                                     {isHR && !selectedRequest.redirectedToAdmin && (
                                         <button
