@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { resolveImageSource } from '@/utils/image';
 import { signOutUser } from '@/services/auth';
 import { useAppTheme } from '@/context/ThemeContext';
+import Constants from 'expo-constants';
 
 const { width } = Dimensions.get('window');
 const SIDEBAR_WIDTH = Math.min(width * 0.76, 328);
@@ -409,7 +410,7 @@ const Sidebar = () => {
               <Ionicons name="log-out-outline" size={20} color={colors.error} />
               <Text style={styles.logoutText}>Sign Out</Text>
             </TouchableOpacity>
-            <Text style={styles.versionText}>v1.0.0 (Pre-Alpha)</Text>
+            <Text style={styles.versionText}>v{Constants.expoConfig?.version || '1.0.0'}</Text>
           </View>
         </Animated.View>
       </Animated.View>

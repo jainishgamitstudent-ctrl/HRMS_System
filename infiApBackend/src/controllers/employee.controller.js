@@ -10,9 +10,12 @@ const Payroll = require("../models/payroll.model");
 const DoubleShiftRequest = require("../models/doubleShiftRequest.model");
 const Resignation = require("../models/resignation.model");
 const Job = require("../models/job.model");
+const AttendanceAudit = require("../models/attendanceAudit.model");
 const moment = require("moment");
 const { notifyUser, notifyRoleUsers, emitToastToUser } = require("../utils/notifier");
 const { emitToRoles, emitEntityEvent } = require("../utils/socketManager");
+const { validateGeofence, detectMockLocation, getOfficeConfig, LOCATION_VALIDATION_REQUIRED } = require("../utils/geofence");
+const { verifyFaceFromUrls, getFaceConfig } = require("../utils/faceVerification");
 
 const normalizeLeaveDate = (value) => {
     if (typeof value === "string") {
@@ -245,71 +248,351 @@ exports.getDashboardHome = async (req, res) => {
     }
 };
 
-// 2. Employee Punch (IN / OUT)
-exports.empPunch = async (req, res) => {
+// Helper: Log attendance audit
+const logAttendanceAudit = async (data) => {
     try {
-        const { PunchType, Latitude, Longitude, IsAway, WorkMode } = req.body;
+        await AttendanceAudit.create(data);
+    } catch (err) {
+        // Silently fail audit logging - don't block punch flow
+        console.error("Audit log failed:", err.message);
+    }
+};
+
+// Helper: Format punch time
+const formatPunchTime = (date) => {
+    const formatDoubleDigit = (n) => n < 10 ? `0${n}` : n;
+    const d = date || new Date();
+    const year = d.getFullYear();
+    const month = formatDoubleDigit(d.getMonth() + 1);
+    const day = formatDoubleDigit(d.getDate());
+    let hours = d.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const mins = formatDoubleDigit(d.getMinutes());
+    const secs = formatDoubleDigit(d.getSeconds());
+    return `${year}-${month}-${day} ${formatDoubleDigit(hours)}:${mins}:${secs} ${ampm}`;
+};
+
+// 2. Employee Punch (IN / OUT) - Enterprise Secure Version
+exports.empPunch = async (req, res) => {
+    const startTime = Date.now();
+    const userId = req.user ? req.user._id : null;
+    const clientIp = req.ip || req.connection?.remoteAddress || null;
+
+    try {
+        const {
+            PunchType,
+            Latitude,
+            Longitude,
+            IsAway,
+            WorkMode,
+            selfieUrl,
+            deviceId,
+            deviceName,
+            devicePlatform,
+            locationAccuracy,
+            altitude,
+            speed,
+            mocked,
+            isFromMockProvider,
+        } = req.body;
 
         const parsedLatitude = Number(Latitude);
         const parsedLongitude = Number(Longitude);
+        const parsedWorkMode = Number(WorkMode) || 1;
 
-        if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) {
-            return res.status(400).json({
+        // ── Layer 1: Input Validation ──
+        if (!userId) {
+            return res.status(401).json({
                 status: "Error",
-                message: "Latitude and Longitude are required for punch location."
+                statusCode: 401,
+                message: "Authentication required."
             });
         }
 
-        const userId = req.user ? req.user._id : "656b23d91f4a9b2b2c3d4e5f";
+        if (![1, 2, 3, 4, 5].includes(Number(PunchType))) {
+            return res.status(400).json({
+                status: "Error",
+                statusCode: 400,
+                message: "Invalid punch type. Must be 1 (in), 2 (out), 3 (reset), 4 (break start), or 5 (break end)."
+            });
+        }
 
+        if (LOCATION_VALIDATION_REQUIRED && (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude))) {
+            await logAttendanceAudit({
+                userId,
+                action: "geofence_validation",
+                status: "failure",
+                details: { message: "Missing latitude/longitude", ipAddress: clientIp },
+            });
+            return res.status(400).json({
+                status: "Error",
+                statusCode: 400,
+                message: "Latitude and Longitude are required for punch location validation."
+            });
+        }
+
+        // ── Layer 2: Mock GPS Detection (only when location validation is required) ──
+        const mockCheck = detectMockLocation({
+            accuracy: locationAccuracy,
+            altitude,
+            speed,
+            mocked,
+            isFromMockProvider,
+        });
+
+        if (LOCATION_VALIDATION_REQUIRED && mockCheck.isMock) {
+            await logAttendanceAudit({
+                userId,
+                action: "mock_detected",
+                status: "blocked",
+                details: {
+                    latitude: parsedLatitude,
+                    longitude: parsedLongitude,
+                    deviceId,
+                    ipAddress: clientIp,
+                    mockDetected: true,
+                    mockConfidence: mockCheck.confidence,
+                    message: mockCheck.message,
+                },
+            });
+            return res.status(403).json({
+                status: "Error",
+                statusCode: 403,
+                message: mockCheck.message,
+                data: { mockDetected: true, confidence: mockCheck.confidence },
+            });
+        }
+
+        // ── Layer 3: Geofencing Validation (skip when location validation disabled) ──
+        const geofenceResult = LOCATION_VALIDATION_REQUIRED
+            ? validateGeofence(parsedLatitude, parsedLongitude, parsedWorkMode)
+            : { isValid: true, distance: null, maxRadius: null, message: 'Location validation disabled' };
+
+        if (LOCATION_VALIDATION_REQUIRED && !geofenceResult.isValid) {
+            await logAttendanceAudit({
+                userId,
+                action: "geofence_validation",
+                status: "failure",
+                details: {
+                    latitude: parsedLatitude,
+                    longitude: parsedLongitude,
+                    distanceFromOffice: geofenceResult.distance,
+                    deviceId,
+                    ipAddress: clientIp,
+                    message: geofenceResult.message,
+                },
+            });
+            return res.status(400).json({
+                status: "Error",
+                statusCode: 400,
+                message: geofenceResult.message,
+                data: {
+                    distance: geofenceResult.distance,
+                    maxRadius: geofenceResult.maxRadius,
+                },
+            });
+        }
+
+        // ── Layer 4: Face Verification (Check-In Only) ──
+        let faceResult = { isMatch: true, confidence: 1, provider: 'disabled' };
+        const faceConfig = getFaceConfig();
+
+        if (faceConfig.required && Number(PunchType) === 1 && selfieUrl) {
+            // Fetch user profile image for comparison
+            const user = await User.findById(userId).select("profileImage").lean();
+
+            if (user?.profileImage) {
+                faceResult = await verifyFaceFromUrls(user.profileImage, selfieUrl);
+
+                await logAttendanceAudit({
+                    userId,
+                    action: "face_verification",
+                    status: faceResult.isMatch ? "success" : "failure",
+                    details: {
+                        faceVerified: faceResult.isMatch,
+                        faceConfidence: faceResult.confidence,
+                        faceProvider: faceResult.provider,
+                        message: faceResult.message,
+                    },
+                });
+
+                if (!faceResult.isMatch) {
+                    return res.status(401).json({
+                        status: "Error",
+                        statusCode: 401,
+                        message: "Face verification failed. Please ensure good lighting and try again.",
+                        data: {
+                            faceVerified: false,
+                            confidence: faceResult.confidence,
+                            threshold: faceConfig.threshold,
+                        },
+                    });
+                }
+            }
+        }
+
+        // ── Layer 5: Device Binding (Check-In Only) ──
+        if (Number(PunchType) === 1 && deviceId) {
+            const existingDevicePunch = await Punch.findOne({
+                userId,
+                deviceId: { $ne: deviceId },
+                PunchType: 1,
+                createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // Last 30 days
+            }).lean();
+
+            if (existingDevicePunch) {
+                await logAttendanceAudit({
+                    userId,
+                    action: "device_binding",
+                    status: "warning",
+                    details: {
+                        deviceId,
+                        deviceName,
+                        ipAddress: clientIp,
+                        message: "New device detected for check-in",
+                    },
+                });
+                // Allow but flag - HR can review audit logs
+            }
+        }
+
+        // ── Layer 6: Prevent Multiple Check-In Without Check-Out ──
+        if (Number(PunchType) === 1) {
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayEnd = new Date();
+            todayEnd.setHours(23, 59, 59, 999);
+
+            const todayPunches = await Punch.find({
+                userId,
+                PunchTime: { $gte: todayStart, $lte: todayEnd },
+            }).sort({ PunchTime: 1 }).lean();
+
+            const hasCheckInWithoutCheckOut = todayPunches.length > 0 &&
+                todayPunches[todayPunches.length - 1].PunchType === 1;
+
+            if (hasCheckInWithoutCheckOut) {
+                return res.status(409).json({
+                    status: "Error",
+                    statusCode: 409,
+                    message: "You have already checked in today. Please check out first.",
+                });
+            }
+        }
+
+        // ── Save Punch ──
         const punch = await Punch.create({
             userId,
             PunchType,
             Latitude: parsedLatitude,
             Longitude: parsedLongitude,
-            IsAway,
-            WorkMode
+            IsAway: IsAway ?? false,
+            WorkMode: parsedWorkMode,
+            selfieUrl: selfieUrl || null,
+            faceVerified: faceResult.isMatch,
+            faceConfidence: faceResult.confidence || 0,
+            faceProvider: faceResult.provider || null,
+            geofenceValid: geofenceResult.isValid,
+            distanceFromOffice: geofenceResult.distance,
+            mockDetected: mockCheck.isMock,
+            mockConfidence: mockCheck.confidence,
+            deviceId: deviceId || null,
+            deviceName: deviceName || null,
+            devicePlatform: devicePlatform || null,
+            ipAddress: clientIp,
+            userAgent: req.headers['user-agent'] || null,
+            validationStatus: "validated",
+            validationErrors: [],
+        });
+
+        // ── Audit Log Success ──
+        await logAttendanceAudit({
+            userId,
+            punchId: punch._id,
+            action: Number(PunchType) === 1 ? "checkin" : "checkout",
+            status: "success",
+            details: {
+                latitude: parsedLatitude,
+                longitude: parsedLongitude,
+                distanceFromOffice: geofenceResult.distance,
+                deviceId,
+                deviceName,
+                ipAddress: clientIp,
+                faceVerified: faceResult.isMatch,
+                faceConfidence: faceResult.confidence,
+                faceProvider: faceResult.provider,
+                mockDetected: mockCheck.isMock,
+                workMode: parsedWorkMode,
+                punchType: Number(PunchType),
+                message: "Punch recorded successfully",
+            },
         });
 
         const locationLabel = `${parsedLatitude.toFixed(6)}, ${parsedLongitude.toFixed(6)}`;
-
-        const formatDoubleDigit = (n) => n < 10 ? `0${n}` : n;
-        const d = punch.PunchTime || new Date();
-        const year = d.getFullYear();
-        const month = formatDoubleDigit(d.getMonth() + 1);
-        const day = formatDoubleDigit(d.getDate());
-
-        let hours = d.getHours();
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12;
-        hours = hours ? hours : 12;
-        const mins = formatDoubleDigit(d.getMinutes());
-        const secs = formatDoubleDigit(d.getSeconds());
-
-        const formattedPunchTime = `${year}-${month}-${day} ${formatDoubleDigit(hours)}:${mins}:${secs} ${ampm}`;
+        const formattedPunchTime = formatPunchTime(punch.PunchTime);
 
         let message = "Punch recorded successfully";
         if (PunchType === 1) message = "Check-In recorded successfully";
         if (PunchType === 2) message = "Check-Out recorded successfully";
         if (PunchType === 3) message = "Punch Reset successfully";
 
+        const responseTime = Date.now() - startTime;
+
         res.status(200).json({
             status: "Success",
-            message: message,
+            statusCode: 200,
+            message,
             PunchTime: formattedPunchTime,
+            responseTimeMs: responseTime,
             data: {
                 latitude: parsedLatitude,
                 longitude: parsedLongitude,
-                locationLabel
-            }
+                locationLabel,
+                geofenceValid: geofenceResult.isValid,
+                distanceFromOffice: geofenceResult.distance,
+                faceVerified: faceResult.isMatch,
+                faceConfidence: faceResult.confidence,
+                mockDetected: mockCheck.isMock,
+                deviceId: deviceId || null,
+            },
         });
 
     } catch (error) {
-        res.status(500).json({ status: "Error", message: "Failed to record punch", error: error.message });
+        await logAttendanceAudit({
+            userId,
+            action: "checkin",
+            status: "failure",
+            details: {
+                ipAddress: clientIp,
+                message: error.message,
+            },
+        });
+        res.status(500).json({
+            status: "Error",
+            statusCode: 500,
+            message: "Failed to record punch",
+            error: error.message,
+        });
     }
 };
 
-// 3. Get User recent Punch Status
+// 3. Get Office Config (for frontend geofencing validation)
+exports.getOfficeConfig = async (req, res) => {
+    try {
+        const config = getOfficeConfig();
+        res.status(200).json({
+            status: "Success",
+            statusCode: 200,
+            data: config,
+        });
+    } catch (error) {
+        res.status(500).json({ status: "Error", message: "Failed to get office config", error: error.message });
+    }
+};
+
+// 4. Get User recent Punch Status - Optimized with lean queries
 exports.getPunchStatus = async (req, res) => {
     try {
         const userId = req.user ? req.user._id : "656b23d91f4a9b2b2c3d4e5f";
@@ -1249,21 +1532,25 @@ exports.getAttendanceTimeline = async (req, res) => {
     }
 };
 
-// 29. Get Attendance History / Log with date filter
+// 29. Get Attendance History / Log with date filter - Optimized with pagination and lean queries
 exports.getAttendanceHistory = async (req, res) => {
     try {
-        const { fromDate, toDate } = req.body;
+        const { fromDate, toDate, page = 1, limit = 31 } = req.body;
         const userId = req.user ? req.user._id : "656b23d91f4a9b2b2c3d4e5f";
 
         // Set default date range to last 30 days if not provided
         const endDate = toDate ? new Date(toDate) : new Date();
         const startDate = fromDate ? new Date(fromDate) : moment().subtract(30, 'days').toDate();
 
-        // Fetch punches for the user within the date range (limit to prevent excessive data)
+        // Optimized: Fetch punches with lean() for faster serialization, limited to prevent excessive data
         const punches = await Punch.find({
             userId,
             PunchTime: { $gte: startDate, $lte: endDate }
-        }).sort({ PunchTime: 1 }).limit(1000).lean();
+        })
+            .select("PunchType PunchTime Latitude Longitude geofenceValid faceVerified validationStatus")
+            .sort({ PunchTime: -1 }) // Most recent first
+            .limit(Math.min(Number(limit) * 2, 500)) // Reasonable limit
+            .lean();
 
         // Group punches by date
         const punchesByDate = {};

@@ -30,8 +30,15 @@ const uploadLimiter = makeLimiter(
   "Too many upload attempts. Please try again later."
 );
 
+const superadminOtpLimiter = makeLimiter(
+  60 * 60 * 1000,
+  5,
+  "Too many OTP requests. Please try again later."
+);
+
 module.exports = {
   generalLimiter,
   authLimiter,
   uploadLimiter,
+  superadminOtpLimiter,
 };

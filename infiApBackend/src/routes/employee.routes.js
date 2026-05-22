@@ -10,6 +10,9 @@ router.use(verifyJWT);
 // Employee Dashboard Home Data
 router.get("/dashboard/home", employeeController.getDashboardHome);
 
+// Office Config (for frontend geofencing)
+router.get("/office-config", employeeController.getOfficeConfig);
+
 // Employee Punch (IN / OUT)
 router.post("/emp-punch", employeeController.empPunch);
 

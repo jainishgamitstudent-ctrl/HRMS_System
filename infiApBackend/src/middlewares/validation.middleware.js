@@ -27,6 +27,14 @@ const verifyOTPSchema = z.object({
   otp: z.string().length(6, "OTP must be 6 digits"),
 });
 
+const superadminLoginSchema = z.object({
+  // email is no longer sent from client; validated server-side via env
+});
+
+const superadminVerifyOTPSchema = z.object({
+  emailOtp: z.string().length(6, "Email OTP must be 6 digits"),
+});
+
 // Validation middleware factory
 const validate = (schema) => {
   return (req, res, next) => {
@@ -55,4 +63,6 @@ module.exports = {
   forgotPasswordSchema,
   resetPasswordSchema,
   verifyOTPSchema,
+  superadminLoginSchema,
+  superadminVerifyOTPSchema,
 };

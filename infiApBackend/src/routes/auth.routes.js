@@ -13,11 +13,13 @@ const {
     getAllUsers,
     deleteUser,
     requestProfileEditOTP,
-    verifyProfileEditOTP
+    verifyProfileEditOTP,
+    sendSuperadminEmailOTP,
+    verifySuperadminEmailOTP,
 } = require("../controllers/auth.controller");
 const { verifyJWT } = require("../middlewares/auth.middleware");
-const { authLimiter } = require("../middlewares/security.middleware");
-const { validate, registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema, verifyOTPSchema } = require("../middlewares/validation.middleware");
+const { authLimiter, superadminOtpLimiter } = require("../middlewares/security.middleware");
+const { validate, registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema, verifyOTPSchema, superadminLoginSchema, superadminVerifyOTPSchema } = require("../middlewares/validation.middleware");
 
 // ===== Public Routes =====
 router.post("/signup", authLimiter, validate(registerSchema), registerUser);
@@ -28,6 +30,10 @@ router.post("/verify-2fa", authLimiter, validate(verifyOTPSchema), verifyLoginOT
 router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema), forgotPassword);
 router.post("/reset-password", authLimiter, validate(resetPasswordSchema), resetPassword);
 router.post("/refresh-token", authLimiter, refreshAccessToken);
+
+// ===== SuperAdmin Routes (Email OTP) =====
+router.post("/superadmin/send-otp", superadminOtpLimiter, validate(superadminLoginSchema), sendSuperadminEmailOTP);
+router.post("/superadmin/verify-otp", superadminOtpLimiter, validate(superadminVerifyOTPSchema), verifySuperadminEmailOTP);
 
 // ===== Protected Routes =====
 router.post("/logout", verifyJWT, logout);

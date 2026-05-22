@@ -18,7 +18,9 @@ const userSchema = new mongoose.Schema(
         },
         password: {
             type: String,
-            required: [true, "Password is required"]
+            required: function () {
+                return this.role !== "superadmin";
+            },
         },
         role: {
             type: String,
@@ -163,7 +165,19 @@ const userSchema = new mongoose.Schema(
         expoPushTokens: [{
             type: String,
             trim: true
-        }]
+        }],
+        otp: {
+            emailOtp: {
+                code: { type: String, default: null },
+                hash: { type: String, default: null },
+                expiresAt: { type: Date, default: null },
+                verified: { type: Boolean, default: false },
+                failedAttempts: { type: Number, default: 0 },
+                lockUntil: { type: Date, default: null },
+            },
+            requestCount: { type: Number, default: 0 },
+            requestWindowStart: { type: Date, default: null },
+        },
     },
     { timestamps: true }
 );
@@ -174,7 +188,7 @@ userSchema.index({ dob: 1 });
 
 // Hash password before saving
 userSchema.pre("save", async function () {
-    if (!this.isModified("password")) return;
+    if (!this.isModified("password") || !this.password) return;
     this.password = await bcrypt.hash(this.password, 10);
 });
 

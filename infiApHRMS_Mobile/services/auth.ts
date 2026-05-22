@@ -17,6 +17,16 @@ export type PunchPayload = {
   Longitude: number;
   IsAway?: boolean;
   WorkMode?: number;
+  // Enterprise security fields
+  selfieUrl?: string;
+  deviceId?: string;
+  deviceName?: string;
+  devicePlatform?: string;
+  locationAccuracy?: number;
+  altitude?: number;
+  speed?: number;
+  mocked?: boolean;
+  isFromMockProvider?: boolean;
 };
 
 export type AuthApiUser = {
@@ -706,6 +716,24 @@ export const fetchPunchStatus = async () => {
       todayPunchCount: number;
     };
   }>('/punch-status', {
+    method: 'GET',
+    headers,
+  });
+};
+
+export const fetchOfficeConfig = async () => {
+  const headers = await getAuthHeaders();
+  return request<{
+    status: string;
+    statusCode: number;
+    data: {
+      officeLat: number;
+      officeLng: number;
+      radiusMeters: number;
+      wfhRadiusMeters: number;
+      locationValidationRequired: boolean;
+    };
+  }>('/office-config', {
     method: 'GET',
     headers,
   });

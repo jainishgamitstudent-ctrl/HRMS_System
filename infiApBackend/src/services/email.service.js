@@ -321,6 +321,34 @@ const sendInterviewScheduledEmail = async (email, name, details) => {
     }
 };
 
+const sendSuperadminOTPEmail = async (email, otp) => {
+    try {
+        const emailSent = await sendEmail({
+            to: email,
+            subject: `Your SuperAdmin verification code - InfiAP HRMS`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
+                    <h1 style="color: #1f2937; font-size: 24px; margin-bottom: 16px;">SuperAdmin Secure Login</h1>
+                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
+                        Your verification code is:
+                    </p>
+                    <h2 style="letter-spacing: 6px; color: #2563eb; font-size: 32px; text-align: center; padding: 16px; background: #f3f4f6; border-radius: 8px; margin: 20px 0;">${otp}</h2>
+                    <p style="color: #6b7280; font-size: 14px;">This code will expire in 10 minutes.</p>
+                </div>
+            `,
+        });
+
+        if (emailSent) {
+            logger.info("SuperAdmin OTP email sent", { email });
+        }
+
+        return emailSent;
+    } catch (error) {
+        logger.error("Error sending SuperAdmin OTP email", { error: error.message });
+        throw new Error("Could not send SuperAdmin OTP email");
+    }
+};
+
 module.exports = {
     sendVerificationEmail,
     sendLoginOTPEmail,
@@ -330,5 +358,6 @@ module.exports = {
     sendHrLoginOTPEmail,
     sendProfileEditOTPEmail,
     sendInterviewScheduledEmail,
+    sendSuperadminOTPEmail,
     isConfiguredForEmail,
 };

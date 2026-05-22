@@ -11,7 +11,13 @@ import { useAttendanceSession } from '../../hooks/useAttendanceSession';
 import { useUser } from '@/context/UserContext';
 import { fetchAttendanceSummary, fetchDashboardHome, submitEmployeePunch } from '@/services/auth';
 import { checkMyWFHPermission } from '@/services/wfh';
-import { getExactCurrentLocation, formatExactLocationLabel } from '../../utils/location';
+import {
+  getCurrentLocation,
+  validateGeofence,
+  detectMockLocation,
+} from '../../utils/geofence';
+import { getDeviceInfo } from '../../utils/deviceBinding';
+import * as Location from 'expo-location';
 import { useAppTheme } from '@/context/ThemeContext';
 const { width } = Dimensions.get('window');
 
@@ -48,8 +54,6 @@ const SwipeToCheckIn = ({ styles }: { styles: any }) => {
   const [isCapturingLocation, setIsCapturingLocation] = useState(false);
   const [locationError, setLocationError] = useState('');
 
-  const resolveCurrentLocation = async () => getExactCurrentLocation();
-
   const handleToggle = async () => {
     if (loading || isCapturingLocation || isLockedForToday) {
       translateX.value = withTiming(0);
@@ -63,20 +67,58 @@ const SwipeToCheckIn = ({ styles }: { styles: any }) => {
     setLocationError('');
 
     try {
-      const location = await resolveCurrentLocation();
+      // ── Enterprise Validation Flow ──
+      const location = await getCurrentLocation();
+      const { latitude, longitude, accuracy, altitude, speed } = location.coords;
+      const isMocked = location.mocked || false;
+
+      // 1. Mock GPS Detection
+      const mockCheck = detectMockLocation(location);
+      if (mockCheck.isMock) {
+        throw new Error(mockCheck.message);
+      }
+
+      // 2. Geofencing Validation
+      const geofenceResult = validateGeofence(latitude, longitude, 1);
+      if (!geofenceResult.isValid) {
+        throw new Error(geofenceResult.message);
+      }
+
+      // 3. Reverse geocode for display address
+      const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const addressParts = [place?.street, place?.district, place?.city, place?.region]
+        .filter(Boolean)
+        .map((p) => String(p).trim())
+        .filter((p) => p.length > 0 && !p.includes('+'));
+      const displayAddress = addressParts.length > 0 ? addressParts.join(', ') : 'Current location';
+
+      // 4. Device Info
+      const deviceInfo = await getDeviceInfo();
+
+      // 5. Submit Punch
+      const punchType = canCheckOut ? 2 : 1;
+      await submitEmployeePunch({
+        PunchType: punchType,
+        Latitude: latitude,
+        Longitude: longitude,
+        WorkMode: 1,
+        IsAway: false,
+        deviceId: deviceInfo.deviceId,
+        deviceName: deviceInfo.deviceName,
+        devicePlatform: deviceInfo.devicePlatform,
+        locationAccuracy: accuracy ?? undefined,
+        altitude: altitude ?? undefined,
+        speed: speed ?? undefined,
+        mocked: isMocked,
+        isFromMockProvider: isMocked,
+      });
+
       const snapshot = {
         time,
-        location: formatExactLocationLabel(location),
-        latitude: location.latitude,
-        longitude: location.longitude,
+        location: displayAddress,
+        latitude,
+        longitude,
       };
-
-      await submitEmployeePunch({
-        PunchType: canCheckOut ? 2 : 1,
-        Latitude: location.latitude,
-        Longitude: location.longitude,
-        WorkMode: 1,
-      });
 
       if (canCheckOut) {
         await recordCheckOut(snapshot);
@@ -84,7 +126,7 @@ const SwipeToCheckIn = ({ styles }: { styles: any }) => {
         await recordCheckIn(snapshot);
       }
     } catch (error) {
-      setLocationError(error instanceof Error ? error.message : 'Unable to fetch current location');
+      setLocationError(error instanceof Error ? error.message : 'Unable to complete check-in. Please try again.');
       translateX.value = withTiming(0);
     } finally {
       setIsCapturingLocation(false);

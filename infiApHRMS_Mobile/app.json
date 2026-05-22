@@ -10,9 +10,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.infiap.infiaphrms"
+      "bundleIdentifier": "com.infiap.infiaphrms",
+      "minimumVersion": "13.0"
     },
     "android": {
+      "minSdkVersion": 29,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

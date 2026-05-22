@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { BottomNav } from '../../components/BottomNav';
@@ -11,6 +11,14 @@ import { submitEmployeePunch, fetchAttendanceHistory } from '../../services/auth
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getExactCurrentLocation, formatExactLocationLabel } from '../../utils/location';
+import {
+  getCurrentLocation,
+  validateGeofence,
+  detectMockLocation,
+  requestLocationPermission,
+} from '../../utils/geofence';
+import { getDeviceInfo } from '../../utils/deviceBinding';
+import { useSelfieCapture, SelfieCaptureResult } from '../../hooks/useSelfieCapture';
 
 import { useAppTheme } from '@/context/ThemeContext';
 // ── Types ──
@@ -66,6 +74,10 @@ export default function AttendancePage() {
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [attendanceActionLoading, setAttendanceActionLoading] = useState(false);
+  const [selfieModalVisible, setSelfieModalVisible] = useState(false);
+  const [pendingPunchType, setPendingPunchType] = useState<1 | 2 | null>(null);
+  const [verificationStep, setVerificationStep] = useState<'location' | 'geofence' | 'selfie' | 'ready'>('location');
+  const [capturedSelfie, setCapturedSelfie] = useState<SelfieCaptureResult | null>(null);
   const {
     session,
     loading: attendanceLoading,
@@ -79,6 +91,7 @@ export default function AttendancePage() {
     nextResetLabel,
   } = useAttendanceSession();
   const { user } = useUser();
+  const { isCapturing, previewUri, captureSelfie, validateSelfie, clearSelfie } = useSelfieCapture();
 
   // ── Filtered Records ──
   const filteredRecords = useMemo(() => {
@@ -258,71 +271,227 @@ export default function AttendancePage() {
 
   const resolveCurrentLocation = useCallback(async () => getExactCurrentLocation(), []);
 
-  const handleCheckIn = useCallback(async () => {
-    if (!canCheckIn || attendanceLoading || attendanceActionLoading) {
+  /**
+   * Enterprise Attendance Validation Flow
+   * Step 1: Location Permission + GPS ON
+   * Step 2: Mock GPS Detection
+   * Step 3: Geofencing Validation
+   * Step 4: Selfie Capture (Check-In only)
+   * Step 5: Submit to Backend with Device Info
+   */
+  const runAttendanceValidation = useCallback(async (punchType: 1 | 2) => {
+    if (attendanceLoading || attendanceActionLoading) return;
+
+    setAttendanceActionLoading(true);
+    setPendingPunchType(punchType);
+    setVerificationStep('location');
+
+    try {
+      // ── Step 1: Location Permission ──
+      const hasPermission = await requestLocationPermission();
+      if (!hasPermission) {
+        Alert.alert(
+          'Location Required',
+          'Location permission is required for attendance verification. Please enable location services.',
+          [{ text: 'OK', style: 'default' }]
+        );
+        return;
+      }
+
+      // ── Get High-Accuracy Location ──
+      const location = await getCurrentLocation();
+      if (!location) {
+        Alert.alert('Location Error', 'Unable to get current location. Please ensure GPS is enabled.');
+        return;
+      }
+
+      const { latitude, longitude, accuracy, altitude, speed } = location.coords;
+      const isMocked = location.mocked || false;
+
+      // ── Step 2: Mock GPS Detection ──
+      const mockCheck = detectMockLocation(location);
+      if (mockCheck.isMock) {
+        Alert.alert('Security Alert', mockCheck.message, [{ text: 'OK' }]);
+        return;
+      }
+
+      // ── Step 3: Geofencing Validation ──
+      setVerificationStep('geofence');
+      const geofenceResult = validateGeofence(latitude, longitude, 1);
+      if (!geofenceResult.isValid) {
+        Alert.alert(
+          'Outside Office Radius',
+          geofenceResult.message,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // ── Step 4: Selfie Capture (Check-In only) ──
+      if (punchType === 1) {
+        setVerificationStep('selfie');
+        setCapturedSelfie(null);
+        clearSelfie();
+        setSelfieModalVisible(true);
+        return;
+      }
+
+      // ── Check-Out: No selfie required, proceed directly ──
+      await submitPunchToBackend(punchType, latitude, longitude, accuracy, altitude, speed, isMocked);
+
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Unable to complete attendance action.');
+    } finally {
+      if (punchType === 2) {
+        setAttendanceActionLoading(false);
+        setVerificationStep('location');
+      }
+    }
+  }, [attendanceLoading, attendanceActionLoading]);
+
+  /**
+   * Submit punch to backend with all enterprise security fields
+   */
+  const submitPunchToBackend = useCallback(async (
+    punchType: 1 | 2,
+    latitude: number,
+    longitude: number,
+    accuracy?: number | null,
+    altitude?: number | null,
+    speed?: number | null,
+    mocked?: boolean,
+    selfieUri?: string
+  ) => {
+    try {
+      const deviceInfo = await getDeviceInfo();
+      const now = new Date();
+      const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+      const payload = {
+        PunchType: punchType,
+        Latitude: latitude,
+        Longitude: longitude,
+        WorkMode: 1,
+        IsAway: false,
+        selfieUrl: selfieUri || undefined,
+        deviceId: deviceInfo.deviceId,
+        deviceName: deviceInfo.deviceName,
+        devicePlatform: deviceInfo.devicePlatform,
+        locationAccuracy: accuracy ?? undefined,
+        altitude: altitude ?? undefined,
+        speed: speed ?? undefined,
+        mocked: mocked || false,
+        isFromMockProvider: mocked || false,
+      };
+
+      const response = await submitEmployeePunch(payload);
+
+      const snapshot = {
+        time,
+        location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+        latitude,
+        longitude,
+      };
+
+      if (punchType === 1) {
+        await recordCheckIn(snapshot);
+        Alert.alert('Checked In', `Check-in recorded at ${time}. Location verified.`);
+      } else {
+        await recordCheckOut(snapshot);
+        Alert.alert('Checked Out', `Check-out recorded at ${time}. Next check-in unlocks at ${nextResetLabel}.`);
+      }
+
+      return response;
+    } catch (error: any) {
+      const statusCode = error?.status;
+      const message = error?.message || 'Failed to record punch';
+
+      if (statusCode === 403) {
+        Alert.alert('Security Alert', message);
+      } else if (statusCode === 401) {
+        Alert.alert('Verification Failed', message);
+      } else if (statusCode === 409) {
+        Alert.alert('Already Checked In', message);
+      } else {
+        Alert.alert('Error', message);
+      }
+      throw error;
+    }
+  }, [nextResetLabel, recordCheckIn, recordCheckOut]);
+
+  /**
+   * Open camera and capture selfie (does NOT submit)
+   */
+  const handleOpenCamera = useCallback(async () => {
+    try {
+      const selfie = await captureSelfie();
+      if (!selfie) {
+        Alert.alert('Selfie Required', 'A selfie is required for check-in verification.');
+        return;
+      }
+
+      const validation = validateSelfie(selfie);
+      if (!validation.isValid) {
+        Alert.alert('Invalid Selfie', validation.message);
+        clearSelfie();
+        return;
+      }
+
+      setCapturedSelfie(selfie);
+    } catch (error) {
+      Alert.alert('Camera Error', error instanceof Error ? error.message : 'Failed to capture selfie.');
+    }
+  }, [captureSelfie, validateSelfie, clearSelfie]);
+
+  /**
+   * Submit check-in using the already captured selfie
+   */
+  const handleVerifyAndSubmit = useCallback(async () => {
+    if (!pendingPunchType || pendingPunchType !== 1 || !capturedSelfie) {
+      Alert.alert('Selfie Required', 'Please capture a selfie first.');
       return;
     }
 
     try {
-      setAttendanceActionLoading(true);
-      const now = new Date();
-      const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      const location = await resolveCurrentLocation();
-      const snapshot = {
-        time,
-        location: formatExactLocationLabel(location),
-        latitude: location.latitude,
-        longitude: location.longitude,
-      };
+      setSelfieModalVisible(false);
+      setVerificationStep('ready');
 
-      await submitEmployeePunch({
-        PunchType: 1,
-        Latitude: location.latitude,
-        Longitude: location.longitude,
-        WorkMode: 1,
-      });
+      // Get fresh location before submitting
+      const location = await getCurrentLocation();
+      const { latitude, longitude, accuracy, altitude, speed } = location.coords;
+      const isMocked = location.mocked || false;
 
-      await recordCheckIn(snapshot);
-      Alert.alert('Checked In', `Check-in recorded at ${time}.`);
+      await submitPunchToBackend(
+        1,
+        latitude,
+        longitude,
+        accuracy,
+        altitude,
+        speed,
+        isMocked,
+        capturedSelfie.uri
+      );
+
     } catch (error) {
-      Alert.alert('Location Required', error instanceof Error ? error.message : 'Unable to complete check-in.');
+      Alert.alert('Error', error instanceof Error ? error.message : 'Check-in submission failed.');
     } finally {
       setAttendanceActionLoading(false);
+      setPendingPunchType(null);
+      setVerificationStep('location');
+      setCapturedSelfie(null);
+      clearSelfie();
     }
-  }, [attendanceActionLoading, attendanceLoading, canCheckIn, recordCheckIn, resolveCurrentLocation]);
+  }, [pendingPunchType, capturedSelfie, submitPunchToBackend, clearSelfie]);
 
-  const handleCheckOut = useCallback(async () => {
-    if (!canCheckOut || attendanceLoading || attendanceActionLoading) {
-      return;
-    }
+  const handleCheckIn = useCallback(() => {
+    if (!canCheckIn || attendanceLoading || attendanceActionLoading) return;
+    runAttendanceValidation(1);
+  }, [canCheckIn, attendanceLoading, attendanceActionLoading, runAttendanceValidation]);
 
-    try {
-      setAttendanceActionLoading(true);
-      const now = new Date();
-      const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      const location = await resolveCurrentLocation();
-      const snapshot = {
-        time,
-        location: formatExactLocationLabel(location),
-        latitude: location.latitude,
-        longitude: location.longitude,
-      };
-
-      await submitEmployeePunch({
-        PunchType: 2,
-        Latitude: location.latitude,
-        Longitude: location.longitude,
-        WorkMode: 1,
-      });
-
-      await recordCheckOut(snapshot);
-      Alert.alert('Checked Out', `Check-out recorded at ${time}. Next check-in unlocks at ${nextResetLabel}.`);
-    } catch (error) {
-      Alert.alert('Location Required', error instanceof Error ? error.message : 'Unable to complete check-out.');
-    } finally {
-      setAttendanceActionLoading(false);
-    }
-  }, [attendanceActionLoading, attendanceLoading, canCheckOut, nextResetLabel, recordCheckOut, resolveCurrentLocation]);
+  const handleCheckOut = useCallback(() => {
+    if (!canCheckOut || attendanceLoading || attendanceActionLoading) return;
+    runAttendanceValidation(2);
+  }, [canCheckOut, attendanceLoading, attendanceActionLoading, runAttendanceValidation]);
 
   const checkedIn = session.checkedIn;
   const checkedOut = session.checkedOut;
@@ -732,6 +901,113 @@ export default function AttendancePage() {
         </View>
       </Modal>
 
+      {/* ═══ SELFIE VERIFICATION MODAL ═══ */}
+      <Modal visible={selfieModalVisible} transparent animationType="slide">
+        <View style={styles.selfieModalOverlay}>
+          <Animated.View entering={FadeInDown.duration(400)} style={styles.selfieModal}>
+            <View style={styles.selfieModalHeader}>
+              <Text style={styles.selfieModalTitle}>Face Verification</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setSelfieModalVisible(false);
+                  setPendingPunchType(null);
+                  setAttendanceActionLoading(false);
+                  setVerificationStep('location');
+                  setCapturedSelfie(null);
+                  clearSelfie();
+                }}
+              >
+                <Ionicons name="close-circle" size={28} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.selfieModalSubtitle}>
+              Please capture a clear selfie for attendance verification.
+            </Text>
+
+            {previewUri ? (
+              <View style={styles.selfiePreviewContainer}>
+                <Image source={{ uri: previewUri }} style={styles.selfiePreview} />
+                <Text style={styles.selfiePreviewLabel}>Selfie captured successfully</Text>
+              </View>
+            ) : (
+              <View style={styles.selfiePlaceholder}>
+                <Ionicons name="camera" size={48} color="#cbd5e1" />
+                <Text style={styles.selfiePlaceholderText}>No selfie captured yet</Text>
+              </View>
+            )}
+
+            <View style={styles.selfieActions}>
+              {!previewUri ? (
+                <TouchableOpacity
+                  style={styles.selfieCaptureBtn}
+                  onPress={handleOpenCamera}
+                  disabled={isCapturing}
+                >
+                  {isCapturing ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="camera" size={20} color="#fff" />
+                      <Text style={styles.selfieCaptureBtnText}>Capture Selfie</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.selfieConfirmRow}>
+                  <TouchableOpacity
+                    style={styles.selfieRetakeBtn}
+                    onPress={() => { clearSelfie(); setCapturedSelfie(null); }}
+                  >
+                    <Ionicons name="refresh" size={18} color="#64748b" />
+                    <Text style={styles.selfieRetakeBtnText}>Retake</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.selfieSubmitBtn}
+                    onPress={handleVerifyAndSubmit}
+                    disabled={isCapturing || !capturedSelfie}
+                  >
+                    {isCapturing ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <>
+                        <Ionicons name="checkmark" size={20} color="#fff" />
+                        <Text style={styles.selfieSubmitBtnText}>Verify & Check In</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {verificationStep !== 'selfie' && verificationStep !== 'ready' && (
+              <View style={styles.verificationSteps}>
+                <View style={styles.stepItem}>
+                  <Ionicons
+                    name={verificationStep === 'location' ? 'locate' : 'checkmark-circle'}
+                    size={16}
+                    color={verificationStep === 'location' ? '#007AFF' : '#22c55e'}
+                  />
+                  <Text style={styles.stepText}>Verifying location...</Text>
+                </View>
+                <View style={styles.stepItem}>
+                  <Ionicons
+                    name={verificationStep === 'geofence' ? 'navigate' : 'checkmark-circle'}
+                    size={16}
+                    color={verificationStep === 'geofence' ? '#007AFF' : '#22c55e'}
+                  />
+                  <Text style={styles.stepText}>Checking office radius...</Text>
+                </View>
+                <View style={styles.stepItem}>
+                  <Ionicons name="ellipse" size={16} color="#cbd5e1" />
+                  <Text style={styles.stepText}>Face verification</Text>
+                </View>
+              </View>
+            )}
+          </Animated.View>
+        </View>
+      </Modal>
+
       <BottomNav />
     </View>
   );
@@ -897,5 +1173,28 @@ function AttendanceStyles(colors: any) {
     detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     detailLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
     detailValue: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+
+    // Selfie Modal
+    selfieModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    selfieModal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
+    selfieModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    selfieModalTitle: { fontSize: 20, fontWeight: '800', color: colors.textSecondary },
+    selfieModalSubtitle: { fontSize: 14, color: colors.textMuted, fontWeight: '500', marginBottom: 20, lineHeight: 20 },
+    selfiePreviewContainer: { alignItems: 'center', marginBottom: 20 },
+    selfiePreview: { width: 200, height: 200, borderRadius: 100, borderWidth: 3, borderColor: '#22c55e' },
+    selfiePreviewLabel: { fontSize: 14, fontWeight: '600', color: '#22c55e', marginTop: 12 },
+    selfiePlaceholder: { alignItems: 'center', justifyContent: 'center', height: 200, backgroundColor: colors.surfaceAlt, borderRadius: 100, marginBottom: 20, borderWidth: 2, borderColor: colors.border, borderStyle: 'dashed' },
+    selfiePlaceholderText: { fontSize: 14, color: colors.textMuted, fontWeight: '500', marginTop: 12 },
+    selfieActions: { marginBottom: 20 },
+    selfieCaptureBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 16, gap: 8 },
+    selfieCaptureBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+    selfieConfirmRow: { flexDirection: 'row', gap: 12 },
+    selfieRetakeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceAlt, gap: 6 },
+    selfieRetakeBtnText: { fontSize: 15, fontWeight: '700', color: colors.textMuted },
+    selfieSubmitBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#22c55e', paddingVertical: 16, borderRadius: 16, gap: 8 },
+    selfieSubmitBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+    verificationSteps: { marginTop: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.borderLight },
+    stepItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+    stepText: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
   });
 }

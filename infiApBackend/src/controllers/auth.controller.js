@@ -1,7 +1,7 @@
 const User = require("../models/user.model");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const { sendVerificationEmail, sendLoginOTPEmail, sendPasswordResetEmail, sendHrLoginOTPEmail, sendProfileEditOTPEmail } = require("../services/email.service");
+const { sendVerificationEmail, sendLoginOTPEmail, sendPasswordResetEmail, sendHrLoginOTPEmail, sendProfileEditOTPEmail, sendSuperadminOTPEmail } = require("../services/email.service");
 const logger = require("../utils/logger");
 const { emitEntityEvent } = require("../utils/socketManager");
 
@@ -774,6 +774,160 @@ exports.verifyProfileEditOTP = async (req, res) => {
     }
 };
 
+/**
+ * @desc    Send email OTP to SuperAdmin
+ * @route   POST /api/auth/superadmin/send-otp
+ * @access  Public
+ */
+exports.sendSuperadminEmailOTP = async (req, res) => {
+    try {
+        const superadminEmail = (process.env.SUPERADMIN_EMAIL || "mriya0619@gmail.com").trim().toLowerCase();
+
+        const user = await User.findOne({ email: superadminEmail, role: "superadmin" });
+
+        if (!user) {
+            logger.error("SuperAdmin login attempted but no superadmin user exists", { email: superadminEmail });
+            return res.status(404).json({ message: "SuperAdmin not configured" });
+        }
+
+        // Rate limiting: configurable via env (default 10 requests per 30 min)
+        const now = Date.now();
+        const windowMinutes = parseInt(process.env.SUPERADMIN_OTP_WINDOW_MINUTES, 10) || 30;
+        const maxRequests = parseInt(process.env.SUPERADMIN_OTP_MAX_REQUESTS, 10) || 10;
+        const windowMs = windowMinutes * 60 * 1000;
+        const requestWindowStart = user.otp?.requestWindowStart ? new Date(user.otp.requestWindowStart).getTime() : 0;
+        let requestCount = user.otp?.requestCount || 0;
+
+        if (now - requestWindowStart > windowMs) {
+            requestCount = 0;
+        }
+
+        if (requestCount >= maxRequests) {
+            logger.warn("SuperAdmin OTP rate limit exceeded", { email: superadminEmail, requestCount, maxRequests, windowMinutes });
+            return res.status(429).json({ message: `Too many OTP requests. Please try again in ${windowMinutes} minutes.` });
+        }
+
+        const emailOtp = crypto.randomInt(100000, 999999).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        const otpHash = crypto.createHash("sha256").update(emailOtp).digest("hex");
+
+        user.otp = {
+            emailOtp: {
+                code: null,
+                hash: otpHash,
+                expiresAt,
+                verified: false,
+                failedAttempts: 0,
+                lockUntil: null,
+            },
+            requestCount: requestCount + 1,
+            requestWindowStart: requestCount === 0 ? new Date(now) : user.otp?.requestWindowStart,
+        };
+        await user.save({ validateBeforeSave: false });
+
+        let emailSent = false;
+        try {
+            emailSent = await sendSuperadminOTPEmail(user.email, emailOtp);
+        } catch (mailError) {
+            logger.warn("SuperAdmin email OTP send failed", { error: mailError.message });
+        }
+
+        logger.info("SuperAdmin OTP sent", { email: superadminEmail, emailSent, requestCount: requestCount + 1 });
+
+        return res.status(200).json({
+            message: `OTP sent to ${superadminEmail}`,
+            emailSent,
+            // Dev helper: return OTP when email not configured in development
+            devEmailOtp: (!emailSent && process.env.NODE_ENV !== "production") ? emailOtp : undefined,
+        });
+    } catch (error) {
+        logger.error("Send SuperAdmin Email OTP Error", { error: error.message });
+        return res.status(500).json({ message: "Server error while sending OTP" });
+    }
+};
+
+/**
+ * @desc    Verify email OTP for SuperAdmin login
+ * @route   POST /api/auth/superadmin/verify-otp
+ * @access  Public
+ */
+exports.verifySuperadminEmailOTP = async (req, res) => {
+    try {
+        const { emailOtp } = req.body;
+        const superadminEmail = (process.env.SUPERADMIN_EMAIL || "mriya0619@gmail.com").trim().toLowerCase();
+
+        const user = await User.findOne({ email: superadminEmail, role: "superadmin" });
+
+        if (!user) {
+            return res.status(404).json({ message: "SuperAdmin not found" });
+        }
+
+        const storedEmailOtp = user.otp?.emailOtp;
+
+        if (!storedEmailOtp?.hash) {
+            return res.status(400).json({ message: "No active OTP found. Please request a new OTP." });
+        }
+
+        // Check brute-force lock
+        if (storedEmailOtp.lockUntil && Date.now() < new Date(storedEmailOtp.lockUntil).getTime()) {
+            const retryAfter = Math.ceil((new Date(storedEmailOtp.lockUntil).getTime() - Date.now()) / 1000 / 60);
+            logger.warn("SuperAdmin login locked due to failed attempts", { email: superadminEmail, retryAfter });
+            return res.status(423).json({ message: `Account temporarily locked due to failed attempts. Try again in ${retryAfter} minutes.` });
+        }
+
+        if (Date.now() > new Date(storedEmailOtp.expiresAt).getTime()) {
+            user.otp = {
+                emailOtp: { code: null, hash: null, expiresAt: null, verified: false, failedAttempts: storedEmailOtp.failedAttempts || 0, lockUntil: storedEmailOtp.lockUntil },
+                requestCount: user.otp?.requestCount || 0,
+                requestWindowStart: user.otp?.requestWindowStart || null,
+            };
+            await user.save({ validateBeforeSave: false });
+            return res.status(401).json({ message: "OTP has expired. Please request a new OTP." });
+        }
+
+        const incomingHash = crypto.createHash("sha256").update(String(emailOtp).trim()).digest("hex");
+
+        if (storedEmailOtp.hash !== incomingHash) {
+            const failedAttempts = (storedEmailOtp.failedAttempts || 0) + 1;
+            const lockUntil = failedAttempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000) : storedEmailOtp.lockUntil;
+
+            user.otp.emailOtp.failedAttempts = failedAttempts;
+            user.otp.emailOtp.lockUntil = lockUntil;
+            await user.save({ validateBeforeSave: false });
+
+            logger.warn("SuperAdmin OTP verification failed", { email: superadminEmail, failedAttempts, locked: !!lockUntil });
+
+            if (lockUntil && failedAttempts >= 5) {
+                return res.status(401).json({ message: "Too many failed attempts. Account locked for 30 minutes." });
+            }
+            return res.status(401).json({ message: "Invalid OTP" });
+        }
+
+        // Success: clear OTP and security counters
+        user.otp = {
+            emailOtp: { code: null, hash: null, expiresAt: null, verified: true, failedAttempts: 0, lockUntil: null },
+            requestCount: 0,
+            requestWindowStart: null,
+        };
+        await user.save({ validateBeforeSave: false });
+
+        // Generate tokens
+        const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
+        const loggedInUser = await User.findById(user._id).select("-password -refreshToken -otp -verificationToken");
+
+        logger.info("SuperAdmin login successful", { email: superadminEmail, userId: user._id });
+
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, getCookieOptions())
+            .cookie("refreshToken", refreshToken, getCookieOptions())
+            .json(buildAuthResponse(loggedInUser, accessToken, refreshToken, "SuperAdmin login successful"));
+    } catch (error) {
+        logger.error("Verify SuperAdmin Email OTP Error", { error: error.message });
+        return res.status(500).json({ message: "Server error during OTP verification" });
+    }
+};
+
 module.exports = {
     registerUser: exports.registerUser,
     loginUser: exports.loginUser,
@@ -788,6 +942,8 @@ module.exports = {
     deleteUser: exports.deleteUser,
     requestProfileEditOTP: exports.requestProfileEditOTP,
     verifyProfileEditOTP: exports.verifyProfileEditOTP,
+    sendSuperadminEmailOTP: exports.sendSuperadminEmailOTP,
+    verifySuperadminEmailOTP: exports.verifySuperadminEmailOTP,
     // Exported for use in other controllers if needed
     generateAccessToken,
     generateRefreshToken,
