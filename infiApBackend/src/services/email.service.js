@@ -330,6 +330,16 @@ const buildLoginAlertEmail = (name, deviceInfo, time, riskFlags, isDenied = fals
         ? `<tr><td style="color: #6b7280;">Geo Coordinates</td><td style="color: #1f2937; font-weight: 500;">${deviceInfo.geoLocation.latitude}, ${deviceInfo.geoLocation.longitude}</td></tr>`
         : "";
 
+    // Build a richer location display from resolved address fields
+    const hasAddress = deviceInfo.address || deviceInfo.city || deviceInfo.state || deviceInfo.country;
+    const locationValue = hasAddress
+        ? `${deviceInfo.address || ""}${deviceInfo.address && (deviceInfo.city || deviceInfo.state) ? ", " : ""}${deviceInfo.city || ""}${deviceInfo.city && deviceInfo.state ? ", " : ""}${deviceInfo.state || ""}${deviceInfo.country ? `, ${deviceInfo.country}` : ""}`
+        : (deviceInfo.location || "Unknown");
+
+    const addressDetailRow = (deviceInfo.city || deviceInfo.state || deviceInfo.country)
+        ? `<tr><td style="color: #6b7280;">Address Detail</td><td style="color: #1f2937; font-weight: 500;">${[deviceInfo.city, deviceInfo.state, deviceInfo.country].filter(Boolean).join(" · ")}</td></tr>`
+        : "";
+
     const title = isDenied ? "Security alert: login attempt denied" : "New login to your SuperAdmin account";
     const color = isDenied ? "#dc2626" : "#4f46e5";
     const actionText = isDenied
@@ -351,7 +361,8 @@ const buildLoginAlertEmail = (name, deviceInfo, time, riskFlags, isDenied = fals
                     <tr><td style="color: #6b7280; width: 120px;">Time</td><td style="color: #1f2937; font-weight: 500;">${time}</td></tr>
                     <tr><td style="color: #6b7280;">Device</td><td style="color: #1f2937; font-weight: 500;">${deviceDisplay}</td></tr>
                     <tr><td style="color: #6b7280;">IP Address</td><td style="color: #1f2937; font-weight: 500;">${deviceInfo.ipAddress || "Unknown"}</td></tr>
-                    <tr><td style="color: #6b7280;">Location</td><td style="color: #1f2937; font-weight: 500;">${deviceInfo.location || "Unknown"}</td></tr>
+                    <tr><td style="color: #6b7280;">Location</td><td style="color: #1f2937; font-weight: 500;">${locationValue}</td></tr>
+                    ${addressDetailRow}
                     ${geoRow}
                     <tr><td style="color: #6b7280;">Risk flags</td><td style="color: #1f2937; font-weight: 500;">${riskText}</td></tr>
                 </table>

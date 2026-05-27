@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   getBrowserLocation,
   getPermissionState,
@@ -11,6 +11,7 @@ import {
   isGeolocationSupported,
   isInsecureContext,
 } from "@/lib/geolocation";
+import { reverseGeocode, type ReverseGeocodeAddress } from "@/lib/reverseGeocode";
 
 type GateStatus = "idle" | "loading" | "granted" | "denied" | "error" | "unavailable";
 
@@ -21,12 +22,14 @@ export interface GeolocationGateState {
   error: GeoError | null;
   attempts: number;
   elapsed: number;
+  address: ReverseGeocodeAddress | null;
+  addressError: string | null;
+  addressLoading: boolean;
 }
 
-const MAX_TOTAL_TIME_MS = 15000;
 const ELAPSED_TICK_MS = 250;
 
-export function useGeolocationGate(autoRequest = false) {
+export function useGeolocationGate() {
   const [state, setState] = useState<GeolocationGateState>({
     status: "idle",
     permissionState: "unknown",
@@ -34,26 +37,24 @@ export function useGeolocationGate(autoRequest = false) {
     error: null,
     attempts: 0,
     elapsed: 0,
+    address: null,
+    addressError: null,
+    addressLoading: false,
   });
 
   const activeRef = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearAllTimers = useCallback(() => {
+  const clearTimers = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
-    }
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
     }
   }, []);
 
   const reset = useCallback(() => {
     activeRef.current = false;
-    clearAllTimers();
+    clearTimers();
     setState({
       status: "idle",
       permissionState: "unknown",
@@ -61,23 +62,30 @@ export function useGeolocationGate(autoRequest = false) {
       error: null,
       attempts: 0,
       elapsed: 0,
+      address: null,
+      addressError: null,
+      addressLoading: false,
     });
-  }, [clearAllTimers]);
+  }, [clearTimers]);
 
-  const runRequest = useCallback(async () => {
+  const requestLocation = useCallback(async () => {
+    // Reset any previous state and mark as loading
     activeRef.current = true;
     const startTime = Date.now();
 
-    setState((prev) => ({
-      ...prev,
+    setState({
       status: "loading",
-      error: null,
+      permissionState: "unknown",
       coords: null,
+      error: null,
       attempts: 0,
       elapsed: 0,
-    }));
+      address: null,
+      addressError: null,
+      addressLoading: false,
+    });
 
-    clearAllTimers();
+    clearTimers();
 
     intervalRef.current = setInterval(() => {
       if (!activeRef.current) return;
@@ -85,21 +93,7 @@ export function useGeolocationGate(autoRequest = false) {
       setState((prev) => ({ ...prev, elapsed }));
     }, ELAPSED_TICK_MS);
 
-    timeoutRef.current = setTimeout(() => {
-      if (!activeRef.current) return;
-      activeRef.current = false;
-      clearAllTimers();
-      setState((prev) => ({
-        ...prev,
-        status: "error",
-        error: {
-          code: "TIMEOUT",
-          message: "Unable to get location within the allowed time. Please check your settings and retry.",
-        },
-        elapsed: Date.now() - startTime,
-      }));
-    }, MAX_TOTAL_TIME_MS);
-
+    // Query permission state (best-effort; do not block on it)
     let permission: GeoPermissionState = "unknown";
     try {
       permission = await getPermissionState();
@@ -108,10 +102,11 @@ export function useGeolocationGate(autoRequest = false) {
     }
     setState((prev) => ({ ...prev, permissionState: permission }));
 
+    // Gate insecure context / unsupported before attempting geolocation
     if (!isGeolocationSupported() || isInsecureContext()) {
       if (activeRef.current) {
         activeRef.current = false;
-        clearAllTimers();
+        clearTimers();
         const normalized = normalizeGeolocationError(
           isInsecureContext() ? new Error("INSECURE_CONTEXT") : new Error("UNSUPPORTED")
         );
@@ -122,29 +117,53 @@ export function useGeolocationGate(autoRequest = false) {
           error: normalized,
           attempts: 0,
           elapsed: Date.now() - startTime,
+          address: null,
+          addressError: null,
+          addressLoading: false,
         });
       }
       return;
     }
 
+    // Attempt geolocation — this call must originate from a user gesture (button click)
     try {
       const result = await getBrowserLocation({ maximumAge: 60000 });
       if (activeRef.current) {
         activeRef.current = false;
-        clearAllTimers();
-        setState({
+        clearTimers();
+        setState((prev) => ({
+          ...prev,
           status: "granted",
           permissionState: permission === "unknown" ? "granted" : permission,
           coords: result,
           error: null,
           attempts: result.attempt,
           elapsed: Date.now() - startTime,
-        });
+          addressLoading: true,
+          addressError: null,
+        }));
+        // Resolve address after coords obtained (non-blocking)
+        try {
+          const geoResult = await reverseGeocode(result.lat, result.lng);
+          setState((prev) => ({
+            ...prev,
+            address: geoResult.ok ? geoResult.address : null,
+            addressError: geoResult.ok ? null : geoResult.error || null,
+            addressLoading: false,
+          }));
+        } catch {
+          setState((prev) => ({
+            ...prev,
+            address: null,
+            addressError: "Address lookup failed.",
+            addressLoading: false,
+          }));
+        }
       }
     } catch (err) {
       if (!activeRef.current) return;
       activeRef.current = false;
-      clearAllTimers();
+      clearTimers();
       const normalized = normalizeGeolocationError(err);
       setState({
         status: normalized.code === "PERMISSION_DENIED" ? "denied" : "error",
@@ -153,27 +172,12 @@ export function useGeolocationGate(autoRequest = false) {
         error: normalized,
         attempts: 2,
         elapsed: Date.now() - startTime,
+        address: null,
+        addressError: null,
+        addressLoading: false,
       });
     }
-  }, [clearAllTimers]);
-
-  const requestLocation = useCallback(() => {
-    reset();
-    const id = setTimeout(() => {
-      runRequest();
-    }, 50);
-    return () => clearTimeout(id);
-  }, [reset, runRequest]);
-
-  useEffect(() => {
-    if (autoRequest) {
-      runRequest();
-    }
-    return () => {
-      activeRef.current = false;
-      clearAllTimers();
-    };
-  }, [autoRequest, runRequest, clearAllTimers]);
+  }, [clearTimers]);
 
   return {
     ...state,

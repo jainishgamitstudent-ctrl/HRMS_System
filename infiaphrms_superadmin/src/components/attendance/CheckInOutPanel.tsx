@@ -26,6 +26,10 @@ export interface CheckInOutPanelProps {
     longitude: number;
     accuracy: number;
     timestamp: number;
+    address: string;
+    city: string;
+    state: string;
+    country: string;
   }) => Promise<void>;
   disabled?: boolean;
 }
@@ -42,7 +46,10 @@ export function CheckInOutPanel({ onPunch, disabled }: CheckInOutPanelProps) {
     requestLocation,
     isReady,
     isBlocked,
-  } = useGeolocationGate(false);
+    address,
+    addressError,
+    addressLoading,
+  } = useGeolocationGate();
 
   const handlePunch = async (type: PunchType) => {
     if (disabled || submitting) return;
@@ -61,6 +68,10 @@ export function CheckInOutPanel({ onPunch, disabled }: CheckInOutPanelProps) {
         longitude: coords.lng,
         accuracy: coords.accuracy,
         timestamp: coords.ts,
+        address: address?.formatted || "",
+        city: address?.city || "",
+        state: address?.state || "",
+        country: address?.country || "",
       });
       toast.success(type === "in" ? "Checked in successfully" : "Checked out successfully");
     } catch (err: any) {
@@ -153,7 +164,7 @@ export function CheckInOutPanel({ onPunch, disabled }: CheckInOutPanelProps) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="space-y-1"
+                className="space-y-1.5"
               >
                 <div className="flex items-center gap-2 text-xs text-green-700">
                   <CheckCircle2 className="h-3.5 w-3.5" />
@@ -166,6 +177,50 @@ export function CheckInOutPanel({ onPunch, disabled }: CheckInOutPanelProps) {
                   <span>•</span>
                   <span>Updated {new Date(coords.ts).toLocaleTimeString()}</span>
                 </div>
+
+                {/* Address */}
+                {addressLoading && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Fetching address…
+                  </div>
+                )}
+                {address && !addressLoading && (
+                  <div className="rounded-md bg-green-50/40 border border-green-100 px-2.5 py-1.5">
+                    <p className="text-[10px] text-green-800 font-medium leading-relaxed">
+                      {address.formatted}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {address.city && (
+                        <span className="text-[9px] text-green-700 bg-green-100 px-1 py-0.5 rounded">
+                          {address.city}
+                        </span>
+                      )}
+                      {address.state && (
+                        <span className="text-[9px] text-green-700 bg-green-100 px-1 py-0.5 rounded">
+                          {address.state}
+                        </span>
+                      )}
+                      {address.country && (
+                        <span className="text-[9px] text-green-700 bg-green-100 px-1 py-0.5 rounded">
+                          {address.country}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {addressError && !addressLoading && (
+                  <div className="flex items-center gap-2 text-xs text-amber-700">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>Address unavailable</span>
+                    <button
+                      onClick={() => requestLocation()}
+                      className="underline hover:text-amber-800"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

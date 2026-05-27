@@ -99,10 +99,23 @@ export const authApi = {
       body: JSON.stringify({ otp }),
     }),
 
-  completeSuperadminLogin: (geo?: { latitude: number; longitude: number }) =>
+  completeSuperadminLogin: (
+    geo?: { latitude: number; longitude: number; address?: string; city?: string; state?: string; country?: string }
+  ) =>
     apiFetch("/auth/superadmin/complete-login", {
       method: "POST",
-      body: JSON.stringify(geo ? { latitude: geo.latitude, longitude: geo.longitude } : {}),
+      body: JSON.stringify(
+        geo
+          ? {
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+              address: geo.address,
+              city: geo.city,
+              state: geo.state,
+              country: geo.country,
+            }
+          : {}
+      ),
     }),
 
   /* documented endpoints (available for future UI use) */

@@ -105,7 +105,6 @@ function buildDeviceInfo(req) {
     const userAgent = req.headers["user-agent"] || "";
     const ipAddress = getClientIp(req);
     const parsed = parseUserAgent(userAgent);
-    const location = getLocationFromIp(ipAddress);
     const fingerprint = generateDeviceFingerprint(userAgent, ipAddress);
 
     // Geolocation from frontend (optional but strongly recommended)
@@ -114,6 +113,22 @@ function buildDeviceInfo(req) {
     const geoLocation = latitude !== null && longitude !== null
         ? { latitude, longitude }
         : null;
+
+    // Address from frontend reverse-geocoding (preferred over IP lookup)
+    const address = req.body?.address || "";
+    const city = req.body?.city || "";
+    const state = req.body?.state || "";
+    const country = req.body?.country || "";
+
+    let location = "Unknown";
+    if (address || city || state || country) {
+        const parts = [address, city, state, country].filter(Boolean);
+        location = parts.join(", ") || "Unknown";
+    } else if (geoLocation) {
+        location = `${latitude}, ${longitude}`;
+    } else {
+        location = getLocationFromIp(ipAddress);
+    }
 
     return {
         fingerprint,
@@ -126,6 +141,10 @@ function buildDeviceInfo(req) {
         ipAddress,
         location,
         geoLocation,
+        address,
+        city,
+        state,
+        country,
     };
 }
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { useGeolocationGate } from "@/hooks/useGeolocationGate";
+import { openBrowserLocationHelp } from "@/lib/geolocation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -75,6 +76,102 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function formatShortAddress(address: {
+  neighbourhood?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postalCode?: string;
+  formatted?: string;
+}): string {
+  const parts = [address.neighbourhood, address.city, address.state, address.country, address.postalCode]
+    .filter((part): part is string => Boolean(part));
+
+  return parts.join(", ") || address.formatted || "Address detected";
+}
+
+function LocationErrorBanner({
+  geoStatus,
+  geoError,
+  permissionState,
+  onRetry,
+}: {
+  geoStatus: "denied" | "error" | "unavailable";
+  geoError: { code: string; message: string } | null;
+  permissionState: string;
+  onRetry: () => void;
+}) {
+  const [showHelp, setShowHelp] = useState(false);
+  const help = openBrowserLocationHelp();
+
+  const isUnavailable = geoStatus === "unavailable";
+  const isDenied = geoStatus === "denied";
+
+  let title = "Location access required";
+  let message = geoError?.message || "Unable to detect location. Please check your device settings and try again.";
+
+  if (isUnavailable) {
+    title = "Location not supported";
+    message = "Your browser does not support geolocation or the context is insecure (requires HTTPS). Please use Chrome, Edge, or Safari on HTTPS.";
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-start gap-3"
+    >
+      <MapPin className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+      <div className="space-y-2 flex-1">
+        <div className="space-y-0.5">
+          <p className="text-sm font-semibold text-red-800">{title}</p>
+          <p className="text-xs text-red-700">{message}</p>
+        </div>
+
+        {!isUnavailable && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={onRetry}
+              className="inline-flex items-center gap-1 text-xs font-medium text-red-800 underline hover:text-red-900"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Retry location access
+            </button>
+            <button
+              onClick={() => setShowHelp((s) => !s)}
+              className="text-xs font-medium text-red-700 hover:text-red-800"
+            >
+              {showHelp ? "Hide help" : "Need help?"}
+            </button>
+          </div>
+        )}
+
+        {showHelp && !isUnavailable && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="rounded-md bg-white border border-red-100 p-3 space-y-1.5"
+          >
+            <p className="text-xs font-semibold text-red-800">{help.title}</p>
+            <ol className="text-[11px] text-red-700 space-y-0.5 list-decimal list-inside">
+              {help.steps.map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ol>
+            {permissionState === "prompt" && (
+              <p className="text-[10px] text-red-600 mt-1">
+                If the browser prompt does not appear: click the lock icon in the address bar → Site settings → Location → Allow.
+              </p>
+            )}
+          </motion.div>
+        )}
+
+        <span className="text-[10px] text-red-500/80">Permission: {permissionState}</span>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading, sendOtp, verifyEmailOtp, verifyPhoneOtp, completeLogin } = useAuth();
@@ -102,7 +199,10 @@ export default function LoginPage() {
     elapsed,
     requestLocation,
     isReady,
-  } = useGeolocationGate(true);
+    address,
+    addressError,
+    addressLoading,
+  } = useGeolocationGate();
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -214,7 +314,14 @@ export default function LoginPage() {
       return;
     }
     setLoading(true);
-    const res = await completeLogin({ latitude: geoCoords.lat, longitude: geoCoords.lng });
+    const res = await completeLogin({
+      latitude: geoCoords.lat,
+      longitude: geoCoords.lng,
+      address: address?.formatted,
+      city: address?.city,
+      state: address?.state,
+      country: address?.country,
+    });
     setLoading(false);
     if (!res.success) {
       toast.error(res.message);
@@ -225,7 +332,7 @@ export default function LoginPage() {
       toast.success("Login successful!");
       router.replace("/");
     }
-  }, [completeLogin, router, geoStatus, isReady, geoCoords]);
+  }, [completeLogin, router, geoStatus, isReady, geoCoords, address]);
 
 
   if (authLoading) {
@@ -326,6 +433,36 @@ export default function LoginPage() {
           <Card>
             <CardContent className="p-6 space-y-6">
               {/* Geolocation status banner */}
+              {geoStatus === "idle" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-lg border border-blue-200 bg-blue-50 p-4 flex items-start gap-3"
+                >
+                  <MapPin className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="space-y-2 flex-1">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-semibold text-blue-800">Location access required</p>
+                      <p className="text-xs text-blue-700">
+                        Your location helps us verify your identity and detect suspicious login activity.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => requestLocation()}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-md transition-colors"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Request Location Access
+                    </button>
+                    {permissionState === "prompt" && (
+                      <p className="text-[10px] text-blue-600">
+                        A browser prompt will appear. Click <strong>Allow</strong> to share your location.
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
               {geoStatus === "loading" && (
                 <motion.div
                   initial={{ opacity: 0, y: 4 }}
@@ -341,53 +478,67 @@ export default function LoginPage() {
                         <span className="ml-1">Attempt {attempts} · {(elapsed / 1000).toFixed(1)}s</span>
                       )}
                     </p>
-                  </div>
-                </motion.div>
-              )}
-              {(geoStatus === "denied" || geoStatus === "error" || geoStatus === "unavailable") && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-start gap-3"
-                >
-                  <MapPin className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-                  <div className="space-y-1 flex-1">
-                    <p className="text-sm font-semibold text-red-800">Location access required</p>
-                    <p className="text-xs text-red-700">
-                      {geoStatus === "denied"
-                        ? "You denied location permission. Please enable it in your browser settings and click Retry."
-                        : geoStatus === "unavailable"
-                        ? "Your browser does not support geolocation or the context is insecure (requires HTTPS). Please use a modern browser."
-                        : geoError?.message || "Unable to detect location. Please check your device settings and click Retry."}
-                    </p>
-                    <div className="flex items-center gap-3 pt-1">
-                      <button
-                        onClick={() => requestLocation()}
-                        className="text-xs font-medium text-red-800 underline hover:text-red-900"
-                      >
-                        Retry location access
-                      </button>
-                      <span className="text-[10px] text-red-600/80">
-                        Permission: {permissionState}
-                      </span>
-                    </div>
+                    {permissionState === "prompt" && (
+                      <p className="text-[10px] text-amber-600">
+                        Waiting for browser permission. If no prompt appeared, check your browser settings.
+                      </p>
+                    )}
                   </div>
                 </motion.div>
               )}
 
-              {/* Geo coordinates chip (shown when granted) */}
+              {(geoStatus === "denied" || geoStatus === "error" || geoStatus === "unavailable") && (
+                <LocationErrorBanner
+                  geoStatus={geoStatus}
+                  geoError={geoError}
+                  permissionState={permissionState}
+                  onRetry={() => requestLocation()}
+                />
+              )}
+
+              {/* Geo coordinates + address (shown when granted) */}
               {geoStatus === "granted" && geoCoords && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="flex items-center gap-2 rounded-full bg-green-50 border border-green-200 px-3 py-1.5 w-fit"
+                  className="space-y-2"
                 >
-                  <MapPin className="h-3.5 w-3.5 text-green-700" />
-                  <span className="text-xs text-green-700 font-medium">
-                    {geoCoords.lat.toFixed(4)}, {geoCoords.lng.toFixed(4)}
-                  </span>
-                  {geoCoords.accuracy > 0 && (
-                    <span className="text-[10px] text-green-600">±{Math.round(geoCoords.accuracy)}m</span>
+                  {/* Coordinates chip */}
+                  <div className="flex items-center gap-2 rounded-full bg-green-50 border border-green-200 px-3 py-1.5 w-fit">
+                    <MapPin className="h-3.5 w-3.5 text-green-700" />
+                    <span className="text-xs text-green-700 font-medium">
+                      {geoCoords.lat.toFixed(4)}, {geoCoords.lng.toFixed(4)}
+                    </span>
+                    {geoCoords.accuracy > 0 && (
+                      <span className="text-[10px] text-green-600">±{Math.round(geoCoords.accuracy)}m</span>
+                    )}
+                  </div>
+
+                  {/* Address */}
+                  {addressLoading && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Fetching address…
+                    </div>
+                  )}
+                  {address && !addressLoading && (
+                    <div className="rounded-md bg-green-50/50 border border-green-100 px-3 py-2">
+                      <p className="text-xs text-green-800 font-medium leading-relaxed">
+                        {formatShortAddress(address)}
+                      </p>
+                    </div>
+                  )}
+                  {addressError && !addressLoading && (
+                    <div className="flex items-center gap-2 text-xs text-amber-700">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>Address unavailable</span>
+                      <button
+                        onClick={() => requestLocation()}
+                        className="underline hover:text-amber-800"
+                      >
+                        Retry
+                      </button>
+                    </div>
                   )}
                 </motion.div>
               )}

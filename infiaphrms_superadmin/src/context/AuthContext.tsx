@@ -41,7 +41,9 @@ interface AuthContextType {
   sendOtp: () => Promise<SendOtpResult>;
   verifyEmailOtp: (otp: string) => Promise<VerifyResult>;
   verifyPhoneOtp: (otp: string) => Promise<VerifyResult>;
-  completeLogin: (geo?: { latitude: number; longitude: number }) => Promise<CompleteLoginResult>;
+  completeLogin: (
+    geo?: { latitude: number; longitude: number; address?: string; city?: string; state?: string; country?: string }
+  ) => Promise<CompleteLoginResult>;
   logout: () => void;
 }
 
@@ -163,7 +165,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const completeLogin = useCallback(async (geo?: { latitude: number; longitude: number }): Promise<CompleteLoginResult> => {
+  const completeLogin = useCallback(async (
+    geo?: { latitude: number; longitude: number; address?: string; city?: string; state?: string; country?: string }
+  ): Promise<CompleteLoginResult> => {
     try {
       const data = await authApi.completeSuperadminLogin(geo);
       if (data.nextStep === "DONE") {

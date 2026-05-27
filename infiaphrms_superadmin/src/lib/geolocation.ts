@@ -3,7 +3,7 @@
  * - Guarantees resolution (never hangs)
  * - Dual timeout: browser option + manual JS fallback
  * - Retry with fallback accuracy
- * - Normalized error codes
+ * - Normalized error codes with actionable messages
  */
 
 export type GeoCoords = {
@@ -56,13 +56,13 @@ export function normalizeGeolocationError(err: unknown): GeoError {
   if (isInsecureContext()) {
     return {
       code: "INSECURE_CONTEXT",
-      message: "Geolocation requires a secure context (HTTPS or localhost).",
+      message: "Location requires HTTPS. Please open this site on HTTPS.",
     };
   }
   if (!isGeolocationSupported()) {
     return {
       code: "UNSUPPORTED",
-      message: "Your browser does not support geolocation.",
+      message: "Your browser does not support geolocation. Please use Chrome, Edge, or Safari.",
     };
   }
   if (err && typeof err === "object" && "code" in err) {
@@ -71,17 +71,17 @@ export function normalizeGeolocationError(err: unknown): GeoError {
       case 1:
         return {
           code: "PERMISSION_DENIED",
-          message: "Location permission was denied. Please enable it in your browser settings and retry.",
+          message: "Location permission denied. Please enable it in your browser site settings and retry.",
         };
       case 2:
         return {
           code: "POSITION_UNAVAILABLE",
-          message: "Unable to retrieve your location. Please check that GPS or Wi-Fi is enabled.",
+          message: "Location unavailable. Turn on GPS/Wi-Fi, disable VPN, and try again.",
         };
       case 3:
         return {
           code: "TIMEOUT",
-          message: "Location request timed out. Try moving to an open area with better signal and retry.",
+          message: "Timed out. Move near a window or try again with low accuracy mode.",
         };
       default:
         return { code: "UNKNOWN", message: "An unknown geolocation error occurred." };
@@ -89,7 +89,7 @@ export function normalizeGeolocationError(err: unknown): GeoError {
   }
   if (err instanceof Error) {
     if (err.message === "INSECURE_CONTEXT") {
-      return { code: "INSECURE_CONTEXT", message: "Geolocation requires HTTPS or localhost." };
+      return { code: "INSECURE_CONTEXT", message: "Location requires HTTPS." };
     }
     if (err.message === "UNSUPPORTED") {
       return { code: "UNSUPPORTED", message: "Your browser does not support geolocation." };
@@ -97,6 +97,107 @@ export function normalizeGeolocationError(err: unknown): GeoError {
     return { code: "UNKNOWN", message: err.message };
   }
   return { code: "UNKNOWN", message: "An unexpected error occurred while retrieving location." };
+}
+
+export interface BrowserHelp {
+  browser: string;
+  os: string;
+  title: string;
+  steps: string[];
+}
+
+function detectBrowser(): { browser: string; os: string } {
+  if (typeof window === "undefined") return { browser: "unknown", os: "unknown" };
+  const ua = navigator.userAgent;
+  let browser = "unknown";
+  let os = "unknown";
+
+  if (/Edg\//.test(ua)) browser = "edge";
+  else if (/OPR\//.test(ua) || /Opera/.test(ua)) browser = "opera";
+  else if (/Chrome\//.test(ua)) browser = "chrome";
+  else if (/Safari\//.test(ua) && /Version\//.test(ua)) browser = "safari";
+  else if (/Firefox\//.test(ua)) browser = "firefox";
+
+  if (/Mac OS X/.test(ua)) os = "macos";
+  else if (/Windows/.test(ua)) os = "windows";
+  else if (/Android/.test(ua)) os = "android";
+  else if (/iPhone|iPad|iPod/.test(ua)) os = "ios";
+  else if (/Linux/.test(ua)) os = "linux";
+
+  return { browser, os };
+}
+
+export function openBrowserLocationHelp(): BrowserHelp {
+  const { browser, os } = detectBrowser();
+
+  if (os === "macos") {
+    return {
+      browser,
+      os,
+      title: "Enable Location on macOS",
+      steps: [
+        "Open System Settings → Privacy & Security → Location Services",
+        "Turn on Location Services",
+        `Ensure "${browser === "safari" ? "Safari" : "Chrome"}" is allowed to use location`,
+        "Refresh this page and try again",
+      ],
+    };
+  }
+
+  if (os === "windows") {
+    return {
+      browser,
+      os,
+      title: "Enable Location on Windows",
+      steps: [
+        "Open Settings → Privacy → Location",
+        "Turn on 'Allow access to location on this device'",
+        "Allow apps (including your browser) to access location",
+        "Refresh this page and try again",
+      ],
+    };
+  }
+
+  if (os === "ios") {
+    return {
+      browser,
+      os,
+      title: "Enable Location on iOS",
+      steps: [
+        "Open Settings → Privacy & Security → Location Services",
+        "Turn on Location Services",
+        `Find "${browser === "safari" ? "Safari" : "Chrome"}" and set to 'While Using'`,
+        "Refresh this page and try again",
+      ],
+    };
+  }
+
+  if (os === "android") {
+    return {
+      browser,
+      os,
+      title: "Enable Location on Android",
+      steps: [
+        "Open Settings → Location",
+        "Turn on Location / GPS",
+        "Ensure your browser has location permission",
+        "Refresh this page and try again",
+      ],
+    };
+  }
+
+  // Generic fallback
+  return {
+    browser,
+    os,
+    title: "Enable Location in Your Browser",
+    steps: [
+      browser === "safari"
+        ? "Safari → Preferences → Websites → Location → set to 'Allow'"
+        : "Click the lock icon in the address bar → Site settings → Location → Allow",
+      "Refresh this page and try again",
+    ],
+  };
 }
 
 /**
@@ -136,9 +237,10 @@ function fetchPosition(
 }
 
 /**
- * Attempt #1: highAccuracy=true, timeout=8s
- * Attempt #2: highAccuracy=false, timeout=6s (fallback)
- * Uses maximumAge to allow a fast cached position when acceptable.
+ * Attempt #1: highAccuracy=true, timeout=12s, manualTimeout=15s
+ * Attempt #2: highAccuracy=false, timeout=8s, manualTimeout=12s (fallback)
+ * Uses maximumAge=60000 to allow a fast cached position when acceptable.
+ * Never hangs — manual timeout guarantees resolution.
  */
 export async function getBrowserLocation(options?: {
   maximumAge?: number;
@@ -158,9 +260,9 @@ export async function getBrowserLocation(options?: {
   try {
     const pos = await fetchPosition({
       enableHighAccuracy: true,
-      timeout: 8000,
+      timeout: 12000,
       maximumAge,
-      manualTimeoutMs: 10000,
+      manualTimeoutMs: 15000,
     });
     return {
       lat: pos.coords.latitude,
@@ -172,9 +274,9 @@ export async function getBrowserLocation(options?: {
   } catch (err1) {
     const pos = await fetchPosition({
       enableHighAccuracy: false,
-      timeout: 6000,
+      timeout: 8000,
       maximumAge,
-      manualTimeoutMs: 8000,
+      manualTimeoutMs: 12000,
     });
     return {
       lat: pos.coords.latitude,
