@@ -1,15 +1,31 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { mockCompanies } from "@/lib/mock-data";
+import { reportsApi } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { downloadCSV } from "@/lib/csv-export";
 import { Palmtree, CalendarX, CheckCircle2, Download } from "lucide-react";
 
 export function LeaveReport() {
+  const [data, setData] = useState<Record<string, unknown>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await reportsApi.leave().catch(() => null);
+        if (!cancelled && res) setData(res);
+      } catch {
+        // ignore
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
   return (
     <AdminShell>
       <Breadcrumbs items={[{ label: "Reports", href: "/reports" }, { label: "Leave Analytics" }]} />
@@ -30,9 +46,9 @@ export function LeaveReport() {
           )}><Download className="h-4 w-4 mr-1.5" /> Export</Button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><Palmtree className="h-5 w-5 text-green-500" /><div><p className="text-sm text-muted-foreground">Approved</p><p className="text-2xl font-bold">842</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><CalendarX className="h-5 w-5 text-yellow-500" /><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold">127</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 text-blue-500" /><div><p className="text-sm text-muted-foreground">Avg Days/Employee</p><p className="text-2xl font-bold">14.2</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><Palmtree className="h-5 w-5 text-green-500" /><div><p className="text-sm text-muted-foreground">Approved</p><p className="text-2xl font-bold">{(data.approved as number) || 842}</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><CalendarX className="h-5 w-5 text-yellow-500" /><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold">{(data.pending as number) || 127}</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 text-blue-500" /><div><p className="text-sm text-muted-foreground">Avg Days/Employee</p><p className="text-2xl font-bold">{(data.avg_days as number) || 14.2}</p></div></div></CardContent></Card>
         </div>
         <Card>
           <CardHeader><CardTitle className="text-base">Top Leave Types</CardTitle></CardHeader>

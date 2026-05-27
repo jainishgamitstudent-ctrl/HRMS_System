@@ -1,18 +1,34 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { DataTable } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { mockCompanies } from "@/lib/mock-data";
+import { companiesApi } from "@/lib/api";
+import type { Company } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { downloadCSV } from "@/lib/csv-export";
 import { Activity, TrendingUp, AlertTriangle, Download } from "lucide-react";
 
 export function CompanyHealthReport() {
-  const companies = mockCompanies.slice(0, 10);
+  const [companies, setCompanies] = useState<Company[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await companiesApi.list({ limit: 10 }).catch(() => null);
+        if (!cancelled) setCompanies(((res?.companies || []) as unknown) as Company[]);
+      } catch {
+        // ignore
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <AdminShell>
@@ -29,24 +45,24 @@ export function CompanyHealthReport() {
             companies.map((c) => ({
               Company: c.name,
               Status: c.status,
-              Employees: c.employeeCount,
-              MRR: `₹${c.mrr}`,
-              "Modules Active": Object.entries(c.modules).filter(([, v]) => v).length,
+              Employees: c.employeeCount || 0,
+              MRR: `₹${c.mrr || 0}`,
+              "Modules Active": Object.entries(c.modules || {}).filter(([, v]) => v).length,
             }))
           )}><Download className="h-4 w-4 mr-1.5" /> Export</Button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><Activity className="h-5 w-5 text-green-500" /><div><p className="text-sm text-muted-foreground">Healthy</p><p className="text-2xl font-bold">{mockCompanies.filter(c => c.status === "active").length}</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><AlertTriangle className="h-5 w-5 text-yellow-500" /><div><p className="text-sm text-muted-foreground">At Risk</p><p className="text-2xl font-bold">{mockCompanies.filter(c => c.status === "suspended").length}</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><TrendingUp className="h-5 w-5 text-blue-500" /><div><p className="text-sm text-muted-foreground">Trials</p><p className="text-2xl font-bold">{mockCompanies.filter(c => c.status === "trial").length}</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><Activity className="h-5 w-5 text-green-500" /><div><p className="text-sm text-muted-foreground">Healthy</p><p className="text-2xl font-bold">{companies.filter(c => c.status === "active").length}</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><AlertTriangle className="h-5 w-5 text-yellow-500" /><div><p className="text-sm text-muted-foreground">At Risk</p><p className="text-2xl font-bold">{companies.filter(c => c.status === "suspended").length}</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><TrendingUp className="h-5 w-5 text-blue-500" /><div><p className="text-sm text-muted-foreground">Trials</p><p className="text-2xl font-bold">{companies.filter(c => c.status === "trial").length}</p></div></div></CardContent></Card>
         </div>
         <DataTable
           columns={[
             { key: "name", header: "Company", cell: (c) => c.name, sortable: true },
             { key: "status", header: "Status", cell: (c) => <Badge variant={c.status === "active" ? "success" : c.status === "trial" ? "info" : "warning"}>{c.status}</Badge> },
-            { key: "employees", header: "Employees", cell: (c) => c.employeeCount, sortable: true },
-            { key: "mrr", header: "MRR", cell: (c) => `₹${c.mrr}`, sortable: true },
-            { key: "modules", header: "Modules Active", cell: (c) => Object.entries(c.modules).filter(([, v]) => v).length },
+            { key: "employees", header: "Employees", cell: (c) => c.employeeCount || 0, sortable: true },
+            { key: "mrr", header: "MRR", cell: (c) => `₹${c.mrr || 0}`, sortable: true },
+            { key: "modules", header: "Modules Active", cell: (c) => Object.entries(c.modules || {}).filter(([, v]) => v).length },
           ]}
           data={companies}
           keyExtractor={(c) => c.id}

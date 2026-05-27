@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/providers/ToastProvider";
-import { mockCompanies } from "@/lib/mock-data";
+import { companiesApi } from "@/lib/api";
+import type { Company } from "@/lib/types";
 import { COMPANY_STATUSES, PLANS } from "@/lib/constants";
 import { showConfirm, showDeleteConfirm } from "@/lib/sweetalert";
 import { downloadCSV } from "@/lib/csv-export";
@@ -26,20 +27,51 @@ export function CompaniesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [meta, setMeta] = useState<{ page: number; limit: number; total: number } | null>(null);
+  const [loading, setLoading] = useState(true);
   const { addToast } = useToast();
 
-  const filtered = useMemo(() => {
-    return mockCompanies.filter((c) => {
-      const matchesSearch =
-        !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.country.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = !statusFilter || c.status === statusFilter;
-      const matchesPlan = !planFilter || c.plan === planFilter;
-      return matchesSearch && matchesStatus && matchesPlan;
-    });
-  }, [search, statusFilter, planFilter]);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const res = await companiesApi.list({
+          page,
+          limit: pageSize,
+          search: search || undefined,
+          status: statusFilter || undefined,
+          plan: planFilter || undefined,
+        });
+        if (cancelled) return;
+        const rawList = Array.isArray(res?.companies) ? res.companies : Array.isArray(res) ? res : [];
+        const list = rawList.map((c: any) => ({
+          ...c,
+          id: c.id || c._id,
+          name: c.companyName || c.name || "",
+          status: c.registrationStatus === "pending_setup" ? "trial" : c.registrationStatus || c.status || "active",
+          employeeCount: c.userStats?.employees || c.totalEmployees || c.employeeCount || 0,
+          size: c.size || "",
+          plan: c.plan || "Free",
+          country: c.country || "",
+          industry: c.industry || "",
+          createdAt: c.createdAt,
+        }));
+        setCompanies(list as unknown as Company[]);
+        setMeta(res?.pagination || null);
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [page, pageSize, search, statusFilter, planFilter]);
 
-  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = meta ? Math.ceil(meta.total / pageSize) : 1;
+  const totalItems = meta?.total || companies.length;
 
   const activeFilters = [
     ...(statusFilter ? [{ key: "status", label: "Status", value: statusFilter }] : []),
@@ -51,11 +83,11 @@ export function CompaniesPage() {
   }
 
   function handleSelectAll(selected: boolean) {
-    setSelectedIds(selected ? paginated.map((c) => c.id) : []);
+    setSelectedIds(selected ? companies.map((c) => c.id) : []);
   }
 
   async function openSuspend(id: string) {
-    const company = mockCompanies.find((c) => c.id === id);
+    const company = companies.find((c) => c.id === id);
     if (!company) return;
     const result = await showConfirm(
       `Suspend ${company.name}?`,
@@ -64,16 +96,28 @@ export function CompaniesPage() {
       "Cancel"
     );
     if (result.isConfirmed) {
-      addToast({ title: "Company suspended", type: "success" });
+      try {
+        await companiesApi.updateStatus(id, "suspended", "Admin action");
+        addToast({ title: "Company suspended", type: "success" });
+        setCompanies((prev) => prev.map((c) => c.id === id ? { ...c, status: "suspended" as const } : c));
+      } catch (err: any) {
+        addToast({ title: err.message || "Failed to suspend", type: "error" });
+      }
     }
   }
 
   async function openDelete(id: string) {
-    const company = mockCompanies.find((c) => c.id === id);
+    const company = companies.find((c) => c.id === id);
     if (!company) return;
     const result = await showDeleteConfirm(company.name);
     if (result.isConfirmed) {
-      addToast({ title: "Company deleted", type: "success" });
+      try {
+        await companiesApi.remove(id);
+        addToast({ title: "Company deleted", type: "success" });
+        setCompanies((prev) => prev.filter((c) => c.id !== id));
+      } catch (err: any) {
+        addToast({ title: err.message || "Failed to delete", type: "error" });
+      }
     }
   }
 
@@ -111,7 +155,7 @@ export function CompaniesPage() {
           <Button variant="outline" size="sm" onClick={() => downloadCSV(
             "companies.csv",
             ["ID", "Name", "Industry", "Size", "Plan", "Status", "Employees", "Country", "Created"],
-            filtered.map((c) => ({
+            companies.map((c) => ({
               ID: c.id,
               Name: c.name,
               Industry: c.industry,
@@ -152,7 +196,7 @@ export function CompaniesPage() {
             { key: "size", header: "Size", cell: (c) => c.size, sortable: true },
             { key: "plan", header: "Plan", cell: (c) => <Badge variant={c.plan === "Enterprise" ? "info" : c.plan === "Pro" ? "success" : "secondary"}>{c.plan}</Badge> },
             { key: "status", header: "Status", cell: (c) => <Badge variant={c.status === "active" ? "success" : c.status === "trial" ? "info" : c.status === "suspended" ? "warning" : "secondary"}>{c.status}</Badge> },
-            { key: "employees", header: "Employees", cell: (c) => c.employeeCount.toLocaleString(), sortable: true },
+            { key: "employees", header: "Employees", cell: (c) => (c.employeeCount || 0).toLocaleString(), sortable: true },
             { key: "created", header: "Created", cell: (c) => new Date(c.createdAt).toLocaleDateString(), sortable: true },
             { key: "actions", header: "", cell: (c) => (
               <div className="flex items-center gap-1">
@@ -162,7 +206,7 @@ export function CompaniesPage() {
               </div>
             ), className: "w-32" },
           ]}
-          data={paginated}
+          data={companies}
           keyExtractor={(c) => c.id}
           selectable
           selectedIds={selectedIds}
@@ -171,7 +215,7 @@ export function CompaniesPage() {
           emptyState={<EmptyState title="No companies found" description="Try adjusting your search or filters." action={<Link href="/companies/new"><Button><Plus className="h-4 w-4 mr-1.5" /> Create Company</Button></Link>} />}
         />
 
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} totalItems={filtered.length} />
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} totalItems={totalItems} />
       </motion.div>
 
     </AdminShell>

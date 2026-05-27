@@ -14,8 +14,12 @@ const {
     deleteUser,
     requestProfileEditOTP,
     verifyProfileEditOTP,
-    sendSuperadminEmailOTP,
-    verifySuperadminEmailOTP,
+    sendSuperadminOtp,
+    verifySuperadminEmailOtp,
+    verifySuperadminPhoneOtp,
+    completeSuperadminLogin,
+    challengeDecision,
+    verifySecurityQuestions,
 } = require("../controllers/auth.controller");
 const { verifyJWT } = require("../middlewares/auth.middleware");
 const { authLimiter, superadminOtpLimiter } = require("../middlewares/security.middleware");
@@ -31,9 +35,13 @@ router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema), for
 router.post("/reset-password", authLimiter, validate(resetPasswordSchema), resetPassword);
 router.post("/refresh-token", authLimiter, refreshAccessToken);
 
-// ===== SuperAdmin Routes (Email OTP) =====
-router.post("/superadmin/send-otp", superadminOtpLimiter, validate(superadminLoginSchema), sendSuperadminEmailOTP);
-router.post("/superadmin/verify-otp", superadminOtpLimiter, validate(superadminVerifyOTPSchema), verifySuperadminEmailOTP);
+// ===== SuperAdmin Routes (Multi-Step Email + Phone OTP) =====
+router.post("/superadmin/send-otp", superadminOtpLimiter, sendSuperadminOtp);
+router.post("/superadmin/verify-email-otp", superadminOtpLimiter, verifySuperadminEmailOtp);
+router.post("/superadmin/verify-phone-otp", superadminOtpLimiter, verifySuperadminPhoneOtp);
+router.post("/superadmin/complete-login", superadminOtpLimiter, completeSuperadminLogin);
+router.post("/superadmin/challenge/decision", superadminOtpLimiter, challengeDecision);
+router.post("/superadmin/challenge/verify-security-questions", superadminOtpLimiter, verifySecurityQuestions);
 
 // ===== Protected Routes =====
 router.post("/logout", verifyJWT, logout);

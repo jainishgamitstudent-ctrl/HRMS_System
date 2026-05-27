@@ -45,6 +45,11 @@ export const SIDEBAR_NAV: NavItem[] = [
     icon: BarChart3,
   },
   {
+    label: "Billing & Subscriptions",
+    href: "/billing",
+    icon: CreditCard,
+  },
+  {
     label: "System Settings",
     href: "/settings",
     icon: Settings,
@@ -54,14 +59,8 @@ export const SIDEBAR_NAV: NavItem[] = [
       { label: "Notifications", href: "/settings/notifications" },
       { label: "Announcements", href: "/settings/announcements" },
       { label: "Maintenance", href: "/settings/maintenance" },
-      { label: "API Keys", href: "/settings/api-keys" },
       { label: "Platform Config", href: "/settings/platform" },
     ],
-  },
-  {
-    label: "Billing & Subscriptions",
-    href: "/billing",
-    icon: CreditCard,
   },
 ];
 

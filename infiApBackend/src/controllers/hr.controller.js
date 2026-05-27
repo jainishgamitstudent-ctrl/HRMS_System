@@ -18,6 +18,15 @@ const { verifyProfileEditOtp } = require("../controllers/auth.controller");
 const { sendProfileEditOTPEmail, sendInterviewScheduledEmail } = require("../services/email.service");
 const crypto = require("crypto");
 
+const generateAlphanumericOTP = (length = 6) => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let otp = "";
+    for (let i = 0; i < length; i++) {
+        otp += chars.charAt(crypto.randomInt(0, chars.length));
+    }
+    return otp;
+};
+
 // ---> Welcome Page Greeting <---
 exports.getDashboardSummary = async (req, res) => {
     try {
@@ -240,7 +249,7 @@ exports.editEmployee = async (req, res) => {
         }
 
         // Non-shift changes: store pending updates and send OTP to target employee's email
-        const otp = crypto.randomInt(100000, 999999).toString();
+        const otp = generateAlphanumericOTP();
         const editorName = req.user?.name || req.user?.role || "System";
         const isSelfEdit = String(req.user?._id) === String(id);
 

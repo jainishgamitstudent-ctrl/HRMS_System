@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
@@ -11,7 +11,8 @@ import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/providers/ToastProvider";
 import { showConfirm } from "@/lib/sweetalert";
-import { getHRUserById, mockCompanies } from "@/lib/mock-data";
+import { hrUsersApi, companiesApi } from "@/lib/api";
+import type { HRUser, Company } from "@/lib/types";
 import { User, Building2, Shield, Activity, ArrowLeft } from "lucide-react";
 
 const tabs = [
@@ -24,9 +25,29 @@ const tabs = [
 export function HRUserDetailPage({ hrUserId }: { hrUserId: string }) {
   const [activeTab, setActiveTab] = useState("profile");
   const [reassignOpen, setReassignOpen] = useState(false);
+  const [hrUser, setHrUser] = useState<HRUser | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const { addToast } = useToast();
 
-  const hrUser = getHRUserById(hrUserId);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [userRes, compRes] = await Promise.all([
+          hrUsersApi.get(hrUserId).catch(() => null),
+          companiesApi.list({ limit: 1000 }).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setHrUser((userRes as unknown) as HRUser);
+        setCompanies(((compRes?.companies || []) as unknown) as Company[]);
+      } catch {
+        // ignore
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [hrUserId]);
+
   if (!hrUser) {
     return (
       <AdminShell>
@@ -62,7 +83,16 @@ export function HRUserDetailPage({ hrUserId }: { hrUserId: string }) {
                 hrUser.status === "active" ? "Deactivate" : "Activate",
                 "Cancel"
               );
-              if (result.isConfirmed) addToast({ title: hrUser.status === "active" ? "HR user deactivated" : "HR user activated", type: "success" });
+              if (result.isConfirmed) {
+                try {
+                  const newStatus = hrUser.status === "active" ? "inactive" : "active";
+                  await hrUsersApi.updateStatus(hrUserId, newStatus);
+                  setHrUser({ ...hrUser, status: newStatus });
+                  addToast({ title: hrUser.status === "active" ? "HR user deactivated" : "HR user activated", type: "success" });
+                } catch (err: any) {
+                  addToast({ title: err.message || "Failed to update status", type: "error" });
+                }
+              }
             }}>{hrUser.status === "active" ? "Deactivate" : "Activate"}</Button>
           </div>
         </div>
@@ -106,7 +136,7 @@ export function HRUserDetailPage({ hrUserId }: { hrUserId: string }) {
       <Modal isOpen={reassignOpen} onClose={() => setReassignOpen(false)} title="Reassign Company" footer={<><Button variant="outline" onClick={() => setReassignOpen(false)}>Cancel</Button><Button onClick={() => { setReassignOpen(false); addToast({ title: "Company reassigned", type: "success" }); }}>Reassign</Button></>}>
         <div className="space-y-4">
           <p className="text-sm">Select a new company for <span className="font-semibold">{hrUser.fullName}</span>.</p>
-          <Select label="New Company" options={mockCompanies.map(c => ({ value: c.id, label: c.name }))} />
+          <Select label="New Company" options={companies.map(c => ({ value: c.id, label: c.name }))} />
         </div>
       </Modal>
     </AdminShell>

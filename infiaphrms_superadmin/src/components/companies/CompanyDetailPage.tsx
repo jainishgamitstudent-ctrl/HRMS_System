@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { Badge } from "@/components/ui/Badge";
@@ -12,7 +13,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/providers/ToastProvider";
 import { showConfirm, showDeleteConfirm } from "@/lib/sweetalert";
-import { getCompanyById, mockAdmins, mockHRUsers, mockAuditLogs } from "@/lib/mock-data";
+import { companiesApi } from "@/lib/api";
+import type { Company, Admin, HRUser, AuditLogEntry } from "@/lib/types";
 import { motion } from "framer-motion";
 import { Calendar, Users, ShieldCheck, UserCheck, Settings, CreditCard, FileText, ArrowLeft } from "lucide-react";
 
@@ -26,10 +28,91 @@ const tabs = [
 ];
 
 export function CompanyDetailPage({ companyId }: { companyId: string }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
+  const [company, setCompany] = useState<Company | null>(null);
+  const [companyAdmins, setCompanyAdmins] = useState<Admin[]>([]);
+  const [companyHR, setCompanyHR] = useState<HRUser[]>([]);
+  const [companyAudit, setCompanyAudit] = useState<AuditLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const { addToast } = useToast();
 
-  const company = getCompanyById(companyId);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [compRes, adminsRes, hrRes] = await Promise.all([
+          companiesApi.get(companyId).catch(() => null),
+          companiesApi.getAdmins(companyId).catch(() => []),
+          companiesApi.getHrUsers(companyId).catch(() => []),
+        ]);
+        if (cancelled) return;
+        const comp = (compRes as any)?.company || compRes;
+        if (comp) setCompany({
+          ...comp,
+          id: comp.id || comp._id,
+          name: comp.companyName || comp.name || "",
+          status: comp.registrationStatus === "pending_setup" ? "trial" : comp.registrationStatus || comp.status || "active",
+          employeeCount: comp.userStats?.employees || comp.totalEmployees || comp.employeeCount || 0,
+          adminCount: comp.userStats?.admins || comp.adminCount || 0,
+          hrCount: comp.userStats?.hrManagers || comp.hrCount || 0,
+          size: comp.size || "",
+          plan: comp.plan || "Free",
+          country: comp.country || "",
+          industry: comp.industry || "",
+          primaryColor: comp.primaryColor || "#2563eb",
+          subdomain: comp.subdomain || "",
+          logo: comp.logo || "",
+          timezone: comp.timezone || "UTC",
+          currency: comp.currency || "INR",
+          featureFlags: comp.featureFlags || {},
+          modules: comp.modules || {},
+          mrr: comp.mrr || 0,
+          createdAt: comp.createdAt,
+          updatedAt: comp.updatedAt,
+        } as unknown as Company);
+        setCompanyAdmins((adminsRes as unknown) as Admin[]);
+        setCompanyHR((hrRes as unknown) as HRUser[]);
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [companyId]);
+
+  useEffect(() => {
+    if (activeTab !== "audit") return;
+    let cancelled = false;
+    async function loadAudit() {
+      try {
+        // backend audit scoped by company is not explicit; we can fetch all and filter client-side for now
+        // or rely on companyAudit endpoint if added later
+        const res = await companiesApi.get(companyId).catch(() => null);
+        if (!cancelled && res) {
+          // placeholder until backend adds company-scoped audit endpoint
+          setCompanyAudit([]);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadAudit();
+    return () => { cancelled = true; };
+  }, [activeTab, companyId]);
+
+  if (loading) {
+    return (
+      <AdminShell>
+        <div className="text-center py-20">
+          <p className="text-muted-foreground">Loading company...</p>
+        </div>
+      </AdminShell>
+    );
+  }
+
   if (!company) {
     return (
       <AdminShell>
@@ -43,23 +126,37 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
 
   const c = company;
 
-  const companyAdmins = mockAdmins.filter((a) => a.companyId === companyId);
-  const companyHR = mockHRUsers.filter((h) => h.companyId === companyId);
-  const companyAudit = mockAuditLogs.filter((a) => a.companyId === companyId).slice(0, 20);
-
   async function handleSuspend() {
+    if (!c) return;
     const result = await showConfirm(
       `Suspend ${c.name}?`,
       "All users will be locked out until reactivated.",
       "Suspend",
       "Cancel"
     );
-    if (result.isConfirmed) addToast({ title: "Company suspended", type: "success" });
+    if (result.isConfirmed) {
+      try {
+        await companiesApi.updateStatus(companyId, "suspended", "Admin action");
+        addToast({ title: "Company suspended", type: "success" });
+        setCompany((prev) => prev ? { ...prev, status: "suspended" } : prev);
+      } catch (err: any) {
+        addToast({ title: err.message || "Failed to suspend", type: "error" });
+      }
+    }
   }
 
   async function handleDelete() {
+    if (!c) return;
     const result = await showDeleteConfirm(c.name);
-    if (result.isConfirmed) addToast({ title: "Company deleted", type: "success" });
+    if (result.isConfirmed) {
+      try {
+        await companiesApi.remove(companyId);
+        addToast({ title: "Company deleted", type: "success" });
+        router.push("/companies");
+      } catch (err: any) {
+        addToast({ title: err.message || "Failed to delete", type: "error" });
+      }
+    }
   }
 
   return (
@@ -74,6 +171,9 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/companies"><Button variant="outline" size="sm"><ArrowLeft className="h-4 w-4" /></Button></Link>
+            {company.logo && (
+              <img src={company.logo} alt="" className="h-12 w-12 object-contain rounded-md border border-border bg-white" />
+            )}
             <div>
               <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
               <div className="flex items-center gap-2 mt-1">

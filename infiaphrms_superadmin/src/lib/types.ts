@@ -98,16 +98,6 @@ export interface TrialCompany {
   signupDate: string;
 }
 
-export interface ApiKey {
-  id: string;
-  name: string;
-  scope: string;
-  keyPreview: string;
-  lastUsed: string | null;
-  expiresAt: string | null;
-  createdAt: string;
-}
-
 export interface Announcement {
   id: string;
   title: string;

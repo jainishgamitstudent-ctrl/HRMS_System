@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { useToast } from "@/components/providers/ToastProvider";
-import { getRoleById } from "@/lib/mock-data";
+import { rolesApi } from "@/lib/api";
+import type { Role } from "@/lib/types";
 import { PERMISSION_MODULES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -17,10 +18,28 @@ const actions = ["View", "Create", "Edit", "Delete", "Export"];
 export function RoleFormPage({ roleId }: { roleId?: string }) {
   const router = useRouter();
   const { addToast } = useToast();
-  const existing = roleId ? getRoleById(roleId) : null;
-  const [name, setName] = useState(existing?.name || "");
-  const [description, setDescription] = useState(existing?.description || "");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [perms, setPerms] = useState<Record<string, boolean[]>>({});
+
+  useEffect(() => {
+    if (!roleId) return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await rolesApi.get(roleId!).catch(() => null);
+        if (!cancelled) {
+          const role = (res as unknown) as Role;
+          setName(role.name || "");
+          setDescription(role.description || "");
+        }
+      } catch {
+        // ignore
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [roleId]);
 
   function toggleAll(module: string, enabled: boolean) {
     setPerms((p) => ({ ...p, [module]: actions.map(() => enabled) }));
@@ -35,9 +54,20 @@ export function RoleFormPage({ roleId }: { roleId?: string }) {
     });
   }
 
-  function save() {
-    addToast({ title: roleId ? "Role updated" : "Role created", type: "success" });
-    router.push("/roles");
+  async function save() {
+    try {
+      const payload = { name, description, permissions: perms };
+      if (roleId) {
+        await rolesApi.update(roleId, payload);
+        addToast({ title: "Role updated", type: "success" });
+      } else {
+        await rolesApi.create(payload);
+        addToast({ title: "Role created", type: "success" });
+      }
+      router.push("/roles");
+    } catch (err: any) {
+      addToast({ title: err.message || "Failed to save role", type: "error" });
+    }
   }
 
   return (

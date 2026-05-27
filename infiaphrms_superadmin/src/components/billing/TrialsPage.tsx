@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
@@ -9,16 +10,45 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/providers/ToastProvider";
-import { mockTrials, mockCompanies } from "@/lib/mock-data";
+import { billingApi } from "@/lib/api";
+import type { TrialCompany } from "@/lib/types";
 import { CalendarDays, ArrowRight, Plus } from "lucide-react";
-import { useState } from "react";
 
 export function TrialsPage() {
   const [extendModalOpen, setExtendModalOpen] = useState(false);
   const [targetTrial, setTargetTrial] = useState<string | null>(null);
+  const [trials, setTrials] = useState<TrialCompany[]>([]);
   const { addToast } = useToast();
 
-  const trial = targetTrial ? mockTrials.find((t) => t.id === targetTrial) : null;
+  const trial = targetTrial ? trials.find((t) => t.id === targetTrial) : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await billingApi.listTrials().catch(() => []);
+        if (!cancelled) setTrials((res as unknown) as TrialCompany[]);
+      } catch {
+        // ignore
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  async function handleExtend() {
+    if (!trial) return;
+    try {
+      const newDate = new Date();
+      newDate.setDate(newDate.getDate() + 14);
+      await billingApi.extendTrial(trial.id, newDate.toISOString().split("T")[0], "Sales support");
+      addToast({ title: "Trial extended", type: "success" });
+      setTrials((prev) => prev.map((t) => t.id === trial.id ? { ...t, daysRemaining: 14 } : t));
+    } catch (err: any) {
+      addToast({ title: err.message || "Failed to extend trial", type: "error" });
+    }
+    setExtendModalOpen(false);
+  }
 
   return (
     <AdminShell>
@@ -33,11 +63,11 @@ export function TrialsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-4 bg-card border border-border rounded-xl">
             <p className="text-sm text-muted-foreground">Active Trials</p>
-            <p className="text-2xl font-bold">{mockTrials.length}</p>
+            <p className="text-2xl font-bold">{trials.length}</p>
           </div>
           <div className="p-4 bg-card border border-border rounded-xl">
             <p className="text-sm text-muted-foreground">Expiring Soon (&lt;3 days)</p>
-            <p className="text-2xl font-bold">{mockTrials.filter(t => t.daysRemaining <= 3).length}</p>
+            <p className="text-2xl font-bold">{trials.filter(t => t.daysRemaining <= 3).length}</p>
           </div>
           <div className="p-4 bg-card border border-border rounded-xl">
             <p className="text-sm text-muted-foreground">Conversion Rate</p>
@@ -56,12 +86,12 @@ export function TrialsPage() {
               </Button>
             ), className: "w-28" },
           ]}
-          data={mockTrials}
+          data={trials}
           keyExtractor={(t) => t.id}
           emptyState={<EmptyState title="No active trials" description="There are no companies currently on trial." />}
         />
       </div>
-      <Modal isOpen={extendModalOpen} onClose={() => setExtendModalOpen(false)} title="Extend Trial" footer={<><Button variant="outline" onClick={() => setExtendModalOpen(false)}>Cancel</Button><Button onClick={() => { setExtendModalOpen(false); addToast({ title: "Trial extended", type: "success" }); }}>Extend Trial</Button></>}>
+      <Modal isOpen={extendModalOpen} onClose={() => setExtendModalOpen(false)} title="Extend Trial" footer={<><Button variant="outline" onClick={() => setExtendModalOpen(false)}>Cancel</Button><Button onClick={handleExtend}>Extend Trial</Button></>}>
         <p className="text-sm">Extend the trial for <span className="font-semibold">{trial?.name}</span> by 14 days.</p>
       </Modal>
     </AdminShell>

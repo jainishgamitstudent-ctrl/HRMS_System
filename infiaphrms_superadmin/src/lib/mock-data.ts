@@ -6,7 +6,6 @@ import type {
   Invoice,
   Plan,
   TrialCompany,
-  ApiKey,
   Announcement,
   AuditLogEntry,
   LoginActivity,
@@ -179,16 +178,6 @@ export const mockTrials: TrialCompany[] = Array.from({ length: 5 }).map((_, i) =
   daysRemaining: randInt(1, 14),
   adminEmail: mockAdmins[i].email,
   signupDate: mockCompanies[i].createdAt,
-}));
-
-export const mockApiKeys: ApiKey[] = Array.from({ length: 6 }).map((_, i) => ({
-  id: `key-${i + 1}`,
-  name: `Production API Key ${i + 1}`,
-  scope: i % 2 === 0 ? "read" : "read_write",
-  keyPreview: `sk_live_...${String.fromCharCode(97 + i).repeat(4)}`,
-  lastUsed: i % 3 === 0 ? null : randDate(7),
-  expiresAt: i === 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
-  createdAt: randDate(90),
 }));
 
 export const mockAnnouncements: Announcement[] = [

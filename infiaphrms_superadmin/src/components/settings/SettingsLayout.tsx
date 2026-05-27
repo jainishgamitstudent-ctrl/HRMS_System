@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { User, Shield, Bell, Megaphone, Wrench, KeyRound, Settings } from "lucide-react";
+import { User, Shield, Bell, Megaphone, Wrench, Settings } from "lucide-react";
 
 const settingsNav = [
   { id: "profile", label: "Profile", href: "/settings/profile", icon: User },
@@ -11,7 +11,6 @@ const settingsNav = [
   { id: "notifications", label: "Notifications", href: "/settings/notifications", icon: Bell },
   { id: "announcements", label: "Announcements", href: "/settings/announcements", icon: Megaphone },
   { id: "maintenance", label: "Maintenance", href: "/settings/maintenance", icon: Wrench },
-  { id: "api-keys", label: "API Keys", href: "/settings/api-keys", icon: KeyRound },
   { id: "platform", label: "Platform Config", href: "/settings/platform", icon: Settings },
 ];
 

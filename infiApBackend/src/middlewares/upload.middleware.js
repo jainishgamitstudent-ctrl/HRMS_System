@@ -40,22 +40,24 @@ const handleUploadError = (err, req, res, next) => {
     next();
 };
 
-// Middleware that handles both file and non-file requests
-const uploadSingleOptional = (req, res, next) => {
-    // Use multer single upload but make it optional
-    const uploadMiddleware = upload.single('profilePicture');
-    
-    uploadMiddleware(req, res, (err) => {
-        if (err) {
-            // Pass error to error handler
-            return handleUploadError(err, req, res, next);
-        }
-        // Continue even if no file was uploaded
-        next();
-    });
-};
+// Middleware factory that handles both file and non-file requests with configurable field name
+function uploadSingleOptional(fieldName = 'profilePicture') {
+    return (req, res, next) => {
+        const uploadMiddleware = upload.single(fieldName);
+        uploadMiddleware(req, res, (err) => {
+            if (err) {
+                return handleUploadError(err, req, res, next);
+            }
+            next();
+        });
+    };
+}
+
+// Default middleware for backward compatibility (profilePicture field)
+const uploadSingle = uploadSingleOptional('profilePicture');
 
 module.exports = {
-    uploadSingle: uploadSingleOptional,
+    uploadSingle,
+    uploadSingleOptional,
     handleUploadError
 };

@@ -38,6 +38,15 @@ const toNumber = (value) => {
     return Number.isFinite(parsed) ? parsed : NaN;
 };
 
+const generateAlphanumericOTP = (length = 6) => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let otp = "";
+    for (let i = 0; i < length; i++) {
+        otp += chars.charAt(crypto.randomInt(0, chars.length));
+    }
+    return otp;
+};
+
 const parseStringList = (value) => {
     if (Array.isArray(value)) {
         return value.map((item) => String(item || "").trim()).filter(Boolean);
@@ -532,7 +541,7 @@ exports.updateAdminProfile = async (req, res) => {
         }
 
         // Generate OTP and store pending updates
-        const otp = crypto.randomInt(100000, 999999).toString();
+        const otp = generateAlphanumericOTP();
         admin.profileEditOTP = otp;
         admin.profileEditOTPExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
         admin.pendingProfileUpdates = updates;
@@ -2978,7 +2987,7 @@ exports.updateHRStaff = async (req, res) => {
         }
 
         // Non-shift changes: store pending updates and send OTP to HR's email
-        const otp = crypto.randomInt(100000, 999999).toString();
+        const otp = generateAlphanumericOTP();
         const editorName = req.user?.name || req.user?.role || "Admin";
         const isSelfEdit = String(req.user?._id) === String(hrId);
 

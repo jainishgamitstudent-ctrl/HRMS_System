@@ -5,11 +5,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import {
-  mockCompanies,
-  mockSystemHealth,
-  mockNotifications,
-} from "@/lib/mock-data";
+import { reportsApi, companiesApi } from "@/lib/api";
+import type { Company } from "@/lib/types";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
@@ -29,15 +26,6 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
-
-function useLoading(delay = 800) {
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), delay);
-    return () => clearTimeout(t);
-  }, [delay]);
-  return loading;
-}
 
 function KpiCard({
   title,
@@ -97,23 +85,57 @@ function KpiCard({
 }
 
 export function DashboardPage() {
-  const loading = useLoading();
-  const totalCompanies = mockCompanies.length;
-  const activeCompanies = mockCompanies.filter((c) => c.status === "active").length;
-  const totalEmployees = mockCompanies.reduce((sum, c) => sum + c.employeeCount, 0);
-  const mrr = mockCompanies.reduce((sum, c) => sum + c.mrr, 0);
+  const [loading, setLoading] = useState(true);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [health, setHealth] = useState<{ apiUptime?: number; errorRate?: number; queueStatus?: string; queueDepth?: number; lastChecked?: string } | null>(null);
+  const [activeSessions, setActiveSessions] = useState(0);
+  const [mrr, setMrr] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [dash, companiesRes] = await Promise.all([
+          reportsApi.dashboard().catch(() => null),
+          companiesApi.list({ limit: 10, sort_by: "created_at", order: "desc" }).catch(() => null),
+        ]);
+        if (cancelled) return;
+        if (dash) {
+          setActiveSessions((dash.activeUsers as number) || 0);
+          setMrr(0);
+        }
+        const companyList = ((companiesRes?.companies || companiesRes || []) as unknown) as Company[];
+        setCompanies(companyList.map((c: any) => ({
+          ...c,
+          name: c.name || c.companyName,
+          status: c.status || c.registrationStatus || "active",
+          plan: c.plan || "Free",
+          employeeCount: c.employeeCount ?? c.totalEmployees ?? 0,
+        })));
+        const healthRes = await reportsApi.health().catch(() => null);
+        if (!cancelled && healthRes) setHealth(healthRes);
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const totalCompanies = companies.length;
+  const totalEmployees = companies.reduce((sum, c) => sum + (c.employeeCount || 0), 0);
 
   const planDistribution = [
-    { label: "Free", count: mockCompanies.filter((c) => c.plan === "Free").length, color: "#94a3b8" },
-    { label: "Pro", count: mockCompanies.filter((c) => c.plan === "Pro").length, color: "#2563eb" },
-    { label: "Enterprise", count: mockCompanies.filter((c) => c.plan === "Enterprise").length, color: "#8b5cf6" },
+    { label: "Free", count: companies.filter((c) => c.plan === "Free").length, color: "#94a3b8" },
+    { label: "Pro", count: companies.filter((c) => c.plan === "Pro").length, color: "#2563eb" },
+    { label: "Enterprise", count: companies.filter((c) => c.plan === "Enterprise").length, color: "#8b5cf6" },
   ];
 
-  const recentSignups = [...mockCompanies]
+  const recentSignups = [...companies]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 10);
-
-  const health = mockSystemHealth;
 
   return (
     <AdminShell>
@@ -155,8 +177,6 @@ export function DashboardPage() {
             <KpiCard
               title="Total Companies"
               value={totalCompanies.toString()}
-              change={12}
-              changeLabel="vs last month"
               icon={Building2}
               loading={loading}
               href="/companies"
@@ -166,18 +186,14 @@ export function DashboardPage() {
             <KpiCard
               title="Total Employees"
               value={totalEmployees.toLocaleString()}
-              change={8}
-              changeLabel="vs last month"
               icon={Users}
               loading={loading}
             />
           </motion.div>
           <motion.div variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] as const } } }}>
             <KpiCard
-              title="Active Sessions"
-              value={loading ? "" : "1,284"}
-              change={-3}
-              changeLabel="vs yesterday"
+              title="Active Users"
+              value={loading ? "" : activeSessions.toLocaleString()}
               icon={Activity}
               loading={loading}
             />
@@ -186,8 +202,6 @@ export function DashboardPage() {
             <KpiCard
               title="MRR"
               value={loading ? "" : `₹${mrr.toLocaleString()}`}
-              change={15}
-              changeLabel="vs last month"
               icon={IndianRupee}
               loading={loading}
               href="/billing"
@@ -392,7 +406,7 @@ export function DashboardPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold">{health.apiUptime}%</span>
+                      <span className="text-lg font-bold">{health?.apiUptime}%</span>
                       <CheckCircle2 className="h-5 w-5 text-green-600" />
                     </div>
                   </div>
@@ -405,7 +419,7 @@ export function DashboardPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold">{health.errorRate}%</span>
+                      <span className="text-lg font-bold">{health?.errorRate}%</span>
                       <CheckCircle2 className="h-5 w-5 text-green-600" />
                     </div>
                   </div>
@@ -414,12 +428,12 @@ export function DashboardPage() {
                       <Clock className="h-5 w-5 text-muted-foreground" />
                       <div>
                         <p className="text-sm font-medium">Queue Status</p>
-                        <p className="text-xs text-muted-foreground">{health.queueDepth} messages</p>
+                        <p className="text-xs text-muted-foreground">{health?.queueDepth} messages</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={health.queueStatus === "healthy" ? "success" : "warning"}>
-                        {health.queueStatus}
+                      <Badge variant={health?.queueStatus === "healthy" ? "success" : "warning"}>
+                        {health?.queueStatus}
                       </Badge>
                     </div>
                   </div>
@@ -432,7 +446,7 @@ export function DashboardPage() {
                       </div>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(health.lastChecked).toLocaleTimeString()}
+                      {new Date(health?.lastChecked || Date.now()).toLocaleTimeString()}
                     </span>
                   </div>
                 </div>

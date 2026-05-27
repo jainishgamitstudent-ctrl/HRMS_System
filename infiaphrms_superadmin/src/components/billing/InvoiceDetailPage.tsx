@@ -1,16 +1,32 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { getInvoiceById } from "@/lib/mock-data";
+import { billingApi } from "@/lib/api";
+import type { Invoice } from "@/lib/types";
 import { ArrowLeft, FileText } from "lucide-react";
 
 export function InvoiceDetailPage({ invoiceId }: { invoiceId: string }) {
-  const invoice = getInvoiceById(invoiceId);
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await billingApi.getInvoice(invoiceId).catch(() => null);
+        if (!cancelled) setInvoice((res as unknown) as Invoice);
+      } catch {
+        // ignore
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [invoiceId]);
 
   if (!invoice) {
     return (

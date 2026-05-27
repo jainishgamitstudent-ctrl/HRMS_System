@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
@@ -10,7 +10,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/providers/ToastProvider";
 import { showConfirm } from "@/lib/sweetalert";
-import { getAdminById } from "@/lib/mock-data";
+import { adminsApi } from "@/lib/api";
+import type { Admin } from "@/lib/types";
 import { User, Shield, Activity, FileText, ArrowLeft, KeyRound } from "lucide-react";
 
 const tabs = [
@@ -22,9 +23,23 @@ const tabs = [
 
 export function AdminDetailPage({ adminId }: { adminId: string }) {
   const [activeTab, setActiveTab] = useState("profile");
+  const [admin, setAdmin] = useState<Admin | null>(null);
   const { addToast } = useToast();
 
-  const admin = getAdminById(adminId);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await adminsApi.get(adminId).catch(() => null);
+        if (!cancelled) setAdmin((res as unknown) as Admin);
+      } catch {
+        // ignore
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [adminId]);
+
   if (!admin) {
     return (
       <AdminShell>
@@ -60,7 +75,14 @@ export function AdminDetailPage({ adminId }: { adminId: string }) {
                 "Send Reset",
                 "Cancel"
               );
-              if (result.isConfirmed) addToast({ title: "Password reset sent", type: "success" });
+              if (result.isConfirmed) {
+                try {
+                  await adminsApi.resetPassword(adminId);
+                  addToast({ title: "Password reset sent", type: "success" });
+                } catch (err: any) {
+                  addToast({ title: err.message || "Failed to reset password", type: "error" });
+                }
+              }
             }}><KeyRound className="h-4 w-4 mr-1.5" /> Reset Password</Button>
             <Button variant={admin.status === "active" ? "destructive" : "default"} size="sm" onClick={async () => {
               const result = await showConfirm(
@@ -69,7 +91,16 @@ export function AdminDetailPage({ adminId }: { adminId: string }) {
                 admin.status === "active" ? "Deactivate" : "Activate",
                 "Cancel"
               );
-              if (result.isConfirmed) addToast({ title: admin.status === "active" ? "Admin deactivated" : "Admin activated", type: "success" });
+              if (result.isConfirmed) {
+                try {
+                  const newStatus = admin.status === "active" ? "inactive" : "active";
+                  await adminsApi.updateStatus(adminId, newStatus);
+                  setAdmin({ ...admin, status: newStatus });
+                  addToast({ title: admin.status === "active" ? "Admin deactivated" : "Admin activated", type: "success" });
+                } catch (err: any) {
+                  addToast({ title: err.message || "Failed to update status", type: "error" });
+                }
+              }
             }}>{admin.status === "active" ? "Deactivate" : "Activate"}</Button>
           </div>
         </div>

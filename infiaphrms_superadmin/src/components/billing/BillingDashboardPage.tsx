@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
@@ -8,13 +9,41 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { DataTable } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { mockInvoices, mockCompanies } from "@/lib/mock-data";
+import { billingApi } from "@/lib/api";
+import type { Invoice } from "@/lib/types";
 import { IndianRupee, TrendingUp, FileText, CalendarDays, ArrowRight } from "lucide-react";
 
 export function BillingDashboardPage() {
-  const totalMrr = mockCompanies.reduce((s, c) => s + c.mrr, 0);
-  const totalRevenue = mockCompanies.reduce((s, c) => s + c.mrr, 0) * 12;
-  const recentInvoices = mockInvoices.slice(0, 5);
+  const [mrr, setMrr] = useState(0);
+  const [arr, setArr] = useState(0);
+  const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
+  const [plans, setPlans] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [dash, invoicesRes, plansRes] = await Promise.all([
+          billingApi.dashboard().catch(() => null),
+          billingApi.listInvoices({ limit: 5 }).catch(() => null),
+          billingApi.listPlans().catch(() => []),
+        ]);
+        if (cancelled) return;
+        if (dash) {
+          setMrr((dash.mrr as number) || 0);
+          setArr((dash.arr as number) || 0);
+        }
+        setRecentInvoices(((invoicesRes?.data || invoicesRes) as unknown) as Invoice[]);
+        const planCounts: Record<string, number> = {};
+        ((plansRes as unknown) as Record<string, unknown>[]).forEach((p: any) => { planCounts[p.name || p.id] = (planCounts[p.name || p.id] || 0) + 1; });
+        setPlans(planCounts);
+      } catch {
+        // ignore
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <AdminShell>
@@ -25,9 +54,9 @@ export function BillingDashboardPage() {
           <p className="text-sm text-muted-foreground">Financial overview and subscription management</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><IndianRupee className="h-5 w-5 text-muted-foreground" /><div><p className="text-sm text-muted-foreground">Total MRR</p><p className="text-2xl font-bold">₹{totalMrr.toLocaleString()}</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><TrendingUp className="h-5 w-5 text-muted-foreground" /><div><p className="text-sm text-muted-foreground">Total Revenue</p><p className="text-2xl font-bold">₹{totalRevenue.toLocaleString()}</p></div></div></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><CalendarDays className="h-5 w-5 text-muted-foreground" /><div><p className="text-sm text-muted-foreground">Avg Plan Price</p><p className="text-2xl font-bold">₹249</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><IndianRupee className="h-5 w-5 text-muted-foreground" /><div><p className="text-sm text-muted-foreground">Total MRR</p><p className="text-2xl font-bold">₹{mrr.toLocaleString()}</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><TrendingUp className="h-5 w-5 text-muted-foreground" /><div><p className="text-sm text-muted-foreground">Total Revenue (ARR)</p><p className="text-2xl font-bold">₹{arr.toLocaleString()}</p></div></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="flex items-center gap-3"><CalendarDays className="h-5 w-5 text-muted-foreground" /><div><p className="text-sm text-muted-foreground">Active Paid Companies</p><p className="text-2xl font-bold">{Object.values(plans).reduce((a, b) => a + b, 0)}</p></div></div></CardContent></Card>
         </div>
         <Card>
           <CardHeader className="flex items-center justify-between pb-2"><CardTitle className="text-base">Recent Invoices</CardTitle><Link href="/billing/invoices"><Button variant="ghost" size="sm">View All <ArrowRight className="h-4 w-4 ml-1" /></Button></Link></CardHeader>
@@ -51,9 +80,10 @@ export function BillingDashboardPage() {
             <CardHeader><CardTitle className="text-base">Plan Distribution</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between"><span>Free</span><span className="font-medium">3 companies</span></div>
-                <div className="flex items-center justify-between"><span>Pro</span><span className="font-medium">4 companies</span></div>
-                <div className="flex items-center justify-between"><span>Enterprise</span><span className="font-medium">3 companies</span></div>
+                {Object.entries(plans).map(([name, count]) => (
+                  <div key={name} className="flex items-center justify-between"><span>{name}</span><span className="font-medium">{count} companies</span></div>
+                ))}
+                {Object.keys(plans).length === 0 && <p className="text-muted-foreground">No plan data available</p>}
               </div>
             </CardContent>
           </Card>

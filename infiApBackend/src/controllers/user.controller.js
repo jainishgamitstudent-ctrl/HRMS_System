@@ -65,15 +65,24 @@ const buildAuthResponse = (loggedInUser, accessToken) => ({
     user: sanitizeUser(loggedInUser),
 });
 
+const generateAlphanumericOTP = (length = 6) => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let otp = "";
+    for (let i = 0; i < length; i++) {
+        otp += chars.charAt(crypto.randomInt(0, chars.length));
+    }
+    return otp;
+};
+
 const issueLoginOtpChallenge = async (user) => {
-    const otp = crypto.randomInt(100000, 999999).toString();
+    const otp = generateAlphanumericOTP();
     user.twoFactorOTP = otp;
     user.twoFactorOTPExpires = Date.now() + 10 * 60 * 1000;
     await user.save({ validateBeforeSave: false });
 
     let emailSent = false;
     try {
-        emailSent = await sendLoginOTPEmail(user.email, otp);
+        emailSent = await sendLoginOTPEmail(user.email, otp, user.name);
     } catch (mailError) {
         logger.warn("OTP email send failed", { error: mailError.message });
     }
@@ -317,7 +326,7 @@ const forgotPassword = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        const resetToken = crypto.randomBytes(32).toString("hex");
+        const resetToken = generateAlphanumericOTP();
         // For simplicity, store resetToken directly on verificationToken since it's already there or add a field
         // Usually, should have a resetPasswordToken and resetPasswordExpires.
         // Let's assume we can reuse verificationToken for this demo or we should use user schema.

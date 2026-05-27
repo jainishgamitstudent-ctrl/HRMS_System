@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -15,7 +15,8 @@ import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/providers/ToastProvider";
-import { mockHRUsers, mockCompanies } from "@/lib/mock-data";
+import { hrUsersApi, companiesApi } from "@/lib/api";
+import type { HRUser, Company } from "@/lib/types";
 import { USER_STATUSES } from "@/lib/constants";
 import { Users, Plus, Search, Eye } from "lucide-react";
 
@@ -26,23 +27,41 @@ export function HRUsersPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [hrUsers, setHrUsers] = useState<HRUser[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [meta, setMeta] = useState<{ total: number } | null>(null);
+  const [loading, setLoading] = useState(true);
   const { addToast } = useToast();
 
-  const filtered = useMemo(() => {
-    return mockHRUsers.filter((h) => {
-      const matchesSearch = !search || h.fullName.toLowerCase().includes(search.toLowerCase()) || h.email.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = !statusFilter || h.status === statusFilter;
-      const matchesCompany = !companyFilter || h.companyId === companyFilter;
-      return matchesSearch && matchesStatus && matchesCompany;
-    });
-  }, [search, statusFilter, companyFilter]);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const [hrRes, companiesRes] = await Promise.all([
+          hrUsersApi.list({ page, limit: pageSize, status: statusFilter || undefined, company_id: companyFilter || undefined }).catch(() => null),
+          companiesApi.list({ limit: 1000 }).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setHrUsers(((hrRes?.data || hrRes || []) as unknown) as HRUser[]);
+        setMeta(hrRes?.meta || null);
+        setCompanies(((companiesRes?.companies || []) as unknown) as Company[]);
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [page, pageSize, statusFilter, companyFilter]);
 
-  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = meta ? Math.ceil(meta.total / pageSize) : 1;
+  const totalItems = meta?.total || hrUsers.length;
 
   const activeFilters = [
     ...(statusFilter ? [{ key: "status", label: "Status", value: statusFilter }] : []),
-    ...(companyFilter ? [{ key: "company", label: "Company", value: mockCompanies.find(c => c.id === companyFilter)?.name || companyFilter }] : []),
+    ...(companyFilter ? [{ key: "company", label: "Company", value: companies.find(c => c.id === companyFilter)?.name || companyFilter }] : []),
   ];
 
   return (
@@ -69,7 +88,7 @@ export function HRUsersPage() {
         </div>
         <FilterBar activeFilters={activeFilters} onClearFilter={(key) => { key === "status" ? setStatusFilter("") : setCompanyFilter(""); }} onClearAll={() => { setStatusFilter(""); setCompanyFilter(""); }}>
           <Select label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} options={[{ value: "", label: "All" }, ...USER_STATUSES.map(s => ({ value: s.value, label: s.label }))]} />
-          <Select label="Company" value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} options={[{ value: "", label: "All" }, ...mockCompanies.map(c => ({ value: c.id, label: c.name }))]} />
+          <Select label="Company" value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} options={[{ value: "", label: "All" }, ...companies.map(c => ({ value: c.id, label: c.name }))]} />
         </FilterBar>
         <DataTable
           columns={[
@@ -77,21 +96,21 @@ export function HRUsersPage() {
             { key: "email", header: "Email", cell: (h) => h.email, sortable: true },
             { key: "company", header: "Company", cell: (h) => h.companyName, sortable: true },
             { key: "status", header: "Status", cell: (h) => <Badge variant={h.status === "active" ? "success" : "secondary"}>{h.status}</Badge> },
-            { key: "modules", header: "Modules", cell: (h) => h.assignedModules.slice(0, 2).join(", ") + (h.assignedModules.length > 2 ? "..." : "") },
+            { key: "modules", header: "Modules", cell: (h) => h.assignedModules?.slice(0, 2).join(", ") + (h.assignedModules && h.assignedModules.length > 2 ? "..." : "") },
             { key: "lastLogin", header: "Last Login", cell: (h) => h.lastLogin ? new Date(h.lastLogin).toLocaleDateString() : "Never", sortable: true },
             { key: "actions", header: "", cell: (h) => <Link href={`/hr-users/${h.id}`}><Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button></Link>, className: "w-12" },
           ]}
-          data={paginated}
+          data={hrUsers}
           keyExtractor={(h) => h.id}
           emptyState={<EmptyState title="No HR users found" description="Try adjusting your search or filters." action={<Button onClick={() => setAddModalOpen(true)}><Plus className="h-4 w-4 mr-1.5" /> Add HR User</Button>} />}
         />
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} totalItems={filtered.length} />
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} totalItems={totalItems} />
       </motion.div>
       <Modal isOpen={addModalOpen} onClose={() => setAddModalOpen(false)} title="Add HR User" description="Add a new HR user to a company." footer={<><Button variant="outline" onClick={() => setAddModalOpen(false)}>Cancel</Button><Button onClick={() => { setAddModalOpen(false); addToast({ title: "HR user added", type: "success" }); }}>Add User</Button></>}>
         <div className="space-y-4">
           <Input label="Full Name" required />
           <Input label="Email" type="email" required />
-          <Select label="Company" options={mockCompanies.map(c => ({ value: c.id, label: c.name }))} required />
+          <Select label="Company" options={companies.map(c => ({ value: c.id, label: c.name }))} required />
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" defaultChecked className="h-4 w-4" /> Send invitation email</label>
         </div>
       </Modal>

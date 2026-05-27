@@ -1,9 +1,44 @@
 const User = require("../models/user.model");
+const Session = require("../models/session.model");
+const TrustedDevice = require("../models/trustedDevice.model");
+const LoginChallenge = require("../models/loginChallenge.model");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const { sendVerificationEmail, sendLoginOTPEmail, sendPasswordResetEmail, sendHrLoginOTPEmail, sendProfileEditOTPEmail, sendSuperadminOTPEmail } = require("../services/email.service");
+const bcrypt = require("bcryptjs");
+const { sendVerificationEmail, sendLoginOTPEmail, sendPasswordResetEmail, sendHrLoginOTPEmail, sendProfileEditOTPEmail, sendSuperadminOTPEmail, sendLoginAlertEmail, sendDeniedLoginAlertEmail } = require("../services/email.service");
+const { sendSmsOtp } = require("../services/sms.service");
 const logger = require("../utils/logger");
 const { emitEntityEvent } = require("../utils/socketManager");
+const { buildDeviceInfo, generateDeviceFingerprint, getIpSubnet, formatDeviceDisplay } = require("../utils/device.utils");
+const {
+    generateAlphanumericOTP,
+    generateNumericOTP,
+    hashOtp,
+    verifyOtpHash,
+    maskEmail,
+    getOtpExpiry,
+    isOtpExpired,
+    isLocked,
+    getLockRetryMinutes,
+    OTP_TTL_SECONDS,
+    OTP_RESEND_COOLDOWN_SECONDS,
+    OTP_MAX_SEND_PER_HOUR,
+    OTP_MAX_VERIFY_ATTEMPTS,
+} = require("../utils/otp.utils");
+
+// ===== Security Questions Config =====
+const SECURITY_QUESTIONS_LIST = [
+    { id: "q1", text: "What is the name of your first school?" },
+    { id: "q2", text: "What is your childhood nickname?" },
+    { id: "q3", text: "What city were you born in?" },
+    { id: "q4", text: "What is your favorite book?" },
+    { id: "q5", text: "What was your dream job as a child?" },
+    { id: "q6", text: "What is the name of your first pet?" },
+];
+
+const CHALLENGE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_SQ_ATTEMPTS = 5;
+const SQ_LOCKOUT_MINUTES = 15;
 
 // ===== Token Generation =====
 
@@ -109,7 +144,7 @@ const findAdminEmail = async () => {
 };
 
 const issueLoginOtpChallenge = async (user, targetEmail = null) => {
-    const otp = crypto.randomInt(100000, 999999).toString();
+    const otp = generateAlphanumericOTP();
     user.twoFactorOTP = otp;
     user.twoFactorOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     await user.save({ validateBeforeSave: false });
@@ -119,7 +154,7 @@ const issueLoginOtpChallenge = async (user, targetEmail = null) => {
         if (targetEmail) {
             emailSent = await sendHrLoginOTPEmail(targetEmail, otp, user.name);
         } else {
-            emailSent = await sendLoginOTPEmail(user.email, otp);
+            emailSent = await sendLoginOTPEmail(user.email, otp, user.name);
         }
     } catch (mailError) {
         logger.warn("OTP email send failed", { error: mailError.message });
@@ -129,7 +164,7 @@ const issueLoginOtpChallenge = async (user, targetEmail = null) => {
 };
 
 const issueProfileEditOtpChallenge = async (editor, adminEmail, targetName, actionLabel) => {
-    const otp = crypto.randomInt(100000, 999999).toString();
+    const otp = generateAlphanumericOTP();
     editor.profileEditOTP = otp;
     editor.profileEditOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     await editor.save({ validateBeforeSave: false });
@@ -421,7 +456,7 @@ exports.forgotPassword = async (req, res) => {
             return res.status(200).json({ message: "If this email exists, a reset link has been sent." });
         }
 
-        const resetToken = crypto.randomBytes(32).toString("hex");
+        const resetToken = generateAlphanumericOTP();
 
         // Store hashed version — never store raw token in DB
         user.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
@@ -430,7 +465,7 @@ exports.forgotPassword = async (req, res) => {
 
         try {
             // Send the RAW token in the reset link email (not the hash)
-            await sendPasswordResetEmail(user.email, resetToken);
+            await sendPasswordResetEmail(user.email, resetToken, user.name);
         } catch (mailError) {
             // If email fails, clear the token
             user.resetPasswordToken = undefined;
@@ -775,156 +810,833 @@ exports.verifyProfileEditOTP = async (req, res) => {
 };
 
 /**
- * @desc    Send email OTP to SuperAdmin
+ * @desc    Send both Email and Phone OTPs for SuperAdmin login
  * @route   POST /api/auth/superadmin/send-otp
  * @access  Public
  */
-exports.sendSuperadminEmailOTP = async (req, res) => {
+exports.sendSuperadminOtp = async (req, res) => {
     try {
         const superadminEmail = (process.env.SUPERADMIN_EMAIL || "mriya0619@gmail.com").trim().toLowerCase();
+        const superadminPhone = process.env.SUPERADMIN_PHONE || "+919979720864";
 
-        const user = await User.findOne({ email: superadminEmail, role: "superadmin" });
+        let user = await User.findOne({ email: superadminEmail, role: "superadmin" });
+        if (!user) {
+            user = await User.findOne({ email: { $regex: new RegExp("^" + superadminEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i") }, role: "superadmin" });
+        }
 
         if (!user) {
             logger.error("SuperAdmin login attempted but no superadmin user exists", { email: superadminEmail });
-            return res.status(404).json({ message: "SuperAdmin not configured" });
+            return res.status(404).json({ ok: false, code: "user_not_found", message: "SuperAdmin not configured" });
         }
 
-        // Rate limiting: configurable via env (default 10 requests per 30 min)
+        if (!user.phone) {
+            user.phone = superadminPhone;
+            await user.save({ validateBeforeSave: false });
+        }
+
+        // Rate limiting
         const now = Date.now();
-        const windowMinutes = parseInt(process.env.SUPERADMIN_OTP_WINDOW_MINUTES, 10) || 30;
-        const maxRequests = parseInt(process.env.SUPERADMIN_OTP_MAX_REQUESTS, 10) || 10;
-        const windowMs = windowMinutes * 60 * 1000;
         const requestWindowStart = user.otp?.requestWindowStart ? new Date(user.otp.requestWindowStart).getTime() : 0;
         let requestCount = user.otp?.requestCount || 0;
+        const windowMs = 60 * 60 * 1000;
 
         if (now - requestWindowStart > windowMs) {
             requestCount = 0;
         }
 
-        if (requestCount >= maxRequests) {
-            logger.warn("SuperAdmin OTP rate limit exceeded", { email: superadminEmail, requestCount, maxRequests, windowMinutes });
-            return res.status(429).json({ message: `Too many OTP requests. Please try again in ${windowMinutes} minutes.` });
+        if (requestCount >= OTP_MAX_SEND_PER_HOUR) {
+            return res.status(429).json({ ok: false, code: "rate_limited", message: "Too many OTP requests. Please try again later." });
         }
 
-        const emailOtp = crypto.randomInt(100000, 999999).toString();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-        const otpHash = crypto.createHash("sha256").update(emailOtp).digest("hex");
+        const emailOtp = generateAlphanumericOTP(6);
+        const phoneOtp = generateNumericOTP(6);
+        const expiresAt = getOtpExpiry();
 
-        user.otp = {
-            emailOtp: {
-                code: null,
-                hash: otpHash,
-                expiresAt,
-                verified: false,
-                failedAttempts: 0,
-                lockUntil: null,
+        await User.findByIdAndUpdate(user._id, {
+            $set: {
+                "otp.emailOtp": { code: null, hash: hashOtp(emailOtp), expiresAt, verified: false, failedAttempts: 0, lockUntil: null },
+                "otp.phoneOtp": { code: null, hash: hashOtp(phoneOtp), expiresAt, verified: false, failedAttempts: 0, lockUntil: null },
+                "otp.requestCount": requestCount + 1,
+                "otp.requestWindowStart": requestCount === 0 ? new Date(now) : user.otp?.requestWindowStart,
             },
-            requestCount: requestCount + 1,
-            requestWindowStart: requestCount === 0 ? new Date(now) : user.otp?.requestWindowStart,
-        };
-        await user.save({ validateBeforeSave: false });
+        });
 
         let emailSent = false;
         try {
-            emailSent = await sendSuperadminOTPEmail(user.email, emailOtp);
+            emailSent = await sendSuperadminOTPEmail(user.email, emailOtp, user.name);
         } catch (mailError) {
             logger.warn("SuperAdmin email OTP send failed", { error: mailError.message });
         }
 
-        logger.info("SuperAdmin OTP sent", { email: superadminEmail, emailSent, requestCount: requestCount + 1 });
+        let smsResult = { success: false };
+        try {
+            smsResult = await sendSmsOtp(user.phone, phoneOtp);
+        } catch (smsError) {
+            logger.warn("SuperAdmin SMS OTP send failed", { error: smsError.message });
+        }
+
+        logger.info("SuperAdmin OTPs sent", { email: superadminEmail, emailSent, smsSent: smsResult.success, requestCount: requestCount + 1 });
+
+        const maskedPhone = user.phone ? user.phone.replace(/\d(?=\d{4})/g, "*") : "";
 
         return res.status(200).json({
-            message: `OTP sent to ${superadminEmail}`,
-            emailSent,
-            // Dev helper: return OTP when email not configured in development
-            devEmailOtp: (!emailSent && process.env.NODE_ENV !== "production") ? emailOtp : undefined,
+            ok: true,
+            email: maskEmail(superadminEmail),
+            phone: maskedPhone,
+            expiresInSeconds: OTP_TTL_SECONDS,
+            cooldownSeconds: OTP_RESEND_COOLDOWN_SECONDS,
+            devEmailOtp: process.env.NODE_ENV !== "production" ? emailOtp : undefined,
+            devPhoneOtp: process.env.NODE_ENV !== "production" ? phoneOtp : undefined,
         });
     } catch (error) {
-        logger.error("Send SuperAdmin Email OTP Error", { error: error.message });
-        return res.status(500).json({ message: "Server error while sending OTP" });
+        logger.error("Send SuperAdmin OTPs Error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error while sending OTPs" });
     }
 };
 
 /**
- * @desc    Verify email OTP for SuperAdmin login
- * @route   POST /api/auth/superadmin/verify-otp
+ * @desc    Verify Email OTP for SuperAdmin login
+ * @route   POST /api/auth/superadmin/verify-email-otp
  * @access  Public
  */
-exports.verifySuperadminEmailOTP = async (req, res) => {
+exports.verifySuperadminEmailOtp = async (req, res) => {
     try {
-        const { emailOtp } = req.body;
+        const { otp } = req.body;
         const superadminEmail = (process.env.SUPERADMIN_EMAIL || "mriya0619@gmail.com").trim().toLowerCase();
 
-        const user = await User.findOne({ email: superadminEmail, role: "superadmin" });
+        const user = await User.findOne({ email: superadminEmail, role: "superadmin" })
+            .select("_id otp")
+            .lean();
 
         if (!user) {
-            return res.status(404).json({ message: "SuperAdmin not found" });
+            return res.status(404).json({ ok: false, code: "user_not_found", message: "SuperAdmin not found" });
         }
 
-        const storedEmailOtp = user.otp?.emailOtp;
-
-        if (!storedEmailOtp?.hash) {
-            return res.status(400).json({ message: "No active OTP found. Please request a new OTP." });
+        const stored = user.otp?.emailOtp;
+        if (!stored?.hash) {
+            return res.status(400).json({ ok: false, code: "no_active_otp", message: "No active email OTP found." });
         }
 
-        // Check brute-force lock
-        if (storedEmailOtp.lockUntil && Date.now() < new Date(storedEmailOtp.lockUntil).getTime()) {
-            const retryAfter = Math.ceil((new Date(storedEmailOtp.lockUntil).getTime() - Date.now()) / 1000 / 60);
-            logger.warn("SuperAdmin login locked due to failed attempts", { email: superadminEmail, retryAfter });
-            return res.status(423).json({ message: `Account temporarily locked due to failed attempts. Try again in ${retryAfter} minutes.` });
+        if (isLocked(stored.lockUntil)) {
+            return res.status(423).json({ ok: false, code: "too_many_attempts", message: `Account locked. Try again in ${getLockRetryMinutes(stored.lockUntil)} minutes.` });
         }
 
-        if (Date.now() > new Date(storedEmailOtp.expiresAt).getTime()) {
-            user.otp = {
-                emailOtp: { code: null, hash: null, expiresAt: null, verified: false, failedAttempts: storedEmailOtp.failedAttempts || 0, lockUntil: storedEmailOtp.lockUntil },
-                requestCount: user.otp?.requestCount || 0,
-                requestWindowStart: user.otp?.requestWindowStart || null,
-            };
-            await user.save({ validateBeforeSave: false });
-            return res.status(401).json({ message: "OTP has expired. Please request a new OTP." });
+        if (isOtpExpired(stored.expiresAt)) {
+            await User.findByIdAndUpdate(user._id, {
+                $set: { "otp.emailOtp.hash": null, "otp.emailOtp.expiresAt": null, "otp.emailOtp.verified": false },
+            });
+            return res.status(401).json({ ok: false, code: "expired_otp", message: "Email OTP has expired. Please request a new OTP." });
         }
 
-        const incomingHash = crypto.createHash("sha256").update(String(emailOtp).trim()).digest("hex");
+        if (!verifyOtpHash(otp, stored.hash)) {
+            const failedAttempts = (stored.failedAttempts || 0) + 1;
+            const lockUntil = failedAttempts >= OTP_MAX_VERIFY_ATTEMPTS
+                ? new Date(Date.now() + 30 * 60 * 1000)
+                : stored.lockUntil;
 
-        if (storedEmailOtp.hash !== incomingHash) {
-            const failedAttempts = (storedEmailOtp.failedAttempts || 0) + 1;
-            const lockUntil = failedAttempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000) : storedEmailOtp.lockUntil;
+            await User.findByIdAndUpdate(user._id, {
+                $set: { "otp.emailOtp.failedAttempts": failedAttempts, "otp.emailOtp.lockUntil": lockUntil },
+            });
 
-            user.otp.emailOtp.failedAttempts = failedAttempts;
-            user.otp.emailOtp.lockUntil = lockUntil;
-            await user.save({ validateBeforeSave: false });
-
-            logger.warn("SuperAdmin OTP verification failed", { email: superadminEmail, failedAttempts, locked: !!lockUntil });
-
-            if (lockUntil && failedAttempts >= 5) {
-                return res.status(401).json({ message: "Too many failed attempts. Account locked for 30 minutes." });
+            if (lockUntil && failedAttempts >= OTP_MAX_VERIFY_ATTEMPTS) {
+                return res.status(401).json({ ok: false, code: "too_many_attempts", message: "Too many failed attempts. Account locked for 30 minutes." });
             }
-            return res.status(401).json({ message: "Invalid OTP" });
+            return res.status(401).json({ ok: false, code: "invalid_otp", message: "Invalid email OTP" });
         }
 
-        // Success: clear OTP and security counters
-        user.otp = {
-            emailOtp: { code: null, hash: null, expiresAt: null, verified: true, failedAttempts: 0, lockUntil: null },
-            requestCount: 0,
-            requestWindowStart: null,
+        await User.findByIdAndUpdate(user._id, {
+            $set: { "otp.emailOtp.verified": true, "otp.emailOtp.failedAttempts": 0, "otp.emailOtp.lockUntil": null },
+        });
+
+        const freshUser = await User.findById(user._id).select("otp.phoneOtp.verified").lean();
+        return res.status(200).json({
+            ok: true,
+            emailVerified: true,
+            phoneVerified: !!freshUser?.otp?.phoneOtp?.verified,
+        });
+    } catch (error) {
+        logger.error("Verify SuperAdmin Email OTP Error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error during OTP verification" });
+    }
+};
+
+/**
+ * @desc    Verify Phone OTP for SuperAdmin login
+ * @route   POST /api/auth/superadmin/verify-phone-otp
+ * @access  Public
+ */
+exports.verifySuperadminPhoneOtp = async (req, res) => {
+    try {
+        const { otp } = req.body;
+        const superadminEmail = (process.env.SUPERADMIN_EMAIL || "mriya0619@gmail.com").trim().toLowerCase();
+
+        const user = await User.findOne({ email: superadminEmail, role: "superadmin" })
+            .select("_id otp")
+            .lean();
+
+        if (!user) {
+            return res.status(404).json({ ok: false, code: "user_not_found", message: "SuperAdmin not found" });
+        }
+
+        const stored = user.otp?.phoneOtp;
+        if (!stored?.hash) {
+            return res.status(400).json({ ok: false, code: "no_active_otp", message: "No active phone OTP found." });
+        }
+
+        if (isLocked(stored.lockUntil)) {
+            return res.status(423).json({ ok: false, code: "too_many_attempts", message: `Account locked. Try again in ${getLockRetryMinutes(stored.lockUntil)} minutes.` });
+        }
+
+        if (isOtpExpired(stored.expiresAt)) {
+            await User.findByIdAndUpdate(user._id, {
+                $set: { "otp.phoneOtp.hash": null, "otp.phoneOtp.expiresAt": null, "otp.phoneOtp.verified": false },
+            });
+            return res.status(401).json({ ok: false, code: "expired_otp", message: "Phone OTP has expired. Please request a new OTP." });
+        }
+
+        if (!verifyOtpHash(otp, stored.hash)) {
+            const failedAttempts = (stored.failedAttempts || 0) + 1;
+            const lockUntil = failedAttempts >= OTP_MAX_VERIFY_ATTEMPTS
+                ? new Date(Date.now() + 30 * 60 * 1000)
+                : stored.lockUntil;
+
+            await User.findByIdAndUpdate(user._id, {
+                $set: { "otp.phoneOtp.failedAttempts": failedAttempts, "otp.phoneOtp.lockUntil": lockUntil },
+            });
+
+            if (lockUntil && failedAttempts >= OTP_MAX_VERIFY_ATTEMPTS) {
+                return res.status(401).json({ ok: false, code: "too_many_attempts", message: "Too many failed attempts. Account locked for 30 minutes." });
+            }
+            return res.status(401).json({ ok: false, code: "invalid_otp", message: "Invalid phone OTP" });
+        }
+
+        await User.findByIdAndUpdate(user._id, {
+            $set: { "otp.phoneOtp.verified": true, "otp.phoneOtp.failedAttempts": 0, "otp.phoneOtp.lockUntil": null },
+        });
+
+        const freshUser = await User.findById(user._id).select("otp.emailOtp.verified").lean();
+        return res.status(200).json({
+            ok: true,
+            phoneVerified: true,
+            emailVerified: !!freshUser?.otp?.emailOtp?.verified,
+        });
+    } catch (error) {
+        logger.error("Verify SuperAdmin Phone OTP Error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error during OTP verification" });
+    }
+};
+
+/**
+ * @desc    Complete SuperAdmin login after both OTPs verified
+ * @route   POST /api/auth/superadmin/complete-login
+ * @access  Public
+ */
+exports.completeSuperadminLogin = async (req, res) => {
+    try {
+        const superadminEmail = (process.env.SUPERADMIN_EMAIL || "mriya0619@gmail.com").trim().toLowerCase();
+
+        const user = await User.findOne({ email: superadminEmail, role: "superadmin" })
+            .select("_id name email role otp securityQuestions securitySettings")
+            .lean();
+
+        if (!user) {
+            return res.status(404).json({ ok: false, code: "user_not_found", message: "SuperAdmin not found" });
+        }
+
+        const emailVerified = !!user.otp?.emailOtp?.verified;
+        const phoneVerified = !!user.otp?.phoneOtp?.verified;
+
+        if (!emailVerified || !phoneVerified) {
+            return res.status(403).json({
+                ok: false,
+                code: "incomplete_verification",
+                message: "Both email and phone OTPs must be verified before login.",
+                emailVerified,
+                phoneVerified,
+            });
+        }
+
+        // Build device info from request
+        const deviceInfo = buildDeviceInfo(req);
+
+        // Check if device is trusted
+        const trustedDevice = await TrustedDevice.findOne({
+            userId: user._id,
+            deviceFingerprintHash: deviceInfo.fingerprint,
+            isActive: true,
+        }).lean();
+
+        // Determine risk flags
+        const recentSession = await Session.findOne({ userId: user._id, status: "active" })
+            .sort({ lastActiveAt: -1 })
+            .lean();
+
+        // Geo anomaly detection using frontend-provided coordinates
+        const currentGeo = deviceInfo.geoLocation;
+        const previousGeo = recentSession?.deviceInfo?.geoLocation;
+        let geoAnomaly = false;
+        if (currentGeo && previousGeo) {
+            const latDiff = Math.abs(currentGeo.latitude - previousGeo.latitude);
+            const lngDiff = Math.abs(currentGeo.longitude - previousGeo.longitude);
+            // Rough threshold: ~0.5 degrees ≈ 55 km at equator
+            geoAnomaly = latDiff > 0.5 || lngDiff > 0.5;
+        }
+
+        const riskFlags = {
+            isNewDevice: !trustedDevice,
+            isNewIP: !!recentSession && recentSession.deviceInfo?.ipAddress !== deviceInfo.ipAddress,
+            userAgentChanged: !!recentSession && recentSession.deviceInfo?.userAgent !== deviceInfo.userAgent,
+            geoAnomaly,
         };
-        await user.save({ validateBeforeSave: false });
 
-        // Generate tokens
+        const requiresExtraVerification = riskFlags.isNewDevice || riskFlags.isNewIP || riskFlags.userAgentChanged || riskFlags.geoAnomaly;
+
+        // If no extra verification needed, complete login directly
+        if (!requiresExtraVerification) {
+            // Clear OTPs and create session
+            await User.findByIdAndUpdate(user._id, {
+                $set: {
+                    "otp.emailOtp": { code: null, hash: null, expiresAt: null, verified: false, failedAttempts: 0, lockUntil: null },
+                    "otp.phoneOtp": { code: null, hash: null, expiresAt: null, verified: false, failedAttempts: 0, lockUntil: null },
+                    "otp.requestCount": 0,
+                    "otp.requestWindowStart": null,
+                },
+            });
+
+            const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
+            const accessTokenJti = jwt.decode(accessToken)?.jti || crypto.randomBytes(16).toString("hex");
+            const refreshTokenJti = jwt.decode(refreshToken)?.jti || crypto.randomBytes(16).toString("hex");
+
+            await Session.create({
+                userId: user._id,
+                status: "active",
+                accessTokenJti,
+                refreshTokenJti,
+                deviceInfo,
+                loginAt: new Date(),
+                lastActiveAt: new Date(),
+                expiresAt: new Date(Date.now() + (parseInt(process.env.ACCESS_TOKEN_EXPIRY, 10) || 1) * 24 * 60 * 60 * 1000),
+                isTrustedDevice: true,
+            });
+
+            // Send login alert if enabled
+            if (user.securitySettings?.loginAlerts !== false) {
+                sendLoginAlertEmail(user.email, user.name, deviceInfo, riskFlags).catch(() => {});
+            }
+
+            logger.info("SuperAdmin login completed (trusted device)", { email: superadminEmail, userId: user._id });
+
+            const updatedUser = await User.findById(user._id).select("-password -refreshToken -otp -verificationToken").lean();
+            return res
+                .status(200)
+                .cookie("accessToken", accessToken, getCookieOptions())
+                .cookie("refreshToken", refreshToken, getCookieOptions())
+                .json({
+                    ok: true,
+                    nextStep: "DONE",
+                    ...buildAuthResponse(updatedUser, accessToken, refreshToken, "SuperAdmin login successful"),
+                });
+        }
+
+        // Auto-trust new device and complete login; alert is sent via email instead of shown on the login panel
+        await TrustedDevice.create({
+            userId: user._id,
+            deviceFingerprintHash: deviceInfo.fingerprint,
+            deviceInfo,
+            firstSeenIp: deviceInfo.ipAddress,
+            lastSeenIp: deviceInfo.ipAddress,
+        });
+
+        // Clear OTPs and create session
+        await User.findByIdAndUpdate(user._id, {
+            $set: {
+                "otp.emailOtp": { code: null, hash: null, expiresAt: null, verified: false, failedAttempts: 0, lockUntil: null },
+                "otp.phoneOtp": { code: null, hash: null, expiresAt: null, verified: false, failedAttempts: 0, lockUntil: null },
+                "otp.requestCount": 0,
+                "otp.requestWindowStart": null,
+            },
+        });
+
         const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
-        const loggedInUser = await User.findById(user._id).select("-password -refreshToken -otp -verificationToken");
+        const accessTokenJti = jwt.decode(accessToken)?.jti || crypto.randomBytes(16).toString("hex");
+        const refreshTokenJti = jwt.decode(refreshToken)?.jti || crypto.randomBytes(16).toString("hex");
 
-        logger.info("SuperAdmin login successful", { email: superadminEmail, userId: user._id });
+        const session = await Session.create({
+            userId: user._id,
+            status: "active",
+            accessTokenJti,
+            refreshTokenJti,
+            deviceInfo,
+            loginAt: new Date(),
+            lastActiveAt: new Date(),
+            expiresAt: new Date(Date.now() + (parseInt(process.env.ACCESS_TOKEN_EXPIRY, 10) || 1) * 24 * 60 * 60 * 1000),
+            isTrustedDevice: false,
+        });
 
+        // Send login alert if enabled
+        if (user.securitySettings?.loginAlerts !== false) {
+            sendLoginAlertEmail(user.email, user.name, deviceInfo, riskFlags).catch(() => {});
+        }
+
+        logger.info("SuperAdmin login completed (new device auto-trusted, alert emailed)", { email: superadminEmail, userId: user._id });
+
+        const updatedUser = await User.findById(user._id).select("-password -refreshToken -otp -verificationToken").lean();
         return res
             .status(200)
             .cookie("accessToken", accessToken, getCookieOptions())
             .cookie("refreshToken", refreshToken, getCookieOptions())
-            .json(buildAuthResponse(loggedInUser, accessToken, refreshToken, "SuperAdmin login successful"));
+            .json({
+                ok: true,
+                nextStep: "DONE",
+                ...buildAuthResponse(updatedUser, accessToken, refreshToken, "SuperAdmin login successful"),
+            });
     } catch (error) {
-        logger.error("Verify SuperAdmin Email OTP Error", { error: error.message });
-        return res.status(500).json({ message: "Server error during OTP verification" });
+        logger.error("Complete SuperAdmin Login Error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error during login completion" });
+    }
+};
+
+/**
+ * @desc    Handle device confirmation decision (YES / NO)
+ * @route   POST /api/auth/superadmin/challenge/decision
+ * @access  Public
+ */
+exports.challengeDecision = async (req, res) => {
+    try {
+        const { challengeId, decision } = req.body;
+        if (!challengeId || !["YES", "NO"].includes(decision)) {
+            return res.status(400).json({ ok: false, message: "Invalid challengeId or decision" });
+        }
+
+        const challenge = await LoginChallenge.findById(challengeId);
+        if (!challenge || challenge.status !== "pending") {
+            return res.status(404).json({ ok: false, code: "challenge_not_found", message: "Challenge not found or already resolved" });
+        }
+        if (new Date() > challenge.expiresAt) {
+            challenge.status = "expired";
+            await challenge.save();
+            return res.status(410).json({ ok: false, code: "challenge_expired", message: "Challenge expired. Please restart login." });
+        }
+
+        const user = await User.findById(challenge.userId).select("name email role securitySettings").lean();
+        if (!user) {
+            return res.status(404).json({ ok: false, code: "user_not_found", message: "User not found" });
+        }
+
+        challenge.decision = decision;
+        challenge.decisionAt = new Date();
+
+        if (decision === "NO") {
+            challenge.status = "denied";
+            await challenge.save();
+
+            // Revoke ALL sessions for this user
+            await Session.updateMany(
+                { userId: user._id, status: "active" },
+                { $set: { status: "revoked", revokedAt: new Date(), revokedReason: "user_denied_login" } }
+            );
+
+            // Invalidate refresh tokens
+            await User.findByIdAndUpdate(user._id, { $set: { refreshToken: null } });
+
+            // Send denied alert
+            if (user.securitySettings?.loginAlerts !== false) {
+                sendDeniedLoginAlertEmail(user.email, user.name, challenge.deviceInfo, challenge.riskFlags).catch(() => {});
+            }
+
+            logger.warn("SuperAdmin denied login challenge; all sessions revoked", { userId: user._id, challengeId });
+            return res.status(200).json({ ok: true, action: "ALL_SESSIONS_REVOKED", message: "Login denied. All sessions have been logged out." });
+        }
+
+        // YES — check if security questions are configured
+        const hasSecurityQuestions = Array.isArray(user.securityQuestions) && user.securityQuestions.length >= 3;
+
+        if (!hasSecurityQuestions) {
+            // No security questions configured — trust device and complete login
+            challenge.status = "completed";
+            challenge.completedAt = new Date();
+            await challenge.save();
+
+            await TrustedDevice.create({
+                userId: user._id,
+                deviceFingerprintHash: challenge.deviceInfo.fingerprint,
+                deviceInfo: challenge.deviceInfo,
+                firstSeenIp: challenge.deviceInfo.ipAddress,
+                lastSeenIp: challenge.deviceInfo.ipAddress,
+            });
+
+            const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
+            const accessTokenJti = jwt.decode(accessToken)?.jti || crypto.randomBytes(16).toString("hex");
+            const refreshTokenJti = jwt.decode(refreshToken)?.jti || crypto.randomBytes(16).toString("hex");
+
+            const session = await Session.create({
+                userId: user._id,
+                status: "active",
+                accessTokenJti,
+                refreshTokenJti,
+                deviceInfo: challenge.deviceInfo,
+                loginAt: new Date(),
+                lastActiveAt: new Date(),
+                expiresAt: new Date(Date.now() + (parseInt(process.env.ACCESS_TOKEN_EXPIRY, 10) || 1) * 24 * 60 * 60 * 1000),
+                isTrustedDevice: true,
+            });
+            challenge.sessionId = session._id;
+            await challenge.save();
+
+            await User.findByIdAndUpdate(user._id, {
+                $set: {
+                    "otp.emailOtp": { code: null, hash: null, expiresAt: null, verified: false, failedAttempts: 0, lockUntil: null },
+                    "otp.phoneOtp": { code: null, hash: null, expiresAt: null, verified: false, failedAttempts: 0, lockUntil: null },
+                    "otp.requestCount": 0,
+                    "otp.requestWindowStart": null,
+                },
+            });
+
+            if (user.securitySettings?.loginAlerts !== false) {
+                sendLoginAlertEmail(user.email, user.name, challenge.deviceInfo, challenge.riskFlags).catch(() => {});
+            }
+
+            logger.info("SuperAdmin login completed (no security questions)", { userId: user._id });
+            const updatedUser = await User.findById(user._id).select("-password -refreshToken -otp -verificationToken").lean();
+            return res
+                .status(200)
+                .cookie("accessToken", accessToken, getCookieOptions())
+                .cookie("refreshToken", refreshToken, getCookieOptions())
+                .json({
+                    ok: true,
+                    nextStep: "DONE",
+                    ...buildAuthResponse(updatedUser, accessToken, refreshToken, "SuperAdmin login successful"),
+                });
+        }
+
+        // Security questions required
+        challenge.status = "approved";
+        await challenge.save();
+
+        // Pick 2 random questions (or all if fewer)
+        const questionsToAsk = user.securityQuestions
+            .map((sq) => ({ questionId: sq.questionId, questionText: sq.questionText }))
+            .sort(() => Math.random() - 0.5)
+            .slice(0, 2);
+
+        return res.status(200).json({
+            ok: true,
+            nextStep: "SECURITY_QUESTIONS",
+            challengeId: challenge._id,
+            questions: questionsToAsk,
+            attemptsLeft: MAX_SQ_ATTEMPTS - challenge.failedAttempts,
+        });
+    } catch (error) {
+        logger.error("Challenge Decision Error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Verify security questions for a login challenge
+ * @route   POST /api/auth/superadmin/challenge/verify-security-questions
+ * @access  Public
+ */
+exports.verifySecurityQuestions = async (req, res) => {
+    try {
+        const { challengeId, answers } = req.body;
+        if (!challengeId || !Array.isArray(answers) || answers.length === 0) {
+            return res.status(400).json({ ok: false, message: "challengeId and answers required" });
+        }
+
+        const challenge = await LoginChallenge.findById(challengeId);
+        if (!challenge || challenge.status !== "approved") {
+            return res.status(404).json({ ok: false, code: "challenge_not_found", message: "Challenge not found or not approved" });
+        }
+        if (new Date() > challenge.expiresAt) {
+            challenge.status = "expired";
+            await challenge.save();
+            return res.status(410).json({ ok: false, code: "challenge_expired", message: "Challenge expired. Please restart login." });
+        }
+        if (challenge.lockUntil && new Date() < challenge.lockUntil) {
+            const mins = Math.ceil((challenge.lockUntil.getTime() - Date.now()) / 60000);
+            return res.status(423).json({ ok: false, code: "locked", message: `Too many attempts. Try again in ${mins} minute(s).` });
+        }
+
+        const user = await User.findById(challenge.userId).select("name email role securityQuestions securitySettings").lean();
+        if (!user) {
+            return res.status(404).json({ ok: false, code: "user_not_found", message: "User not found" });
+        }
+
+        // Normalize and verify answers
+        const storedMap = new Map(user.securityQuestions.map((sq) => [sq.questionId, sq.answerHash]));
+        let allCorrect = true;
+        for (const ans of answers) {
+            const storedHash = storedMap.get(ans.questionId);
+            if (!storedHash) {
+                allCorrect = false;
+                break;
+            }
+            const normalized = String(ans.answer).trim().toLowerCase().replace(/\s+/g, " ");
+            const match = await bcrypt.compare(normalized, storedHash);
+            if (!match) {
+                allCorrect = false;
+                break;
+            }
+        }
+
+        if (!allCorrect) {
+            challenge.failedAttempts += 1;
+            if (challenge.failedAttempts >= MAX_SQ_ATTEMPTS) {
+                challenge.lockUntil = new Date(Date.now() + SQ_LOCKOUT_MINUTES * 60 * 1000);
+            }
+            await challenge.save();
+            const attemptsLeft = Math.max(0, MAX_SQ_ATTEMPTS - challenge.failedAttempts);
+            return res.status(401).json({
+                ok: false,
+                code: "INCORRECT_ANSWERS",
+                message: "One or more answers are incorrect.",
+                attemptsLeft,
+                locked: !!challenge.lockUntil,
+            });
+        }
+
+        // Success — trust device and complete login
+        challenge.status = "completed";
+        challenge.completedAt = new Date();
+        await challenge.save();
+
+        await TrustedDevice.create({
+            userId: user._id,
+            deviceFingerprintHash: challenge.deviceInfo.fingerprint,
+            deviceInfo: challenge.deviceInfo,
+            firstSeenIp: challenge.deviceInfo.ipAddress,
+            lastSeenIp: challenge.deviceInfo.ipAddress,
+        });
+
+        const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
+        const accessTokenJti = jwt.decode(accessToken)?.jti || crypto.randomBytes(16).toString("hex");
+        const refreshTokenJti = jwt.decode(refreshToken)?.jti || crypto.randomBytes(16).toString("hex");
+
+        const session = await Session.create({
+            userId: user._id,
+            status: "active",
+            accessTokenJti,
+            refreshTokenJti,
+            deviceInfo: challenge.deviceInfo,
+            loginAt: new Date(),
+            lastActiveAt: new Date(),
+            expiresAt: new Date(Date.now() + (parseInt(process.env.ACCESS_TOKEN_EXPIRY, 10) || 1) * 24 * 60 * 60 * 1000),
+            isTrustedDevice: true,
+        });
+        challenge.sessionId = session._id;
+        await challenge.save();
+
+        await User.findByIdAndUpdate(user._id, {
+            $set: {
+                "otp.emailOtp": { code: null, hash: null, expiresAt: null, verified: false, failedAttempts: 0, lockUntil: null },
+                "otp.phoneOtp": { code: null, hash: null, expiresAt: null, verified: false, failedAttempts: 0, lockUntil: null },
+                "otp.requestCount": 0,
+                "otp.requestWindowStart": null,
+            },
+        });
+
+        if (user.securitySettings?.loginAlerts !== false) {
+            sendLoginAlertEmail(user.email, user.name, challenge.deviceInfo, challenge.riskFlags).catch(() => {});
+        }
+
+        logger.info("SuperAdmin login completed via security questions", { userId: user._id });
+        const updatedUser = await User.findById(user._id).select("-password -refreshToken -otp -verificationToken").lean();
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, getCookieOptions())
+            .cookie("refreshToken", refreshToken, getCookieOptions())
+            .json({
+                ok: true,
+                nextStep: "DONE",
+                ...buildAuthResponse(updatedUser, accessToken, refreshToken, "SuperAdmin login successful"),
+            });
+    } catch (error) {
+        logger.error("Verify Security Questions Error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error during verification" });
+    }
+};
+
+/**
+ * @desc    Get predefined security questions list + user's configured questions
+ * @route   GET /api/superadmin/security-questions
+ * @access  Private (SuperAdmin)
+ */
+exports.getSecurityQuestions = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const user = await User.findById(userId).select("securityQuestions").lean();
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        const configured = (user.securityQuestions || []).map((sq) => ({
+            questionId: sq.questionId,
+            questionText: sq.questionText,
+        }));
+        return res.status(200).json({
+            success: true,
+            data: {
+                predefined: SECURITY_QUESTIONS_LIST,
+                configured,
+                isConfigured: configured.length >= 3,
+            },
+        });
+    } catch (error) {
+        logger.error("Get Security Questions Error", { error: error.message });
+        return res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Set/update security questions (requires 3+)
+ * @route   POST /api/superadmin/security-questions
+ * @access  Private (SuperAdmin)
+ */
+exports.setSecurityQuestions = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const { questions } = req.body; // [{ questionId, questionText, answer }, ...]
+
+        if (!Array.isArray(questions) || questions.length < 3) {
+            return res.status(400).json({ success: false, message: "At least 3 security questions required" });
+        }
+
+        // Validate all fields present
+        for (const q of questions) {
+            if (!q.questionId || !q.questionText || !q.answer || String(q.answer).trim().length < 2) {
+                return res.status(400).json({ success: false, message: "Each question must have an answer of at least 2 characters" });
+            }
+        }
+
+        const hashed = await Promise.all(
+            questions.map(async (q) => {
+                const normalized = String(q.answer).trim().toLowerCase().replace(/\s+/g, " ");
+                const answerHash = await bcrypt.hash(normalized, 10);
+                return {
+                    questionId: q.questionId,
+                    questionText: q.questionText,
+                    answerHash,
+                };
+            })
+        );
+
+        await User.findByIdAndUpdate(userId, { $set: { securityQuestions: hashed } });
+        logger.info("Security questions updated", { userId });
+        return res.status(200).json({ success: true, message: "Security questions updated successfully" });
+    } catch (error) {
+        logger.error("Set Security Questions Error", { error: error.message });
+        return res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Get active sessions for SuperAdmin
+ * @route   GET /api/superadmin/sessions
+ * @access  Private (SuperAdmin)
+ */
+exports.getSessions = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const sessions = await Session.find({ userId, status: "active" })
+            .sort({ lastActiveAt: -1 })
+            .select("-refreshTokenJti -accessTokenJti")
+            .lean();
+        return res.status(200).json({ success: true, data: sessions });
+    } catch (error) {
+        logger.error("Get Sessions Error", { error: error.message });
+        return res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Revoke a specific session
+ * @route   POST /api/superadmin/sessions/revoke
+ * @access  Private (SuperAdmin)
+ */
+exports.revokeSession = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const { sessionId } = req.body;
+        if (!sessionId) {
+            return res.status(400).json({ success: false, message: "sessionId required" });
+        }
+        const session = await Session.findOneAndUpdate(
+            { _id: sessionId, userId },
+            { $set: { status: "revoked", revokedAt: new Date(), revokedReason: "manual_revoke" } },
+            { new: true }
+        );
+        if (!session) {
+            return res.status(404).json({ success: false, message: "Session not found" });
+        }
+        return res.status(200).json({ success: true, message: "Session revoked" });
+    } catch (error) {
+        logger.error("Revoke Session Error", { error: error.message });
+        return res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Revoke ALL sessions for SuperAdmin (logout all devices)
+ * @route   POST /api/superadmin/sessions/revoke-all
+ * @access  Private (SuperAdmin)
+ */
+exports.revokeAllSessions = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        await Session.updateMany(
+            { userId, status: "active" },
+            { $set: { status: "revoked", revokedAt: new Date(), revokedReason: "revoke_all" } }
+        );
+        await User.findByIdAndUpdate(userId, { $set: { refreshToken: null } });
+        return res.status(200).json({ success: true, message: "All sessions revoked" });
+    } catch (error) {
+        logger.error("Revoke All Sessions Error", { error: error.message });
+        return res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Get trusted devices for SuperAdmin
+ * @route   GET /api/superadmin/trusted-devices
+ * @access  Private (SuperAdmin)
+ */
+exports.getTrustedDevices = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const devices = await TrustedDevice.find({ userId, isActive: true })
+            .sort({ lastSeenAt: -1 })
+            .lean();
+        return res.status(200).json({ success: true, data: devices });
+    } catch (error) {
+        logger.error("Get Trusted Devices Error", { error: error.message });
+        return res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Remove trust from a device
+ * @route   POST /api/superadmin/trusted-devices/remove
+ * @access  Private (SuperAdmin)
+ */
+exports.removeTrustedDevice = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const { deviceId } = req.body;
+        if (!deviceId) {
+            return res.status(400).json({ success: false, message: "deviceId required" });
+        }
+        const device = await TrustedDevice.findOneAndUpdate(
+            { _id: deviceId, userId },
+            { $set: { isActive: false } },
+            { new: true }
+        );
+        if (!device) {
+            return res.status(404).json({ success: false, message: "Device not found" });
+        }
+        return res.status(200).json({ success: true, message: "Device trust removed" });
+    } catch (error) {
+        logger.error("Remove Trusted Device Error", { error: error.message });
+        return res.status(500).json({ success: false, message: "Server error" });
     }
 };
 
@@ -942,8 +1654,19 @@ module.exports = {
     deleteUser: exports.deleteUser,
     requestProfileEditOTP: exports.requestProfileEditOTP,
     verifyProfileEditOTP: exports.verifyProfileEditOTP,
-    sendSuperadminEmailOTP: exports.sendSuperadminEmailOTP,
-    verifySuperadminEmailOTP: exports.verifySuperadminEmailOTP,
+    sendSuperadminOtp: exports.sendSuperadminOtp,
+    verifySuperadminEmailOtp: exports.verifySuperadminEmailOtp,
+    verifySuperadminPhoneOtp: exports.verifySuperadminPhoneOtp,
+    completeSuperadminLogin: exports.completeSuperadminLogin,
+    challengeDecision: exports.challengeDecision,
+    verifySecurityQuestions: exports.verifySecurityQuestions,
+    getSecurityQuestions: exports.getSecurityQuestions,
+    setSecurityQuestions: exports.setSecurityQuestions,
+    getSessions: exports.getSessions,
+    revokeSession: exports.revokeSession,
+    revokeAllSessions: exports.revokeAllSessions,
+    getTrustedDevices: exports.getTrustedDevices,
+    removeTrustedDevice: exports.removeTrustedDevice,
     // Exported for use in other controllers if needed
     generateAccessToken,
     generateRefreshToken,

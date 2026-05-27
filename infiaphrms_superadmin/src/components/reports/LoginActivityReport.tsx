@@ -1,22 +1,34 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { DataTable } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { mockLoginActivity } from "@/lib/mock-data";
+import { reportsApi } from "@/lib/api";
+import type { LoginActivity } from "@/lib/types";
 import { downloadCSV } from "@/lib/csv-export";
 import { Button } from "@/components/ui/Button";
 import { Search, Download } from "lucide-react";
 
 export function LoginActivityReport() {
   const [search, setSearch] = useState("");
+  const [activities, setActivities] = useState<LoginActivity[]>([]);
 
-  const filtered = useMemo(() => {
-    return mockLoginActivity.filter((l) => !search || l.userName.toLowerCase().includes(search.toLowerCase()) || l.ip.includes(search));
-  }, [search]);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await reportsApi.logins().catch(() => null);
+        if (!cancelled) setActivities(((res?.data || res) as unknown) as LoginActivity[]);
+      } catch {
+        // ignore
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <AdminShell>
@@ -30,7 +42,7 @@ export function LoginActivityReport() {
           <Button variant="outline" size="sm" onClick={() => downloadCSV(
             "login-activity.csv",
             ["Timestamp", "User", "Company", "IP Address", "Status"],
-            filtered.map((l) => ({
+            activities.map((l) => ({
               Timestamp: new Date(l.timestamp).toLocaleString(),
               User: l.userName,
               Company: l.companyName,
@@ -51,7 +63,7 @@ export function LoginActivityReport() {
             { key: "ip", header: "IP Address", cell: (l) => l.ip },
             { key: "status", header: "Status", cell: (l) => <Badge variant={l.status === "success" ? "success" : l.status === "failed" ? "warning" : "error"}>{l.status}</Badge> },
           ]}
-          data={filtered}
+          data={activities}
           keyExtractor={(l) => l.id}
           emptyState={<EmptyState title="No login activity" description="No events match your search." />}
         />

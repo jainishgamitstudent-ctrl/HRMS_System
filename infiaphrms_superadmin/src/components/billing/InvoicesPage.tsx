@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
@@ -11,7 +11,8 @@ import { FilterBar } from "@/components/ui/FilterBar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { mockInvoices, mockCompanies } from "@/lib/mock-data";
+import { billingApi, companiesApi } from "@/lib/api";
+import type { Invoice, Company } from "@/lib/types";
 import { Search, Download } from "lucide-react";
 import { downloadCSV } from "@/lib/csv-export";
 
@@ -21,22 +22,36 @@ export function InvoicesPage() {
   const [companyFilter, setCompanyFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [meta, setMeta] = useState<{ total: number } | null>(null);
 
-  const filtered = useMemo(() => {
-    return mockInvoices.filter((i) => {
-      const matchesSearch = !search || i.id.toLowerCase().includes(search.toLowerCase()) || i.companyName.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = !statusFilter || i.status === statusFilter;
-      const matchesCompany = !companyFilter || i.companyId === companyFilter;
-      return matchesSearch && matchesStatus && matchesCompany;
-    });
-  }, [search, statusFilter, companyFilter]);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [invRes, compRes] = await Promise.all([
+          billingApi.listInvoices({ page, limit: pageSize, status: statusFilter || undefined, company_id: companyFilter || undefined }).catch(() => null),
+          companiesApi.list({ limit: 1000 }).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setInvoices(((invRes?.data || invRes) as unknown) as Invoice[]);
+        setMeta(invRes?.meta || null);
+        setCompanies(((compRes?.companies || []) as unknown) as Company[]);
+      } catch {
+        // ignore
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [page, pageSize, statusFilter, companyFilter]);
 
-  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = meta ? Math.ceil(meta.total / pageSize) : 1;
+  const totalItems = meta?.total || invoices.length;
 
   const activeFilters = [
     ...(statusFilter ? [{ key: "status", label: "Status", value: statusFilter }] : []),
-    ...(companyFilter ? [{ key: "company", label: "Company", value: mockCompanies.find(c => c.id === companyFilter)?.name || companyFilter }] : []),
+    ...(companyFilter ? [{ key: "company", label: "Company", value: companies.find(c => c.id === companyFilter)?.name || companyFilter }] : []),
   ];
 
   return (
@@ -51,7 +66,7 @@ export function InvoicesPage() {
           <Button variant="outline" size="sm" onClick={() => downloadCSV(
             "invoices.csv",
             ["Invoice ID", "Company", "Amount", "Status", "Date", "Due Date"],
-            filtered.map((i) => ({
+            invoices.map((i) => ({
               "Invoice ID": i.id.toUpperCase(),
               Company: i.companyName,
               Amount: `₹${i.amount}`,
@@ -80,11 +95,11 @@ export function InvoicesPage() {
             { key: "issued", header: "Issued", cell: (i) => new Date(i.date).toLocaleDateString(), sortable: true },
             { key: "due", header: "Due Date", cell: (i) => new Date(new Date(i.date).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(), sortable: true },
           ]}
-          data={paginated}
+          data={invoices}
           keyExtractor={(i) => i.id}
           emptyState={<EmptyState title="No invoices found" description="No invoices match your filters." />}
         />
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} totalItems={filtered.length} />
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} totalItems={totalItems} />
       </div>
     </AdminShell>
   );

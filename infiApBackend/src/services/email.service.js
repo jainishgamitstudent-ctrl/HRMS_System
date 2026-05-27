@@ -1,51 +1,54 @@
+const sendEmail = require('../utils/sendEmail');
 const logger = require('../utils/logger');
 
-const RESEND_API_URL = process.env.RESEND_API_URL || "https://api.resend.com/emails";
-const DEFAULT_FROM_EMAIL = "InfiAP HRMS <onboarding@resend.dev>";
+const DEFAULT_FROM_EMAIL = "InfiAP HRMS <support@infiap.com>";
 
 const isConfiguredForEmail = () => {
-    const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_EMAIL;
+    const host = process.env.SMTP_HOST;
+    const port = process.env.SMTP_PORT;
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
 
-    if (!apiKey || !fromEmail) {
+    if (!host || !port || !user || !pass) {
         return false;
     }
 
-    const placeholderValues = [apiKey, fromEmail].some((value) =>
+    const placeholderValues = [host, user, pass].some((value) =>
         typeof value === "string" &&
-        (value.includes("your_resend") || value.includes("example.com"))
+        (value.includes("example.com") || value.includes("your_") || value.includes("placeholder"))
     );
 
     return !placeholderValues;
 };
 
-const sendEmail = async ({ to, subject, html }) => {
-    if (!isConfiguredForEmail()) {
-        logger.warn("Resend not configured. Skipping email delivery.");
-        return false;
-    }
+const buildSecurityCodeEmail = (name, code, contextLine, actionText, extraContent = "") => {
+    return `
+        <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1c1e21;">
+            <p style="font-size: 16px; line-height: 1.5;">Hi ${name || "there"},</p>
+            <p style="font-size: 16px; line-height: 1.5;">${contextLine}</p>
+            <p style="font-size: 32px; font-weight: bold; letter-spacing: 6px; margin: 24px 0;">${code}</p>
+            <p style="font-size: 16px; font-weight: bold; color: #1c1e21;">Don't share this code with anyone.</p>
 
-    const response = await fetch(RESEND_API_URL, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            from: process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_EMAIL,
-            to: Array.isArray(to) ? to : [to],
-            subject,
-            html,
-        }),
-    });
+            <div style="margin-top: 24px;">
+                <p style="font-size: 16px; font-weight: bold; color: #1c1e21; margin-bottom: 4px;">If someone asks for this code</p>
+                <p style="font-size: 14px; color: #606770; line-height: 1.5;">Don't share this code with anyone, especially if they tell you that they work for InfiAP. They may be trying to hack your account.</p>
+            </div>
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        logger.error("Resend API error", { error: errorText });
-        throw new Error("Could not send email");
-    }
+            <div style="margin-top: 24px;">
+                <p style="font-size: 16px; font-weight: bold; color: #1c1e21; margin-bottom: 4px;">Didn't request this?</p>
+                <p style="font-size: 14px; color: #606770; line-height: 1.5;">If you got this email, but aren't trying to ${actionText}, let us know. You don't need to take any further steps, as long as you don't share this code with anyone.</p>
+            </div>
 
-    return true;
+            <p style="font-size: 16px; line-height: 1.5; margin-top: 24px;">Thanks,<br>InfiAP Security</p>
+
+            ${extraContent}
+
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dadde1;">
+                <p style="font-size: 12px; color: #8a8d91;">This message was sent to the email address associated with your account.</p>
+                <p style="font-size: 12px; color: #8a8d91;">To help keep your account secure, please don't forward this email.</p>
+            </div>
+        </div>
+    `;
 };
 
 const sendVerificationEmail = async (email, token) => {
@@ -62,35 +65,37 @@ const sendVerificationEmail = async (email, token) => {
             `,
         });
 
-        if (emailSent) {
+        if (emailSent && emailSent.success) {
             logger.info("Verification email sent", { email });
+            return true;
         }
 
-        return emailSent;
+        throw new Error(emailSent?.error || "Could not send verification email");
     } catch (error) {
         logger.error("Error sending verification email", { error: error.message });
         throw new Error("Could not send verification email");
     }
 };
 
-const sendLoginOTPEmail = async (email, otp) => {
+const sendLoginOTPEmail = async (email, otp, name = "") => {
     try {
         const emailSent = await sendEmail({
             to: email,
             subject: "Your InfiAP login verification code",
-            html: `
-                <h1>Secure Login Code</h1>
-                <p>Your 6-digit verification code is:</p>
-                <h2 style="letter-spacing: 4px;">${otp}</h2>
-                <p>This code will expire in 10 minutes.</p>
-            `,
+            html: buildSecurityCodeEmail(
+                name,
+                otp,
+                "We got a request to log in to your InfiAP account. Enter this code:",
+                "log in to your account"
+            ),
         });
 
-        if (emailSent) {
+        if (emailSent && emailSent.success) {
             logger.info("Login OTP email sent", { email });
+            return true;
         }
 
-        return emailSent;
+        throw new Error(emailSent?.error || "Could not send login OTP email");
     } catch (error) {
         logger.error("Error sending login OTP email", { error: error.message });
         throw new Error("Could not send login OTP email");
@@ -117,47 +122,34 @@ const sendBookingConfirmationEmail = async (email, name, date) => {
     }
 };
 
-const sendPasswordResetEmail = async (email, resetToken) => {
+const sendPasswordResetEmail = async (email, resetToken, name = "") => {
     try {
         const resetLink = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
+        const extraContent = `
+            <div style="margin-top: 24px; padding: 16px; background-color: #f3f4f6; border-radius: 8px;">
+                <p style="font-size: 14px; color: #4b5563; margin-bottom: 8px;">Click below to reset your password using this code:</p>
+                <a href="${resetLink}" style="display: inline-block; padding: 12px 24px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">Reset Password</a>
+                <p style="font-size: 12px; color: #6b7280; margin-top: 8px; word-break: break-all;">${resetLink}</p>
+            </div>
+        `;
         const emailSent = await sendEmail({
             to: email,
             subject: "Password Reset - InfiAP HRMS",
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
-                    <h1 style="color: #1f2937; font-size: 24px; margin-bottom: 16px;">Reset Your Password</h1>
-                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        We received a request to reset your password for your InfiAP HRMS account.
-                    </p>
-                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Click the button below to reset your password. This link will expire in 1 hour.
-                    </p>
-                    <div style="text-align: center; margin: 32px 0;">
-                        <a href="${resetLink}" 
-                           style="display: inline-block; padding: 14px 32px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                            Reset Password
-                        </a>
-                    </div>
-                    <p style="color: #6b7280; font-size: 14px; line-height: 1.5;">
-                        Or copy and paste this link into your browser:
-                    </p>
-                    <p style="color: #4f46e5; font-size: 14px; word-break: break-all;">${resetLink}</p>
-                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-                    <p style="color: #9ca3af; font-size: 13px;">
-                        If you didn't request a password reset, you can safely ignore this email. Your password will not be changed.
-                    </p>
-                    <p style="color: #9ca3af; font-size: 13px; margin-top: 8px;">
-                        InfiAP Tech Solutions
-                    </p>
-                </div>
-            `,
+            html: buildSecurityCodeEmail(
+                name,
+                resetToken,
+                "We got a request to reset your password for your InfiAP account. Enter this code:",
+                "reset your password",
+                extraContent
+            ),
         });
 
-        if (emailSent) {
+        if (emailSent && emailSent.success) {
             logger.info("Password reset email sent", { email });
+            return true;
         }
 
-        return emailSent;
+        throw new Error(emailSent?.error || "Could not send password reset email");
     } catch (error) {
         logger.error("Error sending password reset email", { error: error.message });
         throw new Error("Could not send password reset email");
@@ -191,32 +183,21 @@ const sendHrLoginOTPEmail = async (adminEmail, otp, hrName) => {
         const emailSent = await sendEmail({
             to: adminEmail,
             subject: "HR Login Verification Code - InfiAP HRMS",
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
-                    <h1 style="color: #1f2937; font-size: 24px; margin-bottom: 16px;">HR Login Verification</h1>
-                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        An HR user <strong>${hrName}</strong> is attempting to log in for the first time.
-                    </p>
-                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Please share this 6-digit verification code with them:
-                    </p>
-                    <h2 style="letter-spacing: 4px; color: #4f46e5; font-size: 32px; margin: 24px 0;">${otp}</h2>
-                    <p style="color: #6b7280; font-size: 14px; line-height: 1.5;">
-                        This code will expire in 10 minutes.
-                    </p>
-                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-                    <p style="color: #9ca3af; font-size: 13px;">
-                        If you did not create this HR account, please review your admin dashboard immediately.
-                    </p>
-                </div>
-            `,
+            html: buildSecurityCodeEmail(
+                "",
+                otp,
+                `An HR user <strong>${hrName}</strong> is attempting to log in for the first time. Please share this verification code with them:`,
+                "approve this login",
+                `<p style="font-size: 14px; color: #606770; line-height: 1.5; margin-top: 16px;">If you did not create this HR account, please review your admin dashboard immediately.</p>`
+            ),
         });
 
-        if (emailSent) {
+        if (emailSent && emailSent.success) {
             logger.info("HR login OTP email sent to admin", { adminEmail, hrName });
+            return true;
         }
 
-        return emailSent;
+        throw new Error(emailSent?.error || "Could not send HR login OTP email");
     } catch (error) {
         logger.error("Error sending HR login OTP email to admin", { error: error.message });
         throw new Error("Could not send HR login OTP email");
@@ -228,38 +209,27 @@ const sendProfileEditOTPEmail = async (targetEmail, otp, editorName, targetName,
         const subject = isSelfEdit
             ? "Profile Update Verification Code - InfiAP HRMS"
             : `Profile Edit Verification - InfiAP HRMS`;
-        const actionText = isSelfEdit
-            ? "You have requested to update your profile."
-            : `<strong>${editorName}</strong> is attempting to edit your profile.`;
+        const contextLine = isSelfEdit
+            ? "We got a request to update your profile. Enter this code:"
+            : `We got a request from <strong>${editorName}</strong> to edit your profile. Enter this code:`;
         const emailSent = await sendEmail({
             to: targetEmail,
             subject,
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
-                    <h1 style="color: #1f2937; font-size: 24px; margin-bottom: 16px;">Profile Update Verification</h1>
-                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        ${actionText}
-                    </p>
-                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        To authorize these changes, please use the following 6-digit verification code:
-                    </p>
-                    <h2 style="letter-spacing: 4px; color: #4f46e5; font-size: 32px; margin: 24px 0;">${otp}</h2>
-                    <p style="color: #6b7280; font-size: 14px; line-height: 1.5;">
-                        This code will expire in 10 minutes.
-                    </p>
-                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-                    <p style="color: #9ca3af; font-size: 13px;">
-                        If you did not request this change, please contact your administrator immediately.
-                    </p>
-                </div>
-            `,
+            html: buildSecurityCodeEmail(
+                targetName,
+                otp,
+                contextLine,
+                isSelfEdit ? "update your profile" : "authorize these profile changes",
+                `<p style="font-size: 14px; color: #606770; line-height: 1.5; margin-top: 16px;">If you did not request this change, please contact your administrator immediately.</p>`
+            ),
         });
 
-        if (emailSent) {
+        if (emailSent && emailSent.success) {
             logger.info("Profile edit OTP email sent to target user", { targetEmail, editorName, targetName, isSelfEdit });
+            return true;
         }
 
-        return emailSent;
+        throw new Error(emailSent?.error || "Could not send profile edit OTP email");
     } catch (error) {
         logger.error("Error sending profile edit OTP email", { error: error.message });
         throw new Error("Could not send profile edit OTP email");
@@ -313,39 +283,134 @@ const sendInterviewScheduledEmail = async (email, name, details) => {
         `;
 
         const sent = await sendEmail({ to: email, subject: "Interview Scheduled - InfiAP HRMS", html });
-        if (sent) logger.info("Interview scheduled email sent", { email });
-        return sent;
+        if (sent && sent.success) {
+            logger.info("Interview scheduled email sent", { email });
+            return true;
+        }
+        return false;
     } catch (error) {
         logger.error("Error sending interview scheduled email", { error: error.message });
         return false;
     }
 };
 
-const sendSuperadminOTPEmail = async (email, otp) => {
+const sendSuperadminOTPEmail = async (email, otp, name = "") => {
     try {
         const emailSent = await sendEmail({
             to: email,
             subject: `Your SuperAdmin verification code - InfiAP HRMS`,
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
-                    <h1 style="color: #1f2937; font-size: 24px; margin-bottom: 16px;">SuperAdmin Secure Login</h1>
-                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-                        Your verification code is:
-                    </p>
-                    <h2 style="letter-spacing: 6px; color: #2563eb; font-size: 32px; text-align: center; padding: 16px; background: #f3f4f6; border-radius: 8px; margin: 20px 0;">${otp}</h2>
-                    <p style="color: #6b7280; font-size: 14px;">This code will expire in 10 minutes.</p>
-                </div>
-            `,
+            html: buildSecurityCodeEmail(
+                name,
+                otp,
+                "We got a request to log in to your SuperAdmin account. Enter this code:",
+                "log in to your SuperAdmin account"
+            ),
         });
 
-        if (emailSent) {
+        if (emailSent && emailSent.success) {
             logger.info("SuperAdmin OTP email sent", { email });
+            return true;
         }
 
-        return emailSent;
+        throw new Error(emailSent?.error || "Could not send SuperAdmin OTP email");
     } catch (error) {
         logger.error("Error sending SuperAdmin OTP email", { error: error.message });
         throw new Error("Could not send SuperAdmin OTP email");
+    }
+};
+
+const buildLoginAlertEmail = (name, deviceInfo, time, riskFlags, isDenied = false) => {
+    const deviceDisplay = `${deviceInfo.browser} on ${deviceInfo.os} (${deviceInfo.deviceType})`;
+    const riskText = Object.entries(riskFlags || {})
+        .filter(([, v]) => v)
+        .map(([k]) => k.replace(/([A-Z])/g, " $1").toLowerCase())
+        .join(", ") || "None";
+
+    const geoRow = deviceInfo.geoLocation
+        ? `<tr><td style="color: #6b7280;">Geo Coordinates</td><td style="color: #1f2937; font-weight: 500;">${deviceInfo.geoLocation.latitude}, ${deviceInfo.geoLocation.longitude}</td></tr>`
+        : "";
+
+    const title = isDenied ? "Security alert: login attempt denied" : "New login to your SuperAdmin account";
+    const color = isDenied ? "#dc2626" : "#4f46e5";
+    const actionText = isDenied
+        ? "A login attempt was denied and all your active sessions have been logged out for security."
+        : "We noticed a new login to your SuperAdmin account.";
+
+    const securityUrl = `${process.env.CLIENT_URL || ""}/superadmin/settings/security`;
+
+    return `
+        <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1c1e21;">
+            <div style="text-align: center; margin-bottom: 24px;">
+                <h1 style="color: ${color}; font-size: 20px; margin: 0;">${title}</h1>
+            </div>
+            <p style="font-size: 16px; line-height: 1.5;">Hi ${name || "there"},</p>
+            <p style="font-size: 16px; line-height: 1.5;">${actionText}</p>
+
+            <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <table style="width: 100%; font-size: 14px; line-height: 1.6;">
+                    <tr><td style="color: #6b7280; width: 120px;">Time</td><td style="color: #1f2937; font-weight: 500;">${time}</td></tr>
+                    <tr><td style="color: #6b7280;">Device</td><td style="color: #1f2937; font-weight: 500;">${deviceDisplay}</td></tr>
+                    <tr><td style="color: #6b7280;">IP Address</td><td style="color: #1f2937; font-weight: 500;">${deviceInfo.ipAddress || "Unknown"}</td></tr>
+                    <tr><td style="color: #6b7280;">Location</td><td style="color: #1f2937; font-weight: 500;">${deviceInfo.location || "Unknown"}</td></tr>
+                    ${geoRow}
+                    <tr><td style="color: #6b7280;">Risk flags</td><td style="color: #1f2937; font-weight: 500;">${riskText}</td></tr>
+                </table>
+            </div>
+
+            ${isDenied ? `
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <p style="font-size: 14px; color: #991b1b; margin: 0; font-weight: 600;">What should you do?</p>
+                <p style="font-size: 14px; color: #7f1d1d; margin: 8px 0 0;">If you did not make this request, change your password immediately and review your active sessions.</p>
+            </div>
+            ` : ""}
+
+            <div style="text-align: center; margin: 24px 0;">
+                <a href="${securityUrl}" style="display: inline-block; padding: 12px 24px; background-color: ${color}; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">Review Sessions & Devices</a>
+            </div>
+
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dadde1;">
+                <p style="font-size: 12px; color: #8a8d91;">This message was sent to the email address associated with your account.</p>
+                <p style="font-size: 12px; color: #8a8d91;">To help keep your account secure, please don't forward this email.</p>
+            </div>
+        </div>
+    `;
+};
+
+const sendLoginAlertEmail = async (email, name, deviceInfo, riskFlags) => {
+    try {
+        const time = new Date().toLocaleString("en-US", { timeZoneName: "short" });
+        const emailSent = await sendEmail({
+            to: email,
+            subject: "New login to your SuperAdmin account",
+            html: buildLoginAlertEmail(name, deviceInfo, time, riskFlags),
+        });
+        if (emailSent && emailSent.success) {
+            logger.info("Login alert email sent", { email });
+            return true;
+        }
+        return false;
+    } catch (error) {
+        logger.error("Error sending login alert email", { error: error.message });
+        return false;
+    }
+};
+
+const sendDeniedLoginAlertEmail = async (email, name, deviceInfo, riskFlags) => {
+    try {
+        const time = new Date().toLocaleString("en-US", { timeZoneName: "short" });
+        const emailSent = await sendEmail({
+            to: email,
+            subject: "Security alert: login attempt denied — sessions logged out",
+            html: buildLoginAlertEmail(name, deviceInfo, time, riskFlags, true),
+        });
+        if (emailSent && emailSent.success) {
+            logger.info("Denied login alert email sent", { email });
+            return true;
+        }
+        return false;
+    } catch (error) {
+        logger.error("Error sending denied login alert email", { error: error.message });
+        return false;
     }
 };
 
@@ -359,5 +424,7 @@ module.exports = {
     sendProfileEditOTPEmail,
     sendInterviewScheduledEmail,
     sendSuperadminOTPEmail,
+    sendLoginAlertEmail,
+    sendDeniedLoginAlertEmail,
     isConfiguredForEmail,
 };

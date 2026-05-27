@@ -112,6 +112,13 @@ const userSchema = new mongoose.Schema(
             enum: ["Compliant", "Verified", "Under Review", "Action Required"],
             default: "Compliant"
         },
+        securityQuestions: [
+            {
+                questionId: { type: String, required: true },
+                questionText: { type: String, required: true },
+                answerHash: { type: String, required: true },
+            }
+        ],
         securitySettings: {
             twoFactorEnabled: {
                 type: Boolean,
@@ -175,6 +182,14 @@ const userSchema = new mongoose.Schema(
                 failedAttempts: { type: Number, default: 0 },
                 lockUntil: { type: Date, default: null },
             },
+            phoneOtp: {
+                code: { type: String, default: null },
+                hash: { type: String, default: null },
+                expiresAt: { type: Date, default: null },
+                verified: { type: Boolean, default: false },
+                failedAttempts: { type: Number, default: 0 },
+                lockUntil: { type: Date, default: null },
+            },
             requestCount: { type: Number, default: 0 },
             requestWindowStart: { type: Date, default: null },
         },
@@ -182,6 +197,7 @@ const userSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+userSchema.index({ email: 1, role: 1 });
 userSchema.index({ role: 1, status: 1 });
 userSchema.index({ department: 1 });
 userSchema.index({ dob: 1 });

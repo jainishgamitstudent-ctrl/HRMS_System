@@ -8,16 +8,48 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { useToast } from "@/components/providers/ToastProvider";
 import { showDeleteConfirm } from "@/lib/sweetalert";
-import { mockRoles } from "@/lib/mock-data";
+import { rolesApi } from "@/lib/api";
+import type { Role } from "@/lib/types";
 import { KeyRound, Plus, Users, Trash2, Edit } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 
 export function RolesPage() {
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loading, setLoading] = useState(true);
   const { addToast } = useToast();
 
-  const systemRoles = mockRoles.filter((r) => r.isSystem);
-  const customRoles = mockRoles.filter((r) => !r.isSystem);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await rolesApi.list().catch(() => []);
+        if (!cancelled) setRoles((res as unknown) as Role[]);
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const systemRoles = roles.filter((r) => r.isSystem);
+  const customRoles = roles.filter((r) => !r.isSystem);
+
+  async function handleDelete(role: Role) {
+    const result = await showDeleteConfirm(role.name, "Delete", "Cancel");
+    if (result.isConfirmed) {
+      try {
+        await rolesApi.remove(role.id);
+        addToast({ title: "Role deleted", type: "success" });
+        setRoles((prev) => prev.filter((r) => r.id !== role.id));
+      } catch (err: any) {
+        addToast({ title: err.message || "Failed to delete role", type: "error" });
+      }
+    }
+  }
 
   return (
     <AdminShell>
@@ -75,10 +107,7 @@ export function RolesPage() {
                   <p className="text-sm text-muted-foreground mt-1">{r.description}</p>
                   <div className="flex items-center gap-2 mt-4">
                     <Link href={`/roles/${r.id}`}><Button variant="outline" size="sm"><Edit className="h-3.5 w-3.5 mr-1" /> Edit</Button></Link>
-                    <Button variant="outline" size="sm" onClick={async () => {
-                      const result = await showDeleteConfirm(r.name, "Delete", "Cancel");
-                      if (result.isConfirmed) addToast({ title: "Role deleted", type: "success" });
-                    }}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDelete(r)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
                   </div>
                 </CardContent>
               </Card>
