@@ -131,10 +131,17 @@ export function useGeolocationGate() {
       if (activeRef.current) {
         activeRef.current = false;
         clearTimers();
+        // Re-query permission after success so UI reflects reality
+        let updatedPermission = permission;
+        try {
+          updatedPermission = await getPermissionState();
+        } catch {
+          updatedPermission = "unknown";
+        }
         setState((prev) => ({
           ...prev,
           status: "granted",
-          permissionState: permission === "unknown" ? "granted" : permission,
+          permissionState: updatedPermission === "unknown" ? "granted" : updatedPermission,
           coords: result,
           error: null,
           attempts: result.attempt,
@@ -165,9 +172,16 @@ export function useGeolocationGate() {
       activeRef.current = false;
       clearTimers();
       const normalized = normalizeGeolocationError(err);
+      // Re-query permission after failure — user may have just changed it
+      let updatedPermission = permission;
+      try {
+        updatedPermission = await getPermissionState();
+      } catch {
+        updatedPermission = "unknown";
+      }
       setState({
         status: normalized.code === "PERMISSION_DENIED" ? "denied" : "error",
-        permissionState: normalized.code === "PERMISSION_DENIED" ? "denied" : permission,
+        permissionState: normalized.code === "PERMISSION_DENIED" ? "denied" : updatedPermission,
         coords: null,
         error: normalized,
         attempts: 2,
@@ -184,6 +198,6 @@ export function useGeolocationGate() {
     requestLocation,
     reset,
     isReady: state.status === "granted" && !!state.coords,
-    isBlocked: state.status === "denied" || state.status === "unavailable" || state.status === "error",
+    isBlocked: state.status === "denied" || state.status === "unavailable",
   };
 }

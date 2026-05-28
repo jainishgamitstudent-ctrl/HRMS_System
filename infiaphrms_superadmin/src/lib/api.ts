@@ -17,9 +17,15 @@ async function apiFetch(path: string, options?: RequestInit) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    if ((res.status === 401 || res.status === 403) && path.includes("/superadmin/unlock/") && typeof window !== "undefined") {
+      localStorage.removeItem("infiap_superadmin_auth");
+      sessionStorage.removeItem("infiap_superadmin_locked");
+      window.location.assign("/session-timeout");
+    }
     const error = new Error(data.message || `HTTP ${res.status}`);
     (error as any).status = res.status;
     (error as any).data = data;
+    (error as any).code = data.error || data.code;
     throw error;
   }
 
@@ -59,6 +65,11 @@ async function saFetch<T = any>(path: string, options?: RequestInit): Promise<T>
   const body = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    if ((res.status === 401 || res.status === 403) && typeof window !== "undefined") {
+      localStorage.removeItem("infiap_superadmin_auth");
+      sessionStorage.removeItem("infiap_superadmin_locked");
+      window.location.assign("/session-timeout");
+    }
     const err = new Error(body.error?.message || body.message || `HTTP ${res.status}`);
     (err as any).status = res.status;
     (err as any).code = body.error?.code;
@@ -89,6 +100,24 @@ export const authApi = {
 
   verifySuperadminEmailOtp: (otp: string) =>
     apiFetch("/auth/superadmin/verify-email-otp", {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+
+  sendSuperadminRecoveryOtp: () =>
+    apiFetch("/auth/superadmin/recovery/send-otp", { method: "POST" }),
+
+  verifySuperadminRecoveryOtp: (otp: string) =>
+    apiFetch("/auth/superadmin/recovery/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+
+  sendSuperadminUnlockOtp: () =>
+    apiFetch("/auth/superadmin/unlock/send-otp", { method: "POST" }),
+
+  verifySuperadminUnlockOtp: (otp: string) =>
+    apiFetch("/auth/superadmin/unlock/verify-otp", {
       method: "POST",
       body: JSON.stringify({ otp }),
     }),
@@ -295,6 +324,39 @@ export const settingsApi = {
     saFetch<void>("/profile/password", { method: "PUT", body: JSON.stringify({ current_password, new_password }) }),
 
   uploadAvatar: (formData: FormData) => saFetch<{ avatar_url: string }>("/profile/avatar", { method: "POST", body: formData }),
+
+  changeEmail: (email: string) => saFetch<Record<string, unknown>>("/profile", { method: "PUT", body: JSON.stringify({ email }) }),
+
+  requestEmailChange: (email: string) =>
+    saFetch<{ ok: boolean; maskedCurrentEmail: string; expiresInSeconds: number; devOtp?: string }>("/profile/email/request-change", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  confirmEmailChange: (otp: string) =>
+    saFetch<{ ok: boolean; email: string; maskedEmail: string }>("/profile/email/confirm-change", {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+
+  updateRecoveryEmail: (recoveryEmail: string) => saFetch<Record<string, unknown>>("/profile", { method: "PUT", body: JSON.stringify({ recoveryEmail }) }),
+
+  getRecoveryEmailStatus: () =>
+    saFetch<{ ok: boolean; maskedPrimaryEmail: string; maskedRecoveryEmail: string | null; hasPendingChange: boolean; maskedPendingEmail: string | null }>("/recovery-email"),
+
+  requestRecoveryEmailChange: (recoveryEmail: string) =>
+    saFetch<{ ok: boolean; message: string; maskedPrimaryEmail: string; expiresInSeconds: number; devOtp?: string }>("/recovery-email/request-change", {
+      method: "POST",
+      body: JSON.stringify({ recoveryEmail }),
+    }),
+
+  confirmRecoveryEmailChange: (otp: string) =>
+    saFetch<{ ok: boolean; message: string; recoveryEmail: string; recoveryEmailMasked: string }>("/recovery-email/confirm-change", {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+
+  deleteAccount: () => saFetch<void>("/profile", { method: "DELETE" }),
 
   setup2fa: () => saFetch<{ secret: string; qr_code_uri: string }>("/profile/2fa/setup", { method: "POST" }),
 

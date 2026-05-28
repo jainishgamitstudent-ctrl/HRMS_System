@@ -8,6 +8,7 @@ import { mockNotifications } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { showConfirm } from "@/lib/sweetalert";
+import { API_ORIGIN } from "@/lib/api";
 
 const dropdownVariants = {
   hidden: { opacity: 0, scale: 0.97, y: -4 },
@@ -31,12 +32,27 @@ export function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const { logout } = useAuth();
+  const [failedAvatarSrc, setFailedAvatarSrc] = useState<string | null>(null);
+  const { user, logout } = useAuth();
 
   const unreadCount = mockNotifications.filter((n) => !n.read).length;
+  const displayName = user?.name || "Super Admin";
+  const displayEmail = user?.email || "superadmin@infiap.com";
+  const initials = displayName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "SA";
+  const rawAvatarSrc = user?.profileImage
+    ? user.profileImage.startsWith("data:") || user.profileImage.startsWith("http")
+      ? user.profileImage
+      : `${API_ORIGIN}${user.profileImage}`
+    : null;
+  const avatarSrc = rawAvatarSrc && rawAvatarSrc !== failedAvatarSrc ? rawAvatarSrc : null;
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card/80 backdrop-blur-md px-4 lg:px-6">
+    <header className="shrink-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card/80 backdrop-blur-md px-4 lg:px-6">
       <div className="flex items-center gap-4 flex-1">
         <motion.button
           whileHover={{ scale: 1.005 }}
@@ -129,9 +145,18 @@ export function Header() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.92 }}
             onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold hover:opacity-90"
+            className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground text-sm font-bold hover:opacity-90"
           >
-            SA
+            {avatarSrc ? (
+              <img
+                src={avatarSrc}
+                alt={displayName}
+                className="h-full w-full object-cover"
+                onError={() => setFailedAvatarSrc(avatarSrc)}
+              />
+            ) : (
+              initials
+            )}
           </motion.button>
           <AnimatePresence>
             {userMenuOpen && (
@@ -152,8 +177,8 @@ export function Header() {
                   style={{ willChange: "opacity, transform" }}
                 >
                   <div className="px-3 py-2 border-b border-border">
-                    <p className="text-sm font-medium">Super Admin</p>
-                    <p className="text-xs text-muted-foreground">superadmin@infiap.com</p>
+                    <p className="text-sm font-medium">{displayName}</p>
+                    <p className="text-xs text-muted-foreground">{displayEmail}</p>
                   </div>
                   <Link href="/settings/profile" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
                     <User className="h-4 w-4" /> Profile

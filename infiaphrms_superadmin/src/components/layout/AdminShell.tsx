@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useInactivityLock } from "@/hooks/useInactivityLock";
+import { InactivityLockOverlay } from "@/components/security/InactivityLockOverlay";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const [collapsed, setCollapsed] = useState(false);
+  const inactivity = useInactivityLock(isAuthenticated);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -49,12 +54,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar />
-      <div className="lg:ml-64">
+    <div className="h-screen overflow-hidden bg-background">
+      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+      <div className={cn(collapsed ? "lg:ml-16" : "lg:ml-64", "flex flex-col h-full")}>
         <Header />
-        <main className="p-4 lg:p-6 max-w-7xl mx-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 max-w-7xl mx-auto w-full">{children}</main>
       </div>
+      <InactivityLockOverlay locked={inactivity.locked} onUnlocked={inactivity.unlock} />
     </div>
   );
 }

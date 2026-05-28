@@ -8,6 +8,8 @@ interface AuthUser {
   id: string;
   email: string;
   name: string;
+  phone?: string;
+  profileImage?: string | null;
 }
 
 interface SendOtpResult {
@@ -19,6 +21,9 @@ interface SendOtpResult {
   phone?: string;
   expiresInSeconds?: number;
   cooldownSeconds?: number;
+  locked?: boolean;
+  lockedUntil?: string;
+  remainingSeconds?: number;
 }
 
 interface VerifyResult {
@@ -26,12 +31,18 @@ interface VerifyResult {
   message: string;
   emailVerified?: boolean;
   phoneVerified?: boolean;
+  locked?: boolean;
+  lockedUntil?: string;
+  remainingSeconds?: number;
 }
 
 interface CompleteLoginResult {
   success: boolean;
   message: string;
   nextStep?: "DONE";
+  locked?: boolean;
+  lockedUntil?: string;
+  remainingSeconds?: number;
 }
 
 interface AuthContextType {
@@ -44,6 +55,11 @@ interface AuthContextType {
   completeLogin: (
     geo?: { latitude: number; longitude: number; address?: string; city?: string; state?: string; country?: string }
   ) => Promise<CompleteLoginResult>;
+  sendRecoveryOtp: () => Promise<SendOtpResult>;
+  verifyRecoveryOtp: (otp: string) => Promise<CompleteLoginResult>;
+  sendUnlockOtp: () => Promise<SendOtpResult>;
+  verifyUnlockOtp: (otp: string) => Promise<VerifyResult>;
+  updateUser: (updates: Partial<AuthUser>) => void;
   logout: () => void;
 }
 
@@ -67,16 +83,43 @@ function getStoredUser(): AuthUser | null {
   }
 }
 
+function getStoredAccessToken(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw);
+    return parsed.accessToken || parsed.access_token || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function setStoredUser(user: AuthUser | null, accessToken?: string) {
   if (typeof window === "undefined") return;
   if (!user) {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     return;
   }
+  const existingToken = accessToken ?? getStoredAccessToken();
   localStorage.setItem(
     AUTH_STORAGE_KEY,
-    JSON.stringify({ user, accessToken, expiresAt: Date.now() + 24 * 60 * 60 * 1000 })
+    JSON.stringify({ user, accessToken: existingToken, expiresAt: Date.now() + 24 * 60 * 60 * 1000 })
   );
+}
+
+function lockedResult(err: any): SendOtpResult | null {
+  const data = err?.data || {};
+  if (err?.status === 423 || data.error === "ACCOUNT_LOCKED" || data.code === "ACCOUNT_LOCKED") {
+    return {
+      success: false,
+      locked: true,
+      message: "Account locked",
+      lockedUntil: data.lockedUntil,
+      remainingSeconds: data.remainingSeconds,
+    };
+  }
+  return null;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -104,10 +147,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         cooldownSeconds: data.cooldownSeconds,
       };
     } catch (err: any) {
+      const locked = lockedResult(err);
+      if (locked) return locked;
       return {
         success: false,
         message: err.message || "Failed to send OTPs",
       };
+    }
+  }, []);
+
+  const sendRecoveryOtp = useCallback(async (): Promise<SendOtpResult> => {
+    try {
+      const data = await authApi.sendSuperadminRecoveryOtp();
+      return { success: true, message: "Recovery OTP sent", email: data.recoveryEmail, expiresInSeconds: data.expiresInSeconds, devEmailOtp: data.devOtp };
+    } catch (err: any) {
+      return { success: false, message: err.data?.message || err.message || "Failed to send recovery OTP" };
+    }
+  }, []);
+
+  const verifyRecoveryOtp = useCallback(async (otp: string): Promise<CompleteLoginResult> => {
+    try {
+      const data = await authApi.verifySuperadminRecoveryOtp(otp.trim().toUpperCase());
+      const newUser: AuthUser = {
+        id: data.user?._id || "superadmin-1",
+        email: data.user?.email || "mriya0619@gmail.com",
+        name: data.user?.name || "Super Admin",
+        phone: data.user?.phone || "",
+        profileImage: data.user?.profileImage || null,
+      };
+      const token = data.access_token || data.accessToken || data.token;
+      setUser(newUser);
+      setStoredUser(newUser, token);
+      return { success: true, message: data.message || "Recovery successful", nextStep: "DONE" };
+    } catch (err: any) {
+      return { success: false, message: err.data?.message || err.message || "Recovery failed" };
+    }
+  }, []);
+
+  const sendUnlockOtp = useCallback(async (): Promise<SendOtpResult> => {
+    try {
+      const data = await authApi.sendSuperadminUnlockOtp();
+      return { success: true, message: "Unlock OTP sent", email: data.email, expiresInSeconds: data.expiresInSeconds, devEmailOtp: data.devOtp };
+    } catch (err: any) {
+      return { success: false, message: err.data?.message || err.message || "Failed to send unlock OTP" };
+    }
+  }, []);
+
+  const verifyUnlockOtp = useCallback(async (otp: string): Promise<VerifyResult> => {
+    try {
+      await authApi.verifySuperadminUnlockOtp(otp.trim().toUpperCase());
+      return { success: true, message: "Session unlocked" };
+    } catch (err: any) {
+      return { success: false, message: err.data?.message || err.message || "Unlock failed" };
     }
   }, []);
 
@@ -125,6 +216,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phoneVerified: data.phoneVerified,
       };
     } catch (err: any) {
+      const locked = lockedResult(err);
+      if (locked) return locked;
       const code = err.data?.code || err.code;
       const msg = err.data?.message || err.message || "Verification failed";
       const userMsg =
@@ -152,6 +245,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phoneVerified: data.phoneVerified,
       };
     } catch (err: any) {
+      const locked = lockedResult(err);
+      if (locked) return locked;
       const code = err.data?.code || err.code;
       const msg = err.data?.message || err.message || "Verification failed";
       const userMsg =
@@ -175,6 +270,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: data.user?._id || "superadmin-1",
           email: data.user?.email || "mriya0619@gmail.com",
           name: data.user?.name || "Super Admin",
+          phone: data.user?.phone || "",
+          profileImage: data.user?.profileImage || null,
         };
         const token = data.access_token || data.accessToken || data.token;
         setUser(newUser);
@@ -186,6 +283,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nextStep: data.nextStep,
       };
     } catch (err: any) {
+      const locked = lockedResult(err);
+      if (locked) return locked;
       const code = err.data?.code || err.code;
       const msg = err.data?.message || err.message || "Login completion failed";
       const userMsg =
@@ -194,6 +293,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         msg;
       return { success: false, message: userMsg };
     }
+  }, []);
+
+  const updateUser = useCallback((updates: Partial<AuthUser>) => {
+    setUser((current) => {
+      if (!current) return current;
+      const nextUser = { ...current, ...updates };
+      setStoredUser(nextUser);
+      return nextUser;
+    });
   }, []);
 
   const logout = useCallback(() => {
@@ -212,6 +320,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verifyEmailOtp,
         verifyPhoneOtp,
         completeLogin,
+        sendRecoveryOtp,
+        verifyRecoveryOtp,
+        sendUnlockOtp,
+        verifyUnlockOtp,
+        updateUser,
         logout,
       }}
     >

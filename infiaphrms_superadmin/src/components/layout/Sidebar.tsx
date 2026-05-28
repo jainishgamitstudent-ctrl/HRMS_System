@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -8,9 +7,14 @@ import { cn } from "@/lib/utils";
 import { SIDEBAR_NAV } from "@/lib/constants";
 import { ChevronLeft, ChevronRight, Building2 } from "lucide-react";
 
-export function Sidebar() {
+export function Sidebar({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
 
   return (
     <aside
@@ -99,7 +103,7 @@ export function Sidebar() {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.92 }}
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={onToggle}
           className="flex h-8 w-full items-center justify-center rounded-md hover:bg-accent"
         >
           <AnimatePresence mode="wait" initial={false}>

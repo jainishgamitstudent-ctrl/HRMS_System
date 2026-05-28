@@ -106,14 +106,35 @@ function LocationErrorBanner({
 
   const isUnavailable = geoStatus === "unavailable";
   const isDenied = geoStatus === "denied";
+  const code = geoError?.code ?? "UNKNOWN";
 
   let title = "Location access required";
   let message = geoError?.message || "Unable to detect location. Please check your device settings and try again.";
 
   if (isUnavailable) {
-    title = "Location not supported";
-    message = "Your browser does not support geolocation or the context is insecure (requires HTTPS). Please use Chrome, Edge, or Safari on HTTPS.";
+    title = code === "INSECURE_CONTEXT" ? "HTTPS required" : "Location not supported";
+    message =
+      code === "INSECURE_CONTEXT"
+        ? "Location requires HTTPS. Please open this site on HTTPS."
+        : "Your browser does not support geolocation. Please use Chrome, Edge, or Safari on HTTPS.";
+  } else if (isDenied) {
+    title = "Location permission denied";
+    message = "Location permission was denied. Please enable it in your browser site settings and retry.";
+  } else if (code === "POSITION_UNAVAILABLE") {
+    title = "Location unavailable";
+    message = "Location unavailable. Turn on GPS/Wi-Fi, disable VPN, and try again.";
+  } else if (code === "TIMEOUT" && permissionState === "prompt") {
+    title = "Waiting for permission";
+    message = "Click 'Allow' in the browser prompt to share your location. If no prompt appeared, check your browser settings.";
+  } else if (code === "TIMEOUT") {
+    title = "Location timed out";
+    message = "Timed out. Move near a window or try again with low accuracy mode.";
+  } else if (code === "INSECURE_CONTEXT") {
+    title = "HTTPS required";
+    message = "Location requires HTTPS. Please open this site on HTTPS.";
   }
+
+  const isRetryable = !isUnavailable && code !== "INSECURE_CONTEXT";
 
   return (
     <motion.div
@@ -128,7 +149,7 @@ function LocationErrorBanner({
           <p className="text-xs text-red-700">{message}</p>
         </div>
 
-        {!isUnavailable && (
+        {isRetryable && (
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={onRetry}
@@ -146,7 +167,7 @@ function LocationErrorBanner({
           </div>
         )}
 
-        {showHelp && !isUnavailable && (
+        {showHelp && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
@@ -159,8 +180,21 @@ function LocationErrorBanner({
               ))}
             </ol>
             {permissionState === "prompt" && (
+              <div className="mt-1 space-y-1">
+                <p className="text-[10px] text-red-600">
+                  If the browser prompt does not appear:
+                </p>
+                <ul className="text-[10px] text-red-600 space-y-0.5 list-disc list-inside">
+                  <li>Chrome / Edge: click the lock icon in the address bar → Site settings → Location → Allow.</li>
+                  <li>Safari: Settings → Privacy → Location Services → enable for this browser.</li>
+                  <li>iOS: Settings → Privacy & Security → Location Services → enable for Safari/Chrome.</li>
+                </ul>
+              </div>
+            )}
+            {isDenied && (
               <p className="text-[10px] text-red-600 mt-1">
-                If the browser prompt does not appear: click the lock icon in the address bar → Site settings → Location → Allow.
+                Chrome / Edge: click the lock icon → Site settings → Location → Allow.
+                Safari: Preferences → Websites → Location → Allow.
               </p>
             )}
           </motion.div>
@@ -174,9 +208,15 @@ function LocationErrorBanner({
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading, sendOtp, verifyEmailOtp, verifyPhoneOtp, completeLogin } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, sendOtp, verifyEmailOtp, verifyPhoneOtp, completeLogin, sendRecoveryOtp, verifyRecoveryOtp } = useAuth();
 
   const [step, setStep] = useState<Step>("send");
+  const [lockedUntil, setLockedUntil] = useState<string | null>(null);
+  const [lockRemaining, setLockRemaining] = useState(0);
+  const [recoveryOtp, setRecoveryOtp] = useState("");
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [recoverySent, setRecoverySent] = useState(false);
+  const [devRecoveryOtp, setDevRecoveryOtp] = useState<string | null>(null);
   const [emailOtp, setEmailOtp] = useState("");
   const [phoneOtp, setPhoneOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -222,24 +262,42 @@ export default function LoginPage() {
     return () => clearInterval(t);
   }, [cooldown]);
 
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const tick = () => setLockRemaining(Math.max(0, Math.ceil((new Date(lockedUntil).getTime() - Date.now()) / 1000)));
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [lockedUntil]);
+
   const isEmailOtpValid = /^[A-Z0-9]{6}$/.test(emailOtp.trim().toUpperCase());
   const isPhoneOtpValid = /^\d{6}$/.test(phoneOtp.trim());
   const isEmailExpired = countdown === 0 && step === "verify" && !emailVerified;
   const isPhoneExpired = countdown === 0 && step === "verify" && !phoneVerified;
 
   const handleSendOtp = async () => {
+    if (cooldown > 0) {
+      toast.error(`Please wait ${formatTime(cooldown)} before requesting another OTP`);
+      return;
+    }
     if (!canRequestFrontend()) {
       toast.error("Too many OTP requests. Please try again in an hour.");
       return;
     }
+    // Record the attempt immediately so rapid clicks cannot bypass the limit
+    pushRequestLog();
     setLoading(true);
     const res = await sendOtp();
     setLoading(false);
     if (!res.success) {
+      if (res.locked) {
+        setLockedUntil(res.lockedUntil || "2099-01-01T00:00:00.000Z");
+        setLockRemaining(res.remainingSeconds || 30 * 60);
+        return;
+      }
       toast.error(res.message);
       return;
     }
-    pushRequestLog();
     setStep("verify");
     setCountdown(res.expiresInSeconds || 60);
     setCooldown(res.cooldownSeconds || 60);
@@ -276,6 +334,11 @@ export default function LoginPage() {
     const res = await verifyEmailOtp(emailOtp);
     setLoading(false);
     if (!res.success) {
+      if (res.locked) {
+        setLockedUntil(res.lockedUntil || "2099-01-01T00:00:00.000Z");
+        setLockRemaining(res.remainingSeconds || 30 * 60);
+        return;
+      }
       toast.error(res.message);
       return;
     }
@@ -293,6 +356,11 @@ export default function LoginPage() {
     const res = await verifyPhoneOtp(phoneOtp);
     setLoading(false);
     if (!res.success) {
+      if (res.locked) {
+        setLockedUntil(res.lockedUntil || "2099-01-01T00:00:00.000Z");
+        setLockRemaining(res.remainingSeconds || 30 * 60);
+        return;
+      }
       toast.error(res.message);
       return;
     }
@@ -310,7 +378,8 @@ export default function LoginPage() {
       return;
     }
     if (!isReady || !geoCoords) {
-      toast.error("Location access is required for security. Please allow location permission and retry.");
+      // Auto-trigger location request so the user gets a browser prompt on click
+      requestLocation();
       return;
     }
     setLoading(true);
@@ -332,7 +401,34 @@ export default function LoginPage() {
       toast.success("Login successful!");
       router.replace("/");
     }
-  }, [completeLogin, router, geoStatus, isReady, geoCoords, address]);
+  }, [completeLogin, router, geoStatus, isReady, geoCoords, address, requestLocation]);
+
+  const handleSendRecovery = async () => {
+    setLoading(true);
+    const res = await sendRecoveryOtp();
+    setLoading(false);
+    if (!res.success) {
+      toast.error(res.message);
+      return;
+    }
+    setRecoverySent(true);
+    setRecoveryEmail(res.email || "");
+    setDevRecoveryOtp(res.devEmailOtp || null);
+    toast.success("Recovery OTP sent");
+  };
+
+  const handleVerifyRecovery = async () => {
+    if (!/^[A-Z0-9]{6}$/.test(recoveryOtp.trim().toUpperCase())) return;
+    setLoading(true);
+    const res = await verifyRecoveryOtp(recoveryOtp);
+    setLoading(false);
+    if (!res.success) {
+      toast.error(res.message);
+      return;
+    }
+    toast.success("Access recovered");
+    router.replace("/superadmin/dashboard");
+  };
 
 
   if (authLoading) {
@@ -344,6 +440,55 @@ export default function LoginPage() {
   }
 
   if (isAuthenticated) return null;
+
+  if (lockedUntil) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-[440px]">
+          <Card>
+            <CardContent className="p-6 space-y-6 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-red-100">
+                <Lock className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight">Account Locked</h1>
+                <p className="mt-2 text-sm text-muted-foreground">Too many attempts. Try again in 30 minutes.</p>
+              </div>
+              <div className="rounded-lg border bg-muted/50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Unlocks in</p>
+                <p className="mt-1 font-mono text-3xl font-semibold">{formatTime(lockRemaining)}</p>
+              </div>
+              {!recoverySent ? (
+                <Button onClick={handleSendRecovery} disabled={loading} isLoading={loading} noMotion className="w-full">
+                  Recover Access
+                </Button>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">Enter the recovery code sent to {recoveryEmail}</p>
+                  {devRecoveryOtp && <p className="rounded-md bg-yellow-50 p-2 text-xs text-yellow-700">Dev OTP: <span className="font-mono font-bold">{devRecoveryOtp}</span></p>}
+                  <div className="flex justify-center">
+                    <InputOTP maxLength={6} value={recoveryOtp} onChange={setRecoveryOtp} inputMode="text" pattern="[A-Z0-9]*">
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+                  <Button onClick={handleVerifyRecovery} disabled={loading || !/^[A-Z0-9]{6}$/.test(recoveryOtp.trim().toUpperCase())} isLoading={loading} noMotion className="w-full">
+                    Verify Recovery OTP
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
 
   const steps = [
     { label: "Send OTPs", done: step !== "send" },
@@ -479,9 +624,14 @@ export default function LoginPage() {
                       )}
                     </p>
                     {permissionState === "prompt" && (
-                      <p className="text-[10px] text-amber-600">
-                        Waiting for browser permission. If no prompt appeared, check your browser settings.
-                      </p>
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-amber-700 font-medium">
+                          Click <strong>Allow</strong> in the browser prompt to share your location.
+                        </p>
+                        <p className="text-[10px] text-amber-600">
+                          If no prompt appeared: Chrome/Edge → lock icon → Site settings → Location → Allow. Safari → Preferences → Websites → Location → Allow.
+                        </p>
+                      </div>
                     )}
                   </div>
                 </motion.div>

@@ -131,7 +131,14 @@ const userSchema = new mongoose.Schema(
             recoveryEmail: {
                 type: String,
                 trim: true,
-                lowercase: true
+                lowercase: true,
+                default: null
+            },
+            pendingRecoveryEmail: {
+                type: String,
+                trim: true,
+                lowercase: true,
+                default: null
             },
             sessionTimeoutMinutes: {
                 type: Number,
@@ -192,6 +199,49 @@ const userSchema = new mongoose.Schema(
             },
             requestCount: { type: Number, default: 0 },
             requestWindowStart: { type: Date, default: null },
+            recoveryEmailChangeOtp: {
+                hash: { type: String, default: null },
+                expiresAt: { type: Date, default: null },
+                attempts: { type: Number, default: 0 },
+                lastSentAt: { type: Date, default: null },
+            },
+            emailChangeOtp: {
+                pendingEmail: { type: String, default: null },
+                hash: { type: String, default: null },
+                expiresAt: { type: Date, default: null },
+                attempts: { type: Number, default: 0 },
+                lastSentAt: { type: Date, default: null },
+            },
+            superadminRecoveryOtp: {
+                hash: { type: String, default: null },
+                expiresAt: { type: Date, default: null },
+                attempts: { type: Number, default: 0 },
+                sendCount: { type: Number, default: 0 },
+                sendWindowStartedAt: { type: Date, default: null },
+                lastSentAt: { type: Date, default: null },
+            },
+            superadminUnlockOtp: {
+                hash: { type: String, default: null },
+                expiresAt: { type: Date, default: null },
+                attempts: { type: Number, default: 0 },
+                lastSentAt: { type: Date, default: null },
+            },
+        },
+        authSecurity: {
+            failedAttemptsCount: { type: Number, default: 0 },
+            failedAttemptsWindowStartedAt: { type: Date, default: null },
+            lockedUntil: { type: Date, default: null },
+            lastFailedAttemptAt: { type: Date, default: null },
+            lastFailedAttemptMeta: {
+                ip: { type: String, default: null },
+                userAgent: { type: String, default: null },
+                browser: { type: String, default: null },
+                os: { type: String, default: null },
+                deviceType: { type: String, default: null },
+                location: { type: String, default: null },
+            },
+            lastLockAlertSentAt: { type: Date, default: null },
+            lockEventId: { type: String, default: null },
         },
     },
     { timestamps: true }

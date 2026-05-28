@@ -5,6 +5,9 @@ const OTP_TTL_SECONDS = parseInt(process.env.OTP_TTL_SECONDS, 10) || 60;
 const OTP_RESEND_COOLDOWN_SECONDS = parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS, 10) || 60;
 const OTP_MAX_SEND_PER_HOUR = parseInt(process.env.OTP_MAX_SEND_PER_HOUR, 10) || 5;
 const OTP_MAX_VERIFY_ATTEMPTS = parseInt(process.env.OTP_MAX_VERIFY_ATTEMPTS, 10) || 5;
+const SUPERADMIN_LOCK_WINDOW_MS = parseInt(process.env.SUPERADMIN_LOCK_WINDOW_MINUTES || "10", 10) * 60 * 1000;
+const SUPERADMIN_LOCK_DURATION_MS = parseInt(process.env.SUPERADMIN_LOCK_DURATION_MINUTES || "30", 10) * 60 * 1000;
+const SUPERADMIN_LOCK_THRESHOLD = parseInt(process.env.SUPERADMIN_LOCK_FAILED_ATTEMPTS || "3", 10);
 
 const ALPHANUMERIC_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const NUMERIC_CHARS = "0123456789";
@@ -49,6 +52,16 @@ function maskEmail(email) {
     return `${local[0]}${"*".repeat(local.length - 2)}${local[local.length - 1]}@${domain}`;
 }
 
+function maskEmailFirstLast3(email) {
+    if (!email || !email.includes("@")) return email;
+    const [local, domain] = email.split("@");
+    if (local.length <= 1) return `*@${domain}`;
+    if (local.length <= 6) {
+        return `${local[0]}${"*".repeat(Math.max(local.length - 2, 1))}${local[local.length - 1]}@${domain}`;
+    }
+    return `${local.slice(0, 3)}***${local.slice(-3)}@${domain}`;
+}
+
 function maskPhone(phone) {
     if (!phone) return phone;
     const digits = phone.replace(/\D/g, "");
@@ -76,12 +89,25 @@ function getLockRetryMinutes(lockUntil) {
     return Math.ceil((new Date(lockUntil).getTime() - Date.now()) / 1000 / 60);
 }
 
+function getLockedResponse(lockUntil) {
+    const lockedUntil = new Date(lockUntil);
+    const remainingSeconds = Math.max(0, Math.ceil((lockedUntil.getTime() - Date.now()) / 1000));
+    return {
+        ok: false,
+        error: "ACCOUNT_LOCKED",
+        code: "ACCOUNT_LOCKED",
+        lockedUntil: lockedUntil.toISOString(),
+        remainingSeconds,
+    };
+}
+
 module.exports = {
     generateAlphanumericOTP,
     generateNumericOTP,
     hashOtp,
     verifyOtpHash,
     maskEmail,
+    maskEmailFirstLast3,
     maskPhone,
     getOtpExpiry,
     isOtpExpired,
@@ -91,4 +117,8 @@ module.exports = {
     OTP_RESEND_COOLDOWN_SECONDS,
     OTP_MAX_SEND_PER_HOUR,
     OTP_MAX_VERIFY_ATTEMPTS,
+    SUPERADMIN_LOCK_WINDOW_MS,
+    SUPERADMIN_LOCK_DURATION_MS,
+    SUPERADMIN_LOCK_THRESHOLD,
+    getLockedResponse,
 };

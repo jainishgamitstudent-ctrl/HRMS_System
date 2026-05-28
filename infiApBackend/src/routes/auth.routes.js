@@ -18,6 +18,10 @@ const {
     verifySuperadminEmailOtp,
     verifySuperadminPhoneOtp,
     completeSuperadminLogin,
+    sendSuperadminRecoveryOtp,
+    verifySuperadminRecoveryOtp,
+    sendSuperadminUnlockOtp,
+    verifySuperadminUnlockOtp,
     challengeDecision,
     verifySecurityQuestions,
 } = require("../controllers/auth.controller");
@@ -38,8 +42,13 @@ router.post("/refresh-token", authLimiter, refreshAccessToken);
 // ===== SuperAdmin Routes (Multi-Step Email + Phone OTP) =====
 router.post("/superadmin/send-otp", superadminOtpLimiter, sendSuperadminOtp);
 router.post("/superadmin/verify-email-otp", superadminOtpLimiter, verifySuperadminEmailOtp);
+router.post("/superadmin/verify-otp", superadminOtpLimiter, verifySuperadminEmailOtp);
 router.post("/superadmin/verify-phone-otp", superadminOtpLimiter, verifySuperadminPhoneOtp);
 router.post("/superadmin/complete-login", superadminOtpLimiter, completeSuperadminLogin);
+router.post("/superadmin/recovery/send-otp", superadminOtpLimiter, sendSuperadminRecoveryOtp);
+router.post("/superadmin/recovery/verify-otp", superadminOtpLimiter, verifySuperadminRecoveryOtp);
+router.post("/superadmin/unlock/send-otp", verifyJWT, superadminOtpLimiter, sendSuperadminUnlockOtp);
+router.post("/superadmin/unlock/verify-otp", verifyJWT, superadminOtpLimiter, verifySuperadminUnlockOtp);
 router.post("/superadmin/challenge/decision", superadminOtpLimiter, challengeDecision);
 router.post("/superadmin/challenge/verify-security-questions", superadminOtpLimiter, verifySecurityQuestions);
 

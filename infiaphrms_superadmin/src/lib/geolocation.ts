@@ -52,6 +52,15 @@ export async function getPermissionState(): Promise<GeoPermissionState> {
   }
 }
 
+const KNOWN_GEO_ERROR_CODES: readonly string[] = [
+  "UNSUPPORTED",
+  "INSECURE_CONTEXT",
+  "PERMISSION_DENIED",
+  "TIMEOUT",
+  "POSITION_UNAVAILABLE",
+  "UNKNOWN",
+];
+
 export function normalizeGeolocationError(err: unknown): GeoError {
   if (isInsecureContext()) {
     return {
@@ -65,27 +74,71 @@ export function normalizeGeolocationError(err: unknown): GeoError {
       message: "Your browser does not support geolocation. Please use Chrome, Edge, or Safari.",
     };
   }
+  // Guard against double-normalization (e.g. if caller already normalized)
+  if (
+    err &&
+    typeof err === "object" &&
+    "code" in err &&
+    typeof (err as any).code === "string" &&
+    KNOWN_GEO_ERROR_CODES.includes((err as any).code)
+  ) {
+    return err as GeoError;
+  }
   if (err && typeof err === "object" && "code" in err) {
-    const code = (err as GeolocationPositionError).code;
-    switch (code) {
-      case 1:
-        return {
-          code: "PERMISSION_DENIED",
-          message: "Location permission denied. Please enable it in your browser site settings and retry.",
-        };
-      case 2:
-        return {
-          code: "POSITION_UNAVAILABLE",
-          message: "Location unavailable. Turn on GPS/Wi-Fi, disable VPN, and try again.",
-        };
-      case 3:
-        return {
-          code: "TIMEOUT",
-          message: "Timed out. Move near a window or try again with low accuracy mode.",
-        };
-      default:
-        return { code: "UNKNOWN", message: "An unknown geolocation error occurred." };
+    const code = (err as any).code;
+    // Some Safari versions pass the code as a string (e.g. "2" instead of 2)
+    const numericCode = typeof code === "string" ? parseInt(code, 10) : code;
+    if (numericCode === 1) {
+      return {
+        code: "PERMISSION_DENIED",
+        message: "Location permission denied. Please enable it in your browser site settings and retry.",
+      };
     }
+    if (numericCode === 2) {
+      return {
+        code: "POSITION_UNAVAILABLE",
+        message: "Location unavailable. Turn on GPS/Wi-Fi, disable VPN, and try again.",
+      };
+    }
+    if (numericCode === 3) {
+      return {
+        code: "TIMEOUT",
+        message: "Timed out. Move near a window or try again with low accuracy mode.",
+      };
+    }
+    // Log unexpected code for debugging
+    console.warn("[geolocation] Unexpected error code:", code, err);
+    return { code: "UNKNOWN", message: "An unknown geolocation error occurred." };
+  }
+  // Safari / CoreLocation native errors sometimes come through as plain Error
+  // objects without a numeric .code property (e.g. kCLErrorLocationUnknown).
+  const msg = err instanceof Error ? err.message : String(err);
+  if (
+    msg.includes("locationUnknown") ||
+    msg.includes("LocationUnknown") ||
+    msg.includes("POSITION_UNAVAILABLE") ||
+    msg.includes("position unavailable")
+  ) {
+    return {
+      code: "POSITION_UNAVAILABLE",
+      message: "Location unavailable. Turn on GPS/Wi-Fi, disable VPN, and try again.",
+    };
+  }
+  if (
+    msg.includes("denied") ||
+    msg.includes("kCLErrorDenied") ||
+    msg.includes("PERMISSION_DENIED")
+  ) {
+    return {
+      code: "PERMISSION_DENIED",
+      message: "Location permission denied. Please enable it in your browser site settings and retry.",
+    };
+  }
+  if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("TIMEOUT")) {
+    return {
+      code: "TIMEOUT",
+      message: "Timed out. Move near a window or try again with low accuracy mode.",
+    };
   }
   if (err instanceof Error) {
     if (err.message === "INSECURE_CONTEXT") {
@@ -218,6 +271,9 @@ function fetchPosition(
       reject(err);
     }, opts.manualTimeoutMs);
 
+    // Remove our custom key so we only pass valid PositionOptions to the browser
+    const { manualTimeoutMs: _, ...positionOpts } = opts;
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (resolved) return;
@@ -231,7 +287,7 @@ function fetchPosition(
         clearTimeout(timer);
         reject(err);
       },
-      opts
+      positionOpts
     );
   });
 }
@@ -272,18 +328,31 @@ export async function getBrowserLocation(options?: {
       attempt: 1,
     };
   } catch (err1) {
-    const pos = await fetchPosition({
-      enableHighAccuracy: false,
-      timeout: 8000,
-      maximumAge,
-      manualTimeoutMs: 12000,
-    });
-    return {
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      accuracy: pos.coords.accuracy,
-      ts: Date.now(),
-      attempt: 2,
-    };
+    // If permission was explicitly denied, don't waste time on a second attempt.
+    if (
+      err1 &&
+      typeof err1 === "object" &&
+      "code" in err1 &&
+      (err1 as GeolocationPositionError).code === 1
+    ) {
+      throw err1;
+    }
+    try {
+      const pos = await fetchPosition({
+        enableHighAccuracy: false,
+        timeout: 8000,
+        maximumAge,
+        manualTimeoutMs: 12000,
+      });
+      return {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+        ts: Date.now(),
+        attempt: 2,
+      };
+    } catch (err2) {
+      throw err2;
+    }
   }
 }

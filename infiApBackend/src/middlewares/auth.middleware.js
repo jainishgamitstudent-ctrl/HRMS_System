@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/user.model");
+const logger = require("../utils/logger");
 
 // Verify JWT Token
 const verifyJWT = async (req, res, next) => {
@@ -10,7 +11,8 @@ const verifyJWT = async (req, res, next) => {
             req.header("Authorization")?.replace("Bearer ", "");
 
         if (!token) {
-            return res.status(401).json({ message: "Unauthorized request" });
+            logger.info("SESSION_TIMED_OUT", { auditEvent: "SESSION_TIMED_OUT", reason: "missing_token" });
+            return res.status(401).json({ code: "SESSION_TIMED_OUT", message: "Unauthorized request" });
         }
 
         const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
@@ -19,13 +21,15 @@ const verifyJWT = async (req, res, next) => {
         );
 
         if (!user) {
-            return res.status(401).json({ message: "Invalid Access Token" });
+            logger.info("SESSION_TIMED_OUT", { auditEvent: "SESSION_TIMED_OUT", reason: "invalid_user" });
+            return res.status(401).json({ code: "SESSION_TIMED_OUT", message: "Invalid Access Token" });
         }
 
         req.user = user;
         next();
     } catch (error) {
-        res.status(401).json({ message: "Invalid Access Token" });
+        logger.info("SESSION_TIMED_OUT", { auditEvent: "SESSION_TIMED_OUT", reason: "invalid_token" });
+        res.status(401).json({ code: "SESSION_TIMED_OUT", message: "Invalid Access Token" });
     }
 };
 

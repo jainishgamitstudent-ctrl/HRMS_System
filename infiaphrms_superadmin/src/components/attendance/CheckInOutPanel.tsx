@@ -137,7 +137,7 @@ export function CheckInOutPanel({ onPunch, disabled }: CheckInOutPanelProps) {
               </motion.div>
             )}
 
-            {isBlocked && (
+            {(isBlocked || status === "error") && (
               <motion.div
                 key="error"
                 initial={{ opacity: 0 }}
@@ -268,7 +268,7 @@ export function CheckInOutPanel({ onPunch, disabled }: CheckInOutPanelProps) {
           </Button>
         </div>
 
-        {isBlocked && (
+        {(isBlocked || status === "error") && (
           <p className="text-[10px] text-muted-foreground text-center">
             Location permission is required for attendance verification.
           </p>

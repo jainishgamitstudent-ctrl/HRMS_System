@@ -47,6 +47,7 @@ const allowCorsOrigin = (origin, callback) => {
 
 app.use(
   helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
     hsts: isProduction
       ? {
           maxAge: 15552000,

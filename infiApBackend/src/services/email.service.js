@@ -425,6 +425,220 @@ const sendDeniedLoginAlertEmail = async (email, name, deviceInfo, riskFlags) => 
     }
 };
 
+const sendEmailChangeOtpEmail = async (currentEmail, otp, name = "") => {
+    try {
+        const emailSent = await sendEmail({
+            to: currentEmail,
+            subject: "Confirm your email address change \u2014 InfiAP HRMS",
+            html: buildSecurityCodeEmail(
+                name,
+                otp,
+                "A request was made to change the primary email address on your SuperAdmin account. Use this code to confirm the change:",
+                "change your email address"
+            ),
+        });
+        if (emailSent && emailSent.success) {
+            logger.info("Email change OTP sent", { currentEmail });
+            return true;
+        }
+        throw new Error(emailSent?.error || "Failed to send OTP email");
+    } catch (error) {
+        logger.error("Error sending email change OTP", { error: error.message });
+        throw error;
+    }
+};
+
+const sendRecoveryEmailAddedNotificationEmail = async (recoveryEmail, name, maskedPrimaryEmail) => {
+    try {
+        const formattedDate = new Date().toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" });
+        const html = `
+        <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1c1e21;">
+            <p style="font-size: 16px; line-height: 1.5;">Hi there,</p>
+            <p style="font-size: 16px; line-height: 1.5;">
+                This email address has been added as the <strong>recovery email</strong> for the InfiAP HRMS SuperAdmin account
+                associated with <strong>${maskedPrimaryEmail}</strong>.
+            </p>
+
+            <div style="background: #f0f7ff; border-left: 4px solid #1877f2; padding: 16px; border-radius: 6px; margin: 24px 0;">
+                <p style="font-size: 14px; font-weight: bold; color: #1c1e21; margin: 0 0 8px 0;">What is a recovery email?</p>
+                <p style="font-size: 14px; color: #606770; line-height: 1.5; margin: 0;">
+                    A recovery email lets you regain access to your InfiAP HRMS account if you are ever locked out.
+                    Security alerts and account recovery options may be sent to this address.
+                </p>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+                <tr style="border-bottom: 1px solid #e4e6eb;">
+                    <td style="padding: 10px 0; color: #606770; width: 45%;">Primary account</td>
+                    <td style="padding: 10px 0; font-weight: 600; color: #1c1e21;">${maskedPrimaryEmail}</td>
+                </tr>
+                ${name ? `<tr style="border-bottom: 1px solid #e4e6eb;">
+                    <td style="padding: 10px 0; color: #606770;">Account holder</td>
+                    <td style="padding: 10px 0; font-weight: 600; color: #1c1e21;">${name}</td>
+                </tr>` : ""}
+                <tr style="border-bottom: 1px solid #e4e6eb;">
+                    <td style="padding: 10px 0; color: #606770;">Recovery email set</td>
+                    <td style="padding: 10px 0; font-weight: 600; color: #1c1e21;">${recoveryEmail}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: #606770;">Date &amp; time</td>
+                    <td style="padding: 10px 0; font-weight: 600; color: #1c1e21;">${formattedDate}</td>
+                </tr>
+            </table>
+
+            <div style="background: #fff4e5; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 6px; margin: 24px 0;">
+                <p style="font-size: 14px; font-weight: bold; color: #92400e; margin: 0 0 6px 0;">Didn't authorize this?</p>
+                <p style="font-size: 14px; color: #92400e; line-height: 1.5; margin: 0;">
+                    If you did not request this change, your account may be at risk. Contact your system administrator
+                    or reply to this email immediately.
+                </p>
+            </div>
+
+            <p style="font-size: 16px; line-height: 1.5; margin-top: 24px;">Thanks,<br>InfiAP Security</p>
+
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dadde1;">
+                <p style="font-size: 12px; color: #8a8d91;">This is an automated security notification from InfiAP HRMS.</p>
+                <p style="font-size: 12px; color: #8a8d91;">You received this because this address was added as a recovery email for an InfiAP HRMS account.</p>
+            </div>
+        </div>
+        `;
+        const emailSent = await sendEmail({
+            to: recoveryEmail,
+            subject: "Recovery email added \u2014 InfiAP HRMS",
+            html,
+        });
+        if (emailSent && emailSent.success) {
+            logger.info("Recovery email added notification sent", { recoveryEmail });
+            return true;
+        }
+        throw new Error(emailSent?.error || "Failed to send notification email");
+    } catch (error) {
+        logger.error("Error sending recovery email added notification", { error: error.message });
+        throw error;
+    }
+};
+
+const sendRecoveryEmailChangeOtpEmail = async (primaryEmail, otp, name = "") => {
+    try {
+        const emailSent = await sendEmail({
+            to: primaryEmail,
+            subject: "Confirm your recovery email change — InfiAP HRMS",
+            html: buildSecurityCodeEmail(
+                name,
+                otp,
+                "A request was made to change the recovery email on your SuperAdmin account. Use this code to confirm the change:",
+                "change your recovery email"
+            ),
+        });
+        if (emailSent && emailSent.success) {
+            logger.info("Recovery email change OTP sent to primary email", { primaryEmail });
+            return true;
+        }
+        throw new Error(emailSent?.error || "Failed to send OTP email");
+    } catch (error) {
+        logger.error("Error sending recovery email change OTP", { error: error.message });
+        throw error;
+    }
+};
+
+const sendSuperadminRecoveryOTPEmail = async (recoveryEmail, otp, name = "") => {
+    try {
+        const emailSent = await sendEmail({
+            to: recoveryEmail,
+            subject: "Recover SuperAdmin access - InfiAP HRMS",
+            html: buildSecurityCodeEmail(
+                name,
+                otp,
+                "Your SuperAdmin account is locked. Use this recovery code to unlock and sign in:",
+                "recover access to your account"
+            ),
+        });
+        if (emailSent && emailSent.success) {
+            logger.info("SuperAdmin recovery OTP sent", { recoveryEmail });
+            return true;
+        }
+        throw new Error(emailSent?.error || "Failed to send recovery OTP");
+    } catch (error) {
+        logger.error("Error sending SuperAdmin recovery OTP", { error: error.message });
+        throw error;
+    }
+};
+
+const sendSuperadminUnlockOTPEmail = async (email, otp, name = "") => {
+    try {
+        const emailSent = await sendEmail({
+            to: email,
+            subject: "Unlock your SuperAdmin session - InfiAP HRMS",
+            html: buildSecurityCodeEmail(
+                name,
+                otp,
+                "Your SuperAdmin workspace was locked due to inactivity. Use this code to unlock it:",
+                "unlock your session"
+            ),
+        });
+        if (emailSent && emailSent.success) {
+            logger.info("SuperAdmin inactivity unlock OTP sent", { email });
+            return true;
+        }
+        throw new Error(emailSent?.error || "Failed to send unlock OTP");
+    } catch (error) {
+        logger.error("Error sending SuperAdmin unlock OTP", { error: error.message });
+        throw error;
+    }
+};
+
+const sendAccountLockAlertEmail = async (email, details = {}) => {
+    const reviewUrl = `${process.env.CLIENT_URL || ""}/superadmin/settings/security`;
+    const browserOs = [details.browser, details.os].filter(Boolean).join(" / ") || details.userAgent || "Unknown";
+    const lockedUntilDisplay = details.lockedUntil
+        ? new Date(details.lockedUntil).toUTCString()
+        : "Unknown";
+    const html = `
+        <div style="font-family:Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1c1e21;">
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
+                <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#b91c1c;text-transform:uppercase;letter-spacing:.05em;">Security Alert</p>
+                <h1 style="margin:0;font-size:20px;color:#dc2626;">Account Locked</h1>
+            </div>
+            <p style="color:#374151;font-size:14px;margin:0 0 20px;">Your SuperAdmin account has been locked because of too many failed login attempts.</p>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px;">
+                <tr style="border-bottom:1px solid #f3f4f6;">
+                    <td style="padding:10px 0;color:#6b7280;width:160px;vertical-align:top;">Reason</td>
+                    <td style="padding:10px 0;font-weight:500;">Too many failed login attempts</td>
+                </tr>
+                <tr style="border-bottom:1px solid #f3f4f6;">
+                    <td style="padding:10px 0;color:#6b7280;vertical-align:top;">Lock duration</td>
+                    <td style="padding:10px 0;font-weight:500;">30 minutes</td>
+                </tr>
+                <tr style="border-bottom:1px solid #f3f4f6;">
+                    <td style="padding:10px 0;color:#6b7280;vertical-align:top;">Locked until</td>
+                    <td style="padding:10px 0;font-family:monospace;font-size:13px;">${lockedUntilDisplay}</td>
+                </tr>
+                <tr style="border-bottom:1px solid #f3f4f6;">
+                    <td style="padding:10px 0;color:#6b7280;vertical-align:top;">IP address</td>
+                    <td style="padding:10px 0;font-family:monospace;font-size:13px;">${details.ip || "Unknown"}</td>
+                </tr>
+                <tr style="border-bottom:1px solid #f3f4f6;">
+                    <td style="padding:10px 0;color:#6b7280;vertical-align:top;">Browser / OS</td>
+                    <td style="padding:10px 0;">${browserOs}</td>
+                </tr>
+                <tr style="border-bottom:1px solid #f3f4f6;">
+                    <td style="padding:10px 0;color:#6b7280;vertical-align:top;">Device type</td>
+                    <td style="padding:10px 0;text-transform:capitalize;">${details.deviceType || "Unknown"}</td>
+                </tr>
+                <tr>
+                    <td style="padding:10px 0;color:#6b7280;vertical-align:top;">Location</td>
+                    <td style="padding:10px 0;">${details.location || "Unavailable"}</td>
+                </tr>
+            </table>
+            <a href="${reviewUrl}" style="display:inline-block;padding:12px 20px;background:#111827;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:500;">Review Sessions</a>
+            <p style="margin-top:20px;font-size:12px;color:#6b7280;">If this was not you, use <strong>Recover Access</strong> on the login page and review your sessions immediately.</p>
+        </div>
+    `;
+    const emailSent = await sendEmail({ to: email, subject: "⚠ SuperAdmin account locked - InfiAP HRMS", html });
+    if (emailSent && emailSent.success) return true;
+    throw new Error(emailSent?.error || "Failed to send account lock alert");
+};
+
 module.exports = {
     sendVerificationEmail,
     sendLoginOTPEmail,
@@ -437,5 +651,11 @@ module.exports = {
     sendSuperadminOTPEmail,
     sendLoginAlertEmail,
     sendDeniedLoginAlertEmail,
+    sendEmailChangeOtpEmail,
+    sendRecoveryEmailChangeOtpEmail,
+    sendRecoveryEmailAddedNotificationEmail,
+    sendSuperadminRecoveryOTPEmail,
+    sendSuperadminUnlockOTPEmail,
+    sendAccountLockAlertEmail,
     isConfiguredForEmail,
 };
