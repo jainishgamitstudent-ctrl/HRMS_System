@@ -24,6 +24,11 @@ const {
     verifySuperadminUnlockOtp,
     challengeDecision,
     verifySecurityQuestions,
+    initiateEmailChange,
+    verifyEmailChangeOtp,
+    confirmEmailChange,
+    getEmailChangeStatus,
+    cancelEmailChange,
 } = require("../controllers/auth.controller");
 const { verifyJWT } = require("../middlewares/auth.middleware");
 const { authLimiter, superadminOtpLimiter } = require("../middlewares/security.middleware");
@@ -59,5 +64,12 @@ router.get("/users", verifyJWT, getAllUsers);
 router.delete("/users/:id", verifyJWT, deleteUser);
 router.post("/request-edit-otp", verifyJWT, requestProfileEditOTP);
 router.post("/verify-edit-otp", verifyJWT, verifyProfileEditOTP);
+
+// ===== SuperAdmin Email Change Flow (3-step) =====
+router.post("/email-change/initiate", verifyJWT, authLimiter, initiateEmailChange);
+router.post("/email-change/verify-otp", verifyJWT, authLimiter, verifyEmailChangeOtp);
+router.get("/email-change/confirm/:token", confirmEmailChange);
+router.get("/email-change/status", verifyJWT, getEmailChangeStatus);
+router.post("/email-change/cancel", verifyJWT, authLimiter, cancelEmailChange);
 
 module.exports = router;

@@ -2,10 +2,12 @@ const User = require("../models/user.model");
 const Session = require("../models/session.model");
 const TrustedDevice = require("../models/trustedDevice.model");
 const LoginChallenge = require("../models/loginChallenge.model");
+const EmailChange = require("../models/emailChange.model");
+const AuthEvent = require("../models/authEvent.model");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
-const { sendVerificationEmail, sendLoginOTPEmail, sendPasswordResetEmail, sendHrLoginOTPEmail, sendProfileEditOTPEmail, sendSuperadminOTPEmail, sendLoginAlertEmail, sendDeniedLoginAlertEmail, sendSuperadminRecoveryOTPEmail, sendSuperadminUnlockOTPEmail, sendAccountLockAlertEmail } = require("../services/email.service");
+const { sendVerificationEmail, sendLoginOTPEmail, sendPasswordResetEmail, sendHrLoginOTPEmail, sendProfileEditOTPEmail, sendSuperadminOTPEmail, sendLoginAlertEmail, sendDeniedLoginAlertEmail, sendSuperadminRecoveryOTPEmail, sendSuperadminUnlockOTPEmail, sendAccountLockAlertEmail, sendEmailChangeOtpEmail, sendEmailChangeConfirmationEmail, sendEmailChangedSecurityAlertEmail } = require("../services/email.service");
 const { sendSmsOtp } = require("../services/sms.service");
 const logger = require("../utils/logger");
 const { emitEntityEvent } = require("../utils/socketManager");
@@ -47,6 +49,11 @@ const SQ_LOCKOUT_MINUTES = 15;
 const RECOVERY_OTP_TTL_MS = 5 * 60 * 1000;
 const RECOVERY_OTP_MAX_VERIFY_ATTEMPTS = 5;
 const RECOVERY_OTP_MAX_SENDS_PER_HOUR = 3;
+
+const EMAIL_CHANGE_FLOW_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const EMAIL_CHANGE_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const EMAIL_CHANGE_MAX_OTP_ATTEMPTS = 5;
+const EMAIL_CHANGE_RESEND_COOLDOWN_MS = 60 * 1000;
 
 // ===== Token Generation =====
 
@@ -1906,6 +1913,345 @@ exports.removeTrustedDevice = async (req, res) => {
     }
 };
 
+// ===== Email Change Flow (SuperAdmin) =====
+
+/**
+ * @desc    Initiate email change — sends OTP to current email
+ * @route   POST /api/auth/email-change/initiate
+ * @access  Private (SuperAdmin)
+ */
+exports.initiateEmailChange = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const { newEmail } = req.body;
+
+        if (!newEmail || !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newEmail.trim())) {
+            return res.status(400).json({ ok: false, message: "A valid email address is required" });
+        }
+
+        const user = await User.findById(userId).select("_id name email role").lean();
+        if (!user) return res.status(404).json({ ok: false, message: "User not found" });
+        if (String(user.role || "").toLowerCase() !== "superadmin") return res.status(403).json({ ok: false, message: "Only superadmins can use this flow" });
+
+        const normalizedNewEmail = newEmail.trim().toLowerCase();
+        if (normalizedNewEmail === user.email.toLowerCase()) {
+            return res.status(400).json({ ok: false, code: "same_as_current", message: "New email cannot be the same as your current email" });
+        }
+
+        const existingUser = await User.findOne({ email: normalizedNewEmail, _id: { $ne: user._id } }).select("_id").lean();
+        if (existingUser) {
+            return res.status(400).json({ ok: false, code: "email_taken", message: "This email address is already in use" });
+        }
+
+        // Check for pending email change
+        const pending = await EmailChange.findOne({ userId: user._id, status: { $in: ["awaiting_otp", "awaiting_new_email_confirm"] } }).lean();
+        if (pending) {
+            const timeLeft = Math.max(0, Math.ceil((new Date(pending.expiresAt).getTime() - Date.now()) / 1000));
+            if (timeLeft > 0) {
+                return res.status(409).json({ ok: false, code: "pending_change", message: "You already have a pending email change", emailChangeId: pending._id, timeLeft });
+            }
+        }
+
+        // Generate OTP for old email
+        const otp = generateAlphanumericOTP(6);
+        const otpHash = hashOtp(otp);
+        const expiresAt = new Date(Date.now() + EMAIL_CHANGE_FLOW_TTL_MS);
+        const otpExpiresAt = new Date(Date.now() + EMAIL_CHANGE_OTP_TTL_MS);
+
+        // Cancel any previous pending changes for this user
+        await EmailChange.updateMany(
+            { userId: user._id, status: { $in: ["awaiting_otp", "awaiting_new_email_confirm"] } },
+            { $set: { status: "cancelled" } }
+        );
+
+        const emailChange = await EmailChange.create({
+            userId: user._id,
+            oldEmail: user.email,
+            newEmail: normalizedNewEmail,
+            otpHash,
+            otpAttempts: 0,
+            status: "awaiting_otp",
+            expiresAt,
+        });
+
+        try {
+            await sendEmailChangeOtpEmail(user.email, otp, user.name);
+        } catch (mailErr) {
+            logger.warn("Email change OTP mail failed — continuing", { error: mailErr.message });
+        }
+
+        auditSecurityEvent("EMAIL_CHANGE_INITIATED", { userId: user._id, emailChangeId: emailChange._id, newEmail: normalizedNewEmail });
+
+        return res.status(200).json({
+            ok: true,
+            message: "OTP sent to your current email address",
+            emailChangeId: emailChange._id,
+            maskedCurrentEmail: maskEmail(user.email),
+            expiresInSeconds: Math.floor(EMAIL_CHANGE_FLOW_TTL_MS / 1000),
+            otpExpiresInSeconds: Math.floor(EMAIL_CHANGE_OTP_TTL_MS / 1000),
+            devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+        });
+    } catch (error) {
+        logger.error("Initiate email change error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Verify OTP sent to old email, then send confirmation link to new email
+ * @route   POST /api/auth/email-change/verify-otp
+ * @access  Private (SuperAdmin)
+ */
+exports.verifyEmailChangeOtp = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const { emailChangeId, otp } = req.body;
+
+        if (!emailChangeId || !otp || typeof otp !== "string") {
+            return res.status(400).json({ ok: false, message: "emailChangeId and OTP are required" });
+        }
+
+        const emailChange = await EmailChange.findOne({ _id: emailChangeId, userId }).lean();
+        if (!emailChange) {
+            return res.status(404).json({ ok: false, code: "not_found", message: "Email change request not found" });
+        }
+
+        if (emailChange.status !== "awaiting_otp") {
+            return res.status(400).json({ ok: false, code: "invalid_status", message: `Request is already ${emailChange.status}` });
+        }
+
+        if (Date.now() > new Date(emailChange.expiresAt).getTime()) {
+            await EmailChange.findByIdAndUpdate(emailChange._id, { $set: { status: "expired" } });
+            return res.status(410).json({ ok: false, code: "expired", message: "Email change request has expired. Please start over." });
+        }
+
+        if (emailChange.otpAttempts >= EMAIL_CHANGE_MAX_OTP_ATTEMPTS) {
+            await EmailChange.findByIdAndUpdate(emailChange._id, { $set: { status: "expired" } });
+            return res.status(429).json({ ok: false, code: "too_many_attempts", message: "Too many failed attempts. Please start over." });
+        }
+
+        const normalizedOtp = otp.trim().toUpperCase();
+        if (!verifyOtpHash(normalizedOtp, emailChange.otpHash)) {
+            await EmailChange.findByIdAndUpdate(emailChange._id, { $inc: { otpAttempts: 1 } });
+            const attemptsLeft = EMAIL_CHANGE_MAX_OTP_ATTEMPTS - (emailChange.otpAttempts + 1);
+            return res.status(401).json({
+                ok: false,
+                code: "invalid_otp",
+                message: attemptsLeft > 0 ? `Invalid OTP. ${attemptsLeft} attempt(s) remaining.` : "Invalid OTP. No attempts remaining.",
+                attemptsLeft: Math.max(0, attemptsLeft),
+            });
+        }
+
+        // Generate signed JWT confirmation token
+        const confirmationToken = jwt.sign(
+            { emailChangeId: emailChange._id.toString(), newEmail: emailChange.newEmail, purpose: "email_change_confirm" },
+            process.env.ACCESS_TOKEN_SECRET,
+            { expiresIn: "24h" }
+        );
+        const confirmationTokenHash = crypto.createHash("sha256").update(confirmationToken).digest("hex");
+
+        await EmailChange.findByIdAndUpdate(emailChange._id, {
+            $set: { status: "awaiting_new_email_confirm", confirmationTokenHash, otpHash: null },
+        });
+
+        const confirmationLink = `${process.env.CLIENT_URL}/auth/email-change/confirm?token=${confirmationToken}`;
+
+        try {
+            await sendEmailChangeConfirmationEmail(emailChange.newEmail, confirmationLink);
+        } catch (mailErr) {
+            logger.warn("Email change confirmation mail failed", { error: mailErr.message });
+        }
+
+        auditSecurityEvent("EMAIL_CHANGE_OTP_VERIFIED", { userId, emailChangeId: emailChange._id });
+
+        return res.status(200).json({
+            ok: true,
+            message: "Confirmation link sent to your new email address",
+            maskedNewEmail: maskEmail(emailChange.newEmail),
+            expiresInSeconds: Math.floor(EMAIL_CHANGE_FLOW_TTL_MS / 1000),
+        });
+    } catch (error) {
+        logger.error("Verify email change OTP error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Confirm email change via JWT link from new email
+ * @route   GET /api/auth/email-change/confirm/:token
+ * @access  Public
+ */
+exports.confirmEmailChange = async (req, res) => {
+    try {
+        const { token } = req.params;
+        if (!token) {
+            return res.status(400).json({ ok: false, message: "Token is required" });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        } catch (jwtErr) {
+            return res.status(401).json({ ok: false, code: "invalid_token", message: "Invalid or expired confirmation link" });
+        }
+
+        if (decoded.purpose !== "email_change_confirm" || !decoded.emailChangeId || !decoded.newEmail) {
+            return res.status(400).json({ ok: false, code: "invalid_token", message: "Invalid confirmation token" });
+        }
+
+        const emailChange = await EmailChange.findById(decoded.emailChangeId).lean();
+        if (!emailChange) {
+            return res.status(404).json({ ok: false, code: "not_found", message: "Email change request not found" });
+        }
+
+        if (emailChange.status === "completed") {
+            // Already completed — redirect to login
+            const redirectUrl = `${process.env.CLIENT_URL}/auth/login?message=email_changed`;
+            return res.redirect(redirectUrl);
+        }
+
+        if (emailChange.status !== "awaiting_new_email_confirm") {
+            return res.status(400).json({ ok: false, code: "invalid_status", message: "This email change request is no longer valid" });
+        }
+
+        if (Date.now() > new Date(emailChange.expiresAt).getTime()) {
+            await EmailChange.findByIdAndUpdate(emailChange._id, { $set: { status: "expired" } });
+            return res.status(410).json({ ok: false, code: "expired", message: "Email change request has expired" });
+        }
+
+        // Verify token hash matches (prevent reuse if token was leaked)
+        const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+        if (tokenHash !== emailChange.confirmationTokenHash) {
+            return res.status(401).json({ ok: false, code: "token_mismatch", message: "Invalid confirmation link" });
+        }
+
+        // Check new email is still available
+        const existingUser = await User.findOne({ email: decoded.newEmail, _id: { $ne: emailChange.userId } }).select("_id").lean();
+        if (existingUser) {
+            await EmailChange.findByIdAndUpdate(emailChange._id, { $set: { status: "expired" } });
+            return res.status(409).json({ ok: false, code: "email_taken", message: "This email address is already in use" });
+        }
+
+        const user = await User.findById(emailChange.userId).select("_id name email").lean();
+        if (!user) {
+            return res.status(404).json({ ok: false, message: "User not found" });
+        }
+
+        // Update user email, mark email change completed, revoke sessions
+        await User.findByIdAndUpdate(emailChange.userId, { $set: { email: decoded.newEmail } });
+        await EmailChange.findByIdAndUpdate(emailChange._id, {
+            $set: { status: "completed", completedAt: new Date(), confirmationTokenHash: null },
+        });
+        await Session.updateMany(
+            { userId: emailChange.userId, status: "active" },
+            { $set: { status: "revoked", revokedAt: new Date(), revokedReason: "email_change" } }
+        );
+        await User.findByIdAndUpdate(emailChange.userId, { $unset: { refreshToken: 1 } });
+
+        // Send security alert to old email
+        try {
+            await sendEmailChangedSecurityAlertEmail(emailChange.oldEmail, decoded.newEmail, user.name);
+        } catch (mailErr) {
+            logger.warn("Email changed security alert failed", { error: mailErr.message });
+        }
+
+        // Log auth event
+        await AuthEvent.create({
+            userId: emailChange.userId,
+            action: "EMAIL_CHANGE_CONFIRMED",
+            metadata: { oldEmail: emailChange.oldEmail, newEmail: decoded.newEmail, emailChangeId: emailChange._id },
+            ip: req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress || null,
+            userAgent: req.get("user-agent") || null,
+        });
+
+        auditSecurityEvent("EMAIL_CHANGE_CONFIRMED", { userId: emailChange.userId, oldEmail: emailChange.oldEmail, newEmail: decoded.newEmail });
+
+        const redirectUrl = `${process.env.CLIENT_URL}/auth/email-change/confirm?status=success`;
+        return res.redirect(redirectUrl);
+    } catch (error) {
+        logger.error("Confirm email change error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Get email change status for polling
+ * @route   GET /api/auth/email-change/status
+ * @access  Private (SuperAdmin)
+ */
+exports.getEmailChangeStatus = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const { emailChangeId } = req.query;
+
+        if (!emailChangeId) {
+            return res.status(400).json({ ok: false, message: "emailChangeId is required" });
+        }
+
+        const emailChange = await EmailChange.findOne({ _id: emailChangeId, userId }).lean();
+        if (!emailChange) {
+            return res.status(404).json({ ok: false, code: "not_found", message: "Email change request not found" });
+        }
+
+        const isExpired = Date.now() > new Date(emailChange.expiresAt).getTime();
+        if (isExpired && emailChange.status !== "completed" && emailChange.status !== "cancelled") {
+            return res.status(200).json({
+                ok: true,
+                status: "expired",
+                expired: true,
+                message: "Email change request has expired",
+            });
+        }
+
+        return res.status(200).json({
+            ok: true,
+            status: emailChange.status,
+            oldEmail: emailChange.oldEmail,
+            newEmail: emailChange.newEmail,
+            expiresAt: emailChange.expiresAt,
+            completedAt: emailChange.completedAt || null,
+        });
+    } catch (error) {
+        logger.error("Get email change status error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error" });
+    }
+};
+
+/**
+ * @desc    Cancel a pending email change
+ * @route   POST /api/auth/email-change/cancel
+ * @access  Private (SuperAdmin)
+ */
+exports.cancelEmailChange = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const { emailChangeId } = req.body;
+
+        if (!emailChangeId) {
+            return res.status(400).json({ ok: false, message: "emailChangeId is required" });
+        }
+
+        const emailChange = await EmailChange.findOne({ _id: emailChangeId, userId });
+        if (!emailChange) {
+            return res.status(404).json({ ok: false, code: "not_found", message: "Email change request not found" });
+        }
+
+        if (emailChange.status === "completed") {
+            return res.status(400).json({ ok: false, code: "already_completed", message: "This email change has already been completed" });
+        }
+
+        emailChange.status = "cancelled";
+        await emailChange.save();
+
+        auditSecurityEvent("EMAIL_CHANGE_CANCELLED", { userId, emailChangeId: emailChange._id });
+
+        return res.status(200).json({ ok: true, message: "Email change request cancelled" });
+    } catch (error) {
+        logger.error("Cancel email change error", { error: error.message });
+        return res.status(500).json({ ok: false, message: "Server error" });
+    }
+};
+
 module.exports = {
     registerUser: exports.registerUser,
     loginUser: exports.loginUser,
@@ -1937,6 +2283,11 @@ module.exports = {
     revokeAllSessions: exports.revokeAllSessions,
     getTrustedDevices: exports.getTrustedDevices,
     removeTrustedDevice: exports.removeTrustedDevice,
+    initiateEmailChange: exports.initiateEmailChange,
+    verifyEmailChangeOtp: exports.verifyEmailChangeOtp,
+    confirmEmailChange: exports.confirmEmailChange,
+    getEmailChangeStatus: exports.getEmailChangeStatus,
+    cancelEmailChange: exports.cancelEmailChange,
     // Exported for use in other controllers if needed
     generateAccessToken,
     generateRefreshToken,

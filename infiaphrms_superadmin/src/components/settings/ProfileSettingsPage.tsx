@@ -11,7 +11,7 @@ import { useToast } from "@/components/providers/ToastProvider";
 import { showSuccess, showConfirm } from "@/lib/sweetalert";
 import { settingsApi, API_ORIGIN } from "@/lib/api";
 import { SettingsLayout } from "./SettingsLayout";
-import { User, Settings, FolderOpen, ChevronRight, ChevronDown, Mail, MailCheck, ExternalLink } from "lucide-react";
+import { User, Settings, FolderOpen, Mail, MailCheck, ExternalLink } from "lucide-react";
 import Swal from "sweetalert2";
 import { useAuth } from "@/context/AuthContext";
 
@@ -32,8 +32,6 @@ function getErrorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
 }
 
-type ExpandedSection = "email" | null;
-
 export function ProfileSettingsPage() {
   const [profile, setProfile] = useState({ name: "", email: "", phone: "" });
   const [recoveryEmail, setRecoveryEmail] = useState<string | null>(null);
@@ -41,21 +39,7 @@ export function ProfileSettingsPage() {
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
-  const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
-  const [newEmail, setNewEmail] = useState("");
-  const [savingEmail, setSavingEmail] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
-
-  // ── Email change OTP state ──
-  type EmailStep = "enter-email" | "verify-otp";
-  const [emailStep, setEmailStep] = useState<EmailStep>("enter-email");
-  const [emailChangeOtp, setEmailChangeOtp] = useState("");
-  const [emailChangeMaskedCurrent, setEmailChangeMaskedCurrent] = useState("");
-  const [emailChangeExpiry, setEmailChangeExpiry] = useState(0);
-  const [emailChangeResendCooldown, setEmailChangeResendCooldown] = useState(0);
-  const [emailChangeDevOtp, setEmailChangeDevOtp] = useState<string | null>(null);
-  const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
-  const [emailChangeAttemptsLeft, setEmailChangeAttemptsLeft] = useState(5);
   const { addToast } = useToast();
   const { updateUser, logout } = useAuth();
   const router = useRouter();
@@ -95,29 +79,6 @@ export function ProfileSettingsPage() {
       if (avatarPreviewUrl) URL.revokeObjectURL(avatarPreviewUrl);
     };
   }, [avatarPreviewUrl]);
-
-  useEffect(() => {
-    if (emailChangeExpiry <= 0) return;
-    const t = setInterval(() => setEmailChangeExpiry((c) => Math.max(0, c - 1)), 1000);
-    return () => clearInterval(t);
-  }, [emailChangeExpiry]);
-
-  useEffect(() => {
-    if (emailChangeResendCooldown <= 0) return;
-    const t = setInterval(() => setEmailChangeResendCooldown((c) => Math.max(0, c - 1)), 1000);
-    return () => clearInterval(t);
-  }, [emailChangeResendCooldown]);
-
-  function toggleSection(section: ExpandedSection) {
-    const opening = expandedSection !== section;
-    setExpandedSection(opening ? section : null);
-    if (section === "email" && opening) {
-      setNewEmail("");
-      setEmailStep("enter-email");
-      setEmailChangeOtp("");
-      setEmailChangeError(null);
-    }
-  }
 
   function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -162,79 +123,6 @@ export function ProfileSettingsPage() {
       addToast({ title: getErrorMessage(err, "Failed to update profile"), type: "error" });
     } finally {
       setSavingProfile(false);
-    }
-  }
-
-  async function handleRequestEmailChange() {
-    const email = newEmail.trim().toLowerCase();
-    if (!email || !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
-      setEmailChangeError("Please enter a valid email address");
-      return;
-    }
-    setEmailChangeError(null);
-    setSavingEmail(true);
-    try {
-      const res = await settingsApi.requestEmailChange(email);
-      setEmailChangeMaskedCurrent((res as any).maskedCurrentEmail || "");
-      setEmailChangeExpiry((res as any).expiresInSeconds || 300);
-      setEmailChangeResendCooldown(60);
-      setEmailChangeDevOtp((res as any).devOtp || null);
-      setEmailChangeAttemptsLeft(5);
-      setEmailChangeOtp("");
-      setEmailStep("verify-otp");
-    } catch (err: any) {
-      const code = err.data?.code || err.code;
-      if (code === "resend_too_soon") {
-        setEmailChangeResendCooldown(err.data?.waitSeconds || 60);
-        setEmailChangeError(`Please wait ${err.data?.waitSeconds || 60}s before resending`);
-      } else {
-        setEmailChangeError(err.data?.message || err.message || "Failed to send OTP");
-      }
-    } finally {
-      setSavingEmail(false);
-    }
-  }
-
-  async function handleConfirmEmailChange() {
-    const code = emailChangeOtp.trim().toUpperCase();
-    if (!code || code.length !== 6 || !/^[A-Z0-9]{6}$/.test(code)) {
-      setEmailChangeError("Enter a valid 6-character OTP");
-      return;
-    }
-    setEmailChangeError(null);
-    setSavingEmail(true);
-    try {
-      const res = await settingsApi.confirmEmailChange(code);
-      const updatedEmail = (res as any).email || newEmail.trim().toLowerCase();
-      setProfile((p) => ({ ...p, email: updatedEmail }));
-      updateUser({ email: updatedEmail });
-      setNewEmail("");
-      setEmailChangeOtp("");
-      setEmailChangeDevOtp(null);
-      setExpandedSection(null);
-      setEmailStep("enter-email");
-      await Swal.fire({
-        icon: "success",
-        title: "Email updated!",
-        html: `Your primary email has been changed to <strong>${(res as any).maskedEmail || updatedEmail}</strong>.`,
-        confirmButtonText: "Done",
-        confirmButtonColor: "#16a34a",
-        timer: 6000,
-        timerProgressBar: true,
-      });
-    } catch (err: any) {
-      const errCode = err.data?.code || err.code;
-      const msg = err.data?.message || err.message || "Verification failed";
-      if (errCode === "too_many_attempts") {
-        setEmailChangeError("Too many failed attempts. Please start over.");
-        setEmailStep("enter-email");
-        setEmailChangeAttemptsLeft(0);
-      } else {
-        setEmailChangeAttemptsLeft(err.data?.attemptsLeft ?? Math.max(0, emailChangeAttemptsLeft - 1));
-        setEmailChangeError(errCode === "expired_otp" ? "OTP has expired. Click Resend." : msg);
-      }
-    } finally {
-      setSavingEmail(false);
     }
   }
 
@@ -318,92 +206,24 @@ export function ProfileSettingsPage() {
 
             {/* Email row */}
             <div className="border-b last:border-b-0">
-              <button
-                type="button"
-                className="w-full flex items-center justify-between px-6 py-4 hover:bg-accent/50 transition-colors text-left"
-                onClick={() => toggleSection("email")}
-              >
+              <div className="w-full flex items-center justify-between px-6 py-4">
                 <div className="flex items-center gap-3">
                   <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="text-sm font-medium">Email</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">{profile.email || "—"}</span>
-                  {expandedSection === "email" ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    noMotion
+                    className="h-7 gap-1 text-xs"
+                    onClick={() => router.push("/settings/profile/change-email")}
+                  >
+                    Change <ExternalLink className="h-3 w-3" />
+                  </Button>
                 </div>
-              </button>
-              {expandedSection === "email" && (
-                <div className="px-6 pb-5 pt-2 bg-accent/20">
-                  {emailStep === "enter-email" ? (
-                    <div className="space-y-3">
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2">
-                        <Mail className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                        <p className="text-xs text-blue-800">
-                          An OTP will be sent to your current email <span className="font-semibold">{maskEmail(profile.email)}</span> to verify this change.
-                        </p>
-                      </div>
-                      <Input
-                        label="New Email Address"
-                        type="email"
-                        value={newEmail}
-                        onChange={(e) => { setNewEmail(e.target.value); setEmailChangeError(null); }}
-                        onKeyDown={(e: any) => e.key === "Enter" && !savingEmail && handleRequestEmailChange()}
-                        placeholder="newaddress@example.com"
-                        error={emailChangeError || undefined}
-                      />
-                      <div className="flex gap-2 pt-1">
-                        <Button size="sm" onClick={handleRequestEmailChange} disabled={savingEmail || !newEmail.trim()}>
-                          {savingEmail ? "Sending..." : "Send OTP"}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => { setExpandedSection(null); setEmailChangeError(null); }}>Cancel</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2">
-                        <span className="text-xs text-muted-foreground">OTP sent to <span className="font-medium text-foreground">{emailChangeMaskedCurrent}</span></span>
-                        <span className={`text-xs font-mono font-semibold ${emailChangeExpiry > 30 ? "text-green-600" : emailChangeExpiry > 0 ? "text-amber-600" : "text-red-500"}`}>
-                          {emailChangeExpiry > 0 ? `${Math.floor(emailChangeExpiry / 60)}:${String(emailChangeExpiry % 60).padStart(2, "0")}` : "Expired"}
-                        </span>
-                      </div>
-                      {emailChangeDevOtp && (
-                        <div className="rounded border border-yellow-200 bg-yellow-50 p-2 text-center">
-                          <p className="text-[10px] font-semibold text-yellow-700 uppercase tracking-wider mb-0.5">Dev OTP</p>
-                          <p className="text-sm font-mono font-bold text-yellow-800 tracking-widest">{emailChangeDevOtp}</p>
-                        </div>
-                      )}
-                      <Input
-                        label="6-Character OTP"
-                        type="text"
-                        placeholder="A1B2C3"
-                        maxLength={6}
-                        value={emailChangeOtp}
-                        onChange={(e) => { setEmailChangeOtp(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")); setEmailChangeError(null); }}
-                        onKeyDown={(e: any) => e.key === "Enter" && !savingEmail && handleConfirmEmailChange()}
-                        className="tracking-widest text-center font-mono text-lg uppercase"
-                        error={emailChangeError || undefined}
-                        disabled={emailChangeExpiry === 0}
-                      />
-                      {emailChangeAttemptsLeft < 5 && emailChangeAttemptsLeft > 0 && (
-                        <p className="text-xs text-amber-600">{emailChangeAttemptsLeft} attempt(s) remaining</p>
-                      )}
-                      <div className="flex gap-2 pt-1">
-                        <Button size="sm" onClick={handleConfirmEmailChange} disabled={savingEmail || emailChangeOtp.length !== 6 || emailChangeExpiry === 0}>
-                          {savingEmail ? "Verifying..." : "Confirm"}
-                        </Button>
-                        <Button size="sm" variant="outline" disabled={emailChangeResendCooldown > 0 || savingEmail} onClick={handleRequestEmailChange}>
-                          {emailChangeResendCooldown > 0 ? `Resend (${emailChangeResendCooldown}s)` : "Resend"}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => { setEmailStep("enter-email"); setEmailChangeError(null); }}>Back</Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              </div>
             </div>
 
             {/* Recovery Email row — read-only; changes require OTP via Security settings */}

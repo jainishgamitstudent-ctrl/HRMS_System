@@ -128,6 +128,27 @@ export const authApi = {
       body: JSON.stringify({ otp }),
     }),
 
+  initiateEmailChange: (newEmail: string) =>
+    apiFetch("/auth/email-change/initiate", {
+      method: "POST",
+      body: JSON.stringify({ newEmail }),
+    }),
+
+  verifyEmailChangeOtp: (emailChangeId: string, otp: string) =>
+    apiFetch("/auth/email-change/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ emailChangeId, otp }),
+    }),
+
+  getEmailChangeStatus: (emailChangeId: string) =>
+    apiFetch(`/auth/email-change/status?emailChangeId=${encodeURIComponent(emailChangeId)}`),
+
+  cancelEmailChange: (emailChangeId: string) =>
+    apiFetch("/auth/email-change/cancel", {
+      method: "POST",
+      body: JSON.stringify({ emailChangeId }),
+    }),
+
   completeSuperadminLogin: (
     geo?: { latitude: number; longitude: number; address?: string; city?: string; state?: string; country?: string }
   ) =>

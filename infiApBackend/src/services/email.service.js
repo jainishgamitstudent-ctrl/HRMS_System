@@ -639,6 +639,85 @@ const sendAccountLockAlertEmail = async (email, details = {}) => {
     throw new Error(emailSent?.error || "Failed to send account lock alert");
 };
 
+const sendEmailChangeConfirmationEmail = async (newEmail, confirmationLink, name = "") => {
+    try {
+        const html = `
+        <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1c1e21;">
+            <p style="font-size: 16px; line-height: 1.5;">Hi ${name || "there"},</p>
+            <p style="font-size: 16px; line-height: 1.5;">A request was made to change the primary email address on your InfiAP HRMS SuperAdmin account to <strong>${newEmail}</strong>.</p>
+            <p style="font-size: 16px; line-height: 1.5;">Click the button below to confirm this change:</p>
+            <div style="text-align: center; margin: 24px 0;">
+                <a href="${confirmationLink}" style="display: inline-block; padding: 12px 24px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">Confirm Email Change</a>
+            </div>
+            <p style="font-size: 14px; color: #606770; line-height: 1.5; word-break: break-all;">Or copy and paste this link into your browser:<br>${confirmationLink}</p>
+            <p style="font-size: 14px; color: #606770; line-height: 1.5; margin-top: 16px;">This link expires in 24 hours. If you did not request this change, no action is needed and your current email will remain unchanged.</p>
+            <p style="font-size: 16px; line-height: 1.5; margin-top: 24px;">Thanks,<br>InfiAP Security</p>
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dadde1;">
+                <p style="font-size: 12px; color: #8a8d91;">This message was sent to the new email address provided for your account.</p>
+                <p style="font-size: 12px; color: #8a8d91;">To help keep your account secure, please don't forward this email.</p>
+            </div>
+        </div>
+        `;
+        const emailSent = await sendEmail({
+            to: newEmail,
+            subject: "Confirm your email address change — InfiAP HRMS",
+            html,
+        });
+        if (emailSent && emailSent.success) {
+            logger.info("Email change confirmation link sent", { newEmail });
+            return true;
+        }
+        throw new Error(emailSent?.error || "Failed to send confirmation email");
+    } catch (error) {
+        logger.error("Error sending email change confirmation email", { error: error.message });
+        throw error;
+    }
+};
+
+const sendEmailChangedSecurityAlertEmail = async (oldEmail, newEmail, name = "") => {
+    try {
+        const time = new Date().toLocaleString("en-US", { timeZoneName: "short" });
+        const html = `
+        <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1c1e21;">
+            <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+                <p style="margin: 0 0 4px; font-size: 13px; font-weight: 600; color: #b91c1c; text-transform: uppercase; letter-spacing: .05em;">Security Alert</p>
+                <h1 style="margin: 0; font-size: 20px; color: #dc2626;">Email Address Changed</h1>
+            </div>
+            <p style="font-size: 16px; line-height: 1.5;">Hi ${name || "there"},</p>
+            <p style="font-size: 16px; line-height: 1.5;">The primary email address for your InfiAP HRMS SuperAdmin account was changed.</p>
+            <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <table style="width: 100%; font-size: 14px; line-height: 1.6;">
+                    <tr><td style="color: #6b7280; width: 140px;">Old email</td><td style="color: #1f2937; font-weight: 500;">${oldEmail}</td></tr>
+                    <tr><td style="color: #6b7280;">New email</td><td style="color: #1f2937; font-weight: 500;">${newEmail}</td></tr>
+                    <tr><td style="color: #6b7280;">Time</td><td style="color: #1f2937; font-weight: 500;">${time}</td></tr>
+                </table>
+            </div>
+            <div style="background: #fff4e5; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 6px; margin: 24px 0;">
+                <p style="font-size: 14px; font-weight: bold; color: #92400e; margin: 0 0 6px 0;">Didn't do this?</p>
+                <p style="font-size: 14px; color: #92400e; line-height: 1.5; margin: 0;">If you did not authorize this change, contact your system administrator immediately. All active sessions have been revoked for security.</p>
+            </div>
+            <p style="font-size: 16px; line-height: 1.5; margin-top: 24px;">Thanks,<br>InfiAP Security</p>
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dadde1;">
+                <p style="font-size: 12px; color: #8a8d91;">This is an automated security notification from InfiAP HRMS.</p>
+            </div>
+        </div>
+        `;
+        const emailSent = await sendEmail({
+            to: oldEmail,
+            subject: "Security alert: email address changed — InfiAP HRMS",
+            html,
+        });
+        if (emailSent && emailSent.success) {
+            logger.info("Email changed security alert sent", { oldEmail });
+            return true;
+        }
+        throw new Error(emailSent?.error || "Failed to send security alert");
+    } catch (error) {
+        logger.error("Error sending email changed security alert", { error: error.message });
+        throw error;
+    }
+};
+
 module.exports = {
     sendVerificationEmail,
     sendLoginOTPEmail,
@@ -657,5 +736,7 @@ module.exports = {
     sendSuperadminRecoveryOTPEmail,
     sendSuperadminUnlockOTPEmail,
     sendAccountLockAlertEmail,
+    sendEmailChangeConfirmationEmail,
+    sendEmailChangedSecurityAlertEmail,
     isConfiguredForEmail,
 };
